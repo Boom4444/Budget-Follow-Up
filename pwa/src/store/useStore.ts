@@ -3,6 +3,7 @@ import { persist } from 'zustand/middleware'
 import { v4 as uuid } from 'uuid'
 import type { Expense, RecurringExpense, AppSettings, CurrencyCode, CategoryId, HouseholdMember } from '../models/types'
 import { convertToBase } from '../data/currencies'
+import { autoSave } from '../utils/backup'
 
 interface AppState {
   expenses: Expense[]
@@ -19,6 +20,8 @@ interface AppState {
 
   updateSettings: (patch: Partial<AppSettings>) => void
   loadDemoData: () => void
+  importData: (expenses: Expense[], recurring: RecurringExpense[], merge?: boolean) => void
+  clearData: () => void
 }
 
 export const useStore = create<AppState>()(
@@ -37,6 +40,8 @@ export const useStore = create<AppState>()(
         const base = get().settings.baseCurrency
         const amountInBase = convertToBase(e.amount, e.currency, base)
         set(s => ({ expenses: [...s.expenses, { ...e, id: uuid(), amountInBase }] }))
+        const { expenses, recurring, settings } = get()
+        autoSave(expenses, recurring, settings)
       },
 
       updateExpense(id, patch) {
@@ -53,6 +58,8 @@ export const useStore = create<AppState>()(
 
       deleteExpense(id) {
         set(s => ({ expenses: s.expenses.filter(e => e.id !== id) }))
+        const { expenses, recurring, settings } = get()
+        autoSave(expenses, recurring, settings)
       },
 
       addRecurring(r) {
@@ -229,6 +236,21 @@ export const useStore = create<AppState>()(
         ]
 
         set({ expenses, recurring })
+        const s = get()
+        autoSave(s.expenses, s.recurring, s.settings)
+      },
+
+      importData(newExpenses, newRecurring, merge = false) {
+        set(s => ({
+          expenses:  merge ? [...s.expenses,  ...newExpenses]  : newExpenses,
+          recurring: merge ? [...s.recurring, ...newRecurring] : newRecurring,
+        }))
+        const { expenses, recurring, settings } = get()
+        autoSave(expenses, recurring, settings)
+      },
+
+      clearData() {
+        set({ expenses: [], recurring: [] })
       },
     }),
     {
