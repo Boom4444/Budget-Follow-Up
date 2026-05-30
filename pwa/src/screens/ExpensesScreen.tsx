@@ -31,13 +31,13 @@ export default function ExpensesScreen() {
       .sort((a, b) => b.date.localeCompare(a.date))
   }, [expenses, year, month, search])
 
-  const total = filtered.reduce((s, e) => s + e.amountInBase, 0)
+  const totalDebits  = filtered.filter(e => e.type === 'debit').reduce((s, e) => s + e.amountInBase, 0)
+  const totalCredits = filtered.filter(e => e.type === 'credit').reduce((s, e) => s + e.amountInBase, 0)
 
-  // Group by month
   const groups = useMemo(() => {
     const map: Record<string, Expense[]> = {}
     filtered.forEach(e => {
-      const key = e.date.slice(0, 7) // YYYY-MM
+      const key = e.date.slice(0, 7)
       if (!map[key]) map[key] = []
       map[key].push(e)
     })
@@ -99,11 +99,16 @@ export default function ExpensesScreen() {
         </div>
       </div>
 
-      {/* Total bar */}
+      {/* Summary bar */}
       {filtered.length > 0 && (
         <div className="bg-white border-b border-gray-100 px-4 py-2.5 flex items-center justify-between flex-shrink-0">
-          <span className="text-[13px] text-gray-400">{filtered.length} dépense{filtered.length > 1 ? 's' : ''}</span>
-          <span className="text-[15px] font-bold">{formatAmount(total, base)}</span>
+          <span className="text-[13px] text-gray-400">{filtered.length} opération{filtered.length > 1 ? 's' : ''}</span>
+          <div className="flex items-center gap-3">
+            {totalCredits > 0 && (
+              <span className="text-[13px] font-semibold text-green-600">+{formatAmount(totalCredits, base)}</span>
+            )}
+            <span className="text-[15px] font-bold text-red-500">-{formatAmount(totalDebits, base)}</span>
+          </div>
         </div>
       )}
 
@@ -112,7 +117,7 @@ export default function ExpensesScreen() {
         {groups.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-16 text-center px-8">
             <span className="text-4xl mb-3">💸</span>
-            <p className="text-[17px] font-semibold text-gray-700 mb-1">Aucune dépense</p>
+            <p className="text-[17px] font-semibold text-gray-700 mb-1">Aucune opération</p>
             <p className="text-[14px] text-gray-400 mb-4">
               {search ? 'Aucun résultat pour votre recherche' : 'Appuyez sur + pour ajouter'}
             </p>
@@ -126,25 +131,30 @@ export default function ExpensesScreen() {
         ) : (
           <>
             {groups.map(([key, items]) => {
-              const groupTotal = items.reduce((s, e) => s + e.amountInBase, 0)
+              const groupDebits  = items.filter(e => e.type === 'debit').reduce((s, e) => s + e.amountInBase, 0)
+              const groupCredits = items.filter(e => e.type === 'credit').reduce((s, e) => s + e.amountInBase, 0)
               return (
                 <div key={key}>
                   <div className="flex items-center justify-between px-4 pt-5 pb-1.5">
                     <span className="text-[12px] font-semibold text-gray-400 uppercase tracking-wide">
                       {groupLabel(key)}
                     </span>
-                    <span className="text-[12px] font-semibold text-gray-500">
-                      {formatAmount(groupTotal, base)}
-                    </span>
+                    <div className="flex items-center gap-2">
+                      {groupCredits > 0 && (
+                        <span className="text-[12px] font-semibold text-green-500">+{formatAmount(groupCredits, base)}</span>
+                      )}
+                      <span className="text-[12px] font-semibold text-gray-500">-{formatAmount(groupDebits, base)}</span>
+                    </div>
                   </div>
                   <div className="card mx-4 overflow-hidden">
                     {items.map((expense, i) => {
                       const cat = CATEGORY_MAP[expense.category as keyof typeof CATEGORY_MAP]
                       const isSwipe = swipeId === expense.id
+                      const isCredit = expense.type === 'credit'
                       return (
                         <div key={expense.id}
                           className={`relative overflow-hidden ${i < items.length - 1 ? 'border-b border-gray-100' : ''}`}>
-                          {/* Delete button (behind) */}
+                          {/* Delete button */}
                           <div className="absolute inset-y-0 right-0 flex items-center justify-center w-20 bg-red-500">
                             <button onClick={() => { deleteExpense(expense.id); setSwipeId(null) }}
                               className="text-white text-[12px] font-semibold w-full h-full flex items-center justify-center">
@@ -154,17 +164,11 @@ export default function ExpensesScreen() {
                           {/* Swipeable row */}
                           <div
                             className={`relative bg-white flex items-center gap-3 px-4 py-3 transition-transform
-                              ${isSwipe ? '-translate-x-20' : 'translate-x-0'}`}
-                            onClick={() => setSwipeId(isSwipe ? null : null)}>
-                            {/* Swipe trigger */}
-                            <div className="absolute inset-0"
-                              onTouchStart={() => {}}
-                              style={{ userSelect: 'none' }}
-                            />
+                              ${isSwipe ? '-translate-x-20' : 'translate-x-0'}`}>
                             {/* Category icon */}
                             <div className="w-10 h-10 rounded-xl flex items-center justify-center text-xl flex-shrink-0"
-                              style={{ backgroundColor: cat?.bgColor ?? '#f3f4f6' }}>
-                              {cat?.emoji ?? '📦'}
+                              style={{ backgroundColor: isCredit ? '#dcfce7' : (cat?.bgColor ?? '#f3f4f6') }}>
+                              {isCredit ? '💚' : (cat?.emoji ?? '📦')}
                             </div>
 
                             <div className="flex-1 min-w-0">
@@ -173,9 +177,15 @@ export default function ExpensesScreen() {
                                 {expense.isFixed && <span className="text-[10px]">🔒</span>}
                               </div>
                               <div className="flex items-center gap-1.5 mt-0.5">
-                                <span className="text-[11px] font-medium" style={{ color: cat?.color ?? '#666' }}>
+                                <span className="text-[11px] font-medium" style={{ color: isCredit ? '#16a34a' : (cat?.color ?? '#666') }}>
                                   {cat?.label ?? expense.category}
                                 </span>
+                                {expense.subCategory && (
+                                  <>
+                                    <span className="text-[11px] text-gray-300">›</span>
+                                    <span className="text-[11px] text-gray-400 truncate">{expense.subCategory}</span>
+                                  </>
+                                )}
                                 <span className="text-[11px] text-gray-300">·</span>
                                 <span className="text-[11px] text-gray-400">{personLabel(expense.person)}</span>
                                 {expense.bank && <>
@@ -186,8 +196,8 @@ export default function ExpensesScreen() {
                             </div>
 
                             <div className="text-right flex-shrink-0">
-                              <p className="text-[15px] font-semibold">
-                                {expense.amount.toFixed(2).replace('.', ',')} {CURRENCY_MAP[expense.currency].symbol}
+                              <p className={`text-[15px] font-semibold ${isCredit ? 'text-green-600' : ''}`}>
+                                {isCredit ? '+' : '-'}{expense.amount.toFixed(2).replace('.', ',')} {CURRENCY_MAP[expense.currency]?.symbol ?? expense.currency}
                               </p>
                               {expense.currency !== base && (
                                 <p className="text-[11px] text-gray-400">

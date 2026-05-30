@@ -1,10 +1,10 @@
 import { useState, useMemo } from 'react'
-import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell, PieChart, Pie, Legend } from 'recharts'
+import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell, PieChart, Pie } from 'recharts'
 import { useStore } from '../store/useStore'
 import { CATEGORY_MAP } from '../data/categories'
 import { CURRENCY_MAP } from '../data/currencies'
 import { formatAmount, formatPercent } from '../utils/formatters'
-import { currentYear, currentMonth, shortMonth, longMonth } from '../utils/dates'
+import { currentYear, shortMonth, longMonth } from '../utils/dates'
 import AddExpenseModal from '../components/AddExpenseModal'
 
 export default function DashboardScreen() {
@@ -20,7 +20,6 @@ export default function DashboardScreen() {
 
   const NOW = currentYear()
 
-  // Filter expenses
   const filtered = useMemo(() => expenses.filter(e => {
     const ey = parseInt(e.date.slice(0, 4))
     const em = parseInt(e.date.slice(5, 7))
@@ -30,35 +29,50 @@ export default function DashboardScreen() {
     return true
   }), [expenses, year, month, filterPerson])
 
-  const total         = filtered.reduce((s, e) => s + e.amountInBase, 0)
-  const totalFixed    = filtered.filter(e => e.isFixed).reduce((s, e) => s + e.amountInBase, 0)
-  const totalVariable = total - totalFixed
-  const totalP1       = filtered.filter(e => e.person === 'person1').reduce((s, e) => s + e.amountInBase, 0)
-  const totalP2       = filtered.filter(e => e.person === 'person2').reduce((s, e) => s + e.amountInBase, 0)
-  const totalShared   = filtered.filter(e => e.person === 'shared').reduce((s, e) => s + e.amountInBase, 0)
+  const debits  = filtered.filter(e => e.type === 'debit')
+  const credits = filtered.filter(e => e.type === 'credit')
 
-  // Monthly chart data
+  const totalDepenses = debits.reduce((s, e) => s + e.amountInBase, 0)
+  const totalRevenus  = credits.reduce((s, e) => s + e.amountInBase, 0)
+  const solde         = totalRevenus - totalDepenses
+  const totalFixed    = debits.filter(e => e.isFixed).reduce((s, e) => s + e.amountInBase, 0)
+  const totalVariable = totalDepenses - totalFixed
+  const totalP1       = debits.filter(e => e.person === 'person1').reduce((s, e) => s + e.amountInBase, 0)
+  const totalP2       = debits.filter(e => e.person === 'person2').reduce((s, e) => s + e.amountInBase, 0)
+  const totalShared   = debits.filter(e => e.person === 'shared').reduce((s, e) => s + e.amountInBase, 0)
+
   const monthlyData = useMemo(() => Array.from({ length: 12 }, (_, i) => {
     const m = i + 1
-    const mes = expenses.filter(e => parseInt(e.date.slice(0, 4)) === year && parseInt(e.date.slice(5, 7)) === m)
+    const mes = expenses.filter(e =>
+      parseInt(e.date.slice(0, 4)) === year &&
+      parseInt(e.date.slice(5, 7)) === m &&
+      (filterPerson === 'all' || e.person === filterPerson)
+    )
+    const debitMes  = mes.filter(e => e.type === 'debit')
+    const creditMes = mes.filter(e => e.type === 'credit')
     return {
       name: shortMonth(m),
-      fixed: parseFloat(mes.filter(e => e.isFixed).reduce((s, e) => s + e.amountInBase, 0).toFixed(0)),
-      variable: parseFloat(mes.filter(e => !e.isFixed).reduce((s, e) => s + e.amountInBase, 0).toFixed(0)),
+      fixed:    Math.round(debitMes.filter(e => e.isFixed).reduce((s, e) => s + e.amountInBase, 0)),
+      variable: Math.round(debitMes.filter(e => !e.isFixed).reduce((s, e) => s + e.amountInBase, 0)),
+      revenus:  Math.round(creditMes.reduce((s, e) => s + e.amountInBase, 0)),
     }
-  }), [expenses, year])
+  }), [expenses, year, filterPerson])
 
-  // Category breakdown
   const catData = useMemo(() => {
     const map: Record<string, number> = {}
-    filtered.forEach(e => { map[e.category] = (map[e.category] ?? 0) + e.amountInBase })
+    debits.forEach(e => { map[e.category] = (map[e.category] ?? 0) + e.amountInBase })
     return Object.entries(map)
-      .map(([id, val]) => ({ id, label: CATEGORY_MAP[id as keyof typeof CATEGORY_MAP]?.label ?? id, value: val, color: CATEGORY_MAP[id as keyof typeof CATEGORY_MAP]?.color ?? '#666' }))
+      .map(([id, val]) => ({
+        id,
+        label: CATEGORY_MAP[id as keyof typeof CATEGORY_MAP]?.label ?? id,
+        value: val,
+        color: CATEGORY_MAP[id as keyof typeof CATEGORY_MAP]?.color ?? '#666',
+      }))
       .sort((a, b) => b.value - a.value)
       .slice(0, 8)
-  }, [filtered])
+  }, [debits])
 
-  const fmt = (v: number) => v === 0 ? '' : `${(v / 1000).toFixed(0)}k`
+  const fmt = (v: number) => v === 0 ? '' : v >= 1000 ? `${(v / 1000).toFixed(0)}k` : String(v)
 
   return (
     <div className="flex flex-col h-full"
@@ -96,7 +110,7 @@ export default function DashboardScreen() {
       <div className="flex-1 overflow-y-auto scroll-ios pb-6">
 
         {/* Person filter */}
-        <div className="flex gap-2 px-4 mt-4">
+        <div className="flex gap-2 px-4 mt-4 flex-wrap">
           {[
             { v: 'all', label: '👥 Foyer' },
             { v: 'person1', label: settings.person1Name },
@@ -111,22 +125,22 @@ export default function DashboardScreen() {
           ))}
         </div>
 
-        {/* Total card */}
+        {/* Solde card */}
         <div className="mx-4 mt-3 card p-4">
           <p className="text-sm text-gray-400 mb-1">
-            {month !== null ? `${longMonth(month)} ${year}` : `Total ${year}`}
+            {month !== null ? `${longMonth(month)} ${year}` : `Solde ${year}`}
           </p>
-          <p className="text-[34px] font-bold tracking-tight">
-            {total.toFixed(0).replace(/\B(?=(\d{3})+(?!\d))/g, ' ')} {sym}
+          <p className={`text-[34px] font-bold tracking-tight ${solde >= 0 ? 'text-green-600' : 'text-red-500'}`}>
+            {solde >= 0 ? '+' : ''}{solde.toFixed(0).replace(/\B(?=(\d{3})+(?!\d))/g, ' ')} {sym}
           </p>
           <div className="flex gap-4 mt-2">
             <div className="flex items-center gap-1.5">
               <span className="w-2.5 h-2.5 rounded-sm bg-red-400 inline-block"></span>
-              <span className="text-[12px] text-gray-500">{formatPercent(totalFixed, total)} fixe</span>
+              <span className="text-[12px] text-gray-500">{formatAmount(totalDepenses, base)} dépenses</span>
             </div>
             <div className="flex items-center gap-1.5">
-              <span className="w-2.5 h-2.5 rounded-sm bg-blue-400 inline-block"></span>
-              <span className="text-[12px] text-gray-500">{formatPercent(totalVariable, total)} variable</span>
+              <span className="w-2.5 h-2.5 rounded-sm bg-green-400 inline-block"></span>
+              <span className="text-[12px] text-gray-500">{formatAmount(totalRevenus, base)} revenus</span>
             </div>
           </div>
         </div>
@@ -134,13 +148,27 @@ export default function DashboardScreen() {
         {/* Summary cards */}
         <div className="px-4 mt-3 grid grid-cols-2 gap-3">
           <div className="card p-3">
+            <p className="text-[11px] text-gray-400 mb-1">💸 Dépenses</p>
+            <p className="text-[18px] font-bold text-red-500">{formatAmount(totalDepenses, base)}</p>
+          </div>
+          <div className="card p-3">
+            <p className="text-[11px] text-gray-400 mb-1">💰 Revenus</p>
+            <p className="text-[18px] font-bold text-green-600">{formatAmount(totalRevenus, base)}</p>
+          </div>
+          <div className="card p-3">
             <p className="text-[11px] text-gray-400 mb-1">🔒 Incompressible</p>
-            <p className="text-[18px] font-bold text-red-500">{formatAmount(totalFixed, base)}</p>
+            <p className="text-[18px] font-bold text-orange-500">{formatAmount(totalFixed, base)}</p>
+            {totalDepenses > 0 && <p className="text-[11px] text-gray-400">{formatPercent(totalFixed, totalDepenses)} des dépenses</p>}
           </div>
           <div className="card p-3">
             <p className="text-[11px] text-gray-400 mb-1">📈 Variable</p>
             <p className="text-[18px] font-bold text-blue-500">{formatAmount(totalVariable, base)}</p>
+            {totalDepenses > 0 && <p className="text-[11px] text-gray-400">{formatPercent(totalVariable, totalDepenses)} des dépenses</p>}
           </div>
+        </div>
+
+        {/* Per-person cards */}
+        <div className="px-4 mt-3 grid grid-cols-2 gap-3">
           <div className="card p-3">
             <p className="text-[11px] text-gray-400 mb-1">👤 {settings.person1Name}</p>
             <p className="text-[18px] font-bold">{formatAmount(totalP1, base)}</p>
@@ -153,37 +181,42 @@ export default function DashboardScreen() {
         {totalShared > 0 && (
           <div className="card mx-4 mt-3 p-3">
             <p className="text-[11px] text-gray-400 mb-1">👥 Commun</p>
-            <p className="text-[18px] font-bold text-green-600">{formatAmount(totalShared, base)}</p>
+            <p className="text-[18px] font-bold">{formatAmount(totalShared, base)}</p>
           </div>
         )}
 
         {/* Monthly bar chart */}
-        {monthlyData.some(d => d.fixed + d.variable > 0) && (
+        {monthlyData.some(d => d.fixed + d.variable + d.revenus > 0) && (
           <div className="card mx-4 mt-4 p-4">
             <p className="text-[15px] font-semibold mb-3">Évolution mensuelle</p>
-            <ResponsiveContainer width="100%" height={160}>
-              <BarChart data={monthlyData} margin={{ top: 0, right: 0, bottom: 0, left: -20 }} barSize={6} barGap={2}>
+            <ResponsiveContainer width="100%" height={170}>
+              <BarChart data={monthlyData} margin={{ top: 0, right: 0, bottom: 0, left: -20 }} barSize={5} barGap={1} barCategoryGap={4}>
                 <XAxis dataKey="name" tick={{ fontSize: 10, fill: '#9ca3af' }} axisLine={false} tickLine={false} />
                 <YAxis tick={{ fontSize: 10, fill: '#9ca3af' }} axisLine={false} tickLine={false} tickFormatter={fmt} />
                 <Tooltip
                   contentStyle={{ borderRadius: 8, border: 'none', boxShadow: '0 4px 12px rgba(0,0,0,0.1)', fontSize: 12 }}
-                  formatter={(v: number) => [`${v} ${sym}`, '']}
+                  formatter={(v: number, name: string) => [
+                    `${v} ${sym}`,
+                    name === 'fixed' ? 'Incompressible' : name === 'variable' ? 'Variable' : 'Revenus',
+                  ]}
                 />
-                <Bar dataKey="fixed"    stackId="a" fill="#f87171" radius={[0, 0, 2, 2]} />
-                <Bar dataKey="variable" stackId="a" fill="#60a5fa" radius={[2, 2, 0, 0]} />
+                <Bar dataKey="fixed"    stackId="debits" fill="#f87171" radius={[0, 0, 2, 2]} />
+                <Bar dataKey="variable" stackId="debits" fill="#60a5fa" radius={[2, 2, 0, 0]} />
+                <Bar dataKey="revenus"  stackId="rev"    fill="#4ade80" radius={[2, 2, 2, 2]} />
               </BarChart>
             </ResponsiveContainer>
-            <div className="flex justify-center gap-4 mt-2">
+            <div className="flex justify-center gap-4 mt-2 flex-wrap">
               <span className="flex items-center gap-1 text-[11px] text-gray-500"><span className="w-3 h-2 rounded-sm bg-red-400 inline-block" /> Incompressible</span>
               <span className="flex items-center gap-1 text-[11px] text-gray-500"><span className="w-3 h-2 rounded-sm bg-blue-400 inline-block" /> Variable</span>
+              <span className="flex items-center gap-1 text-[11px] text-gray-500"><span className="w-3 h-2 rounded-sm bg-green-400 inline-block" /> Revenus</span>
             </div>
           </div>
         )}
 
-        {/* Category breakdown */}
+        {/* Category breakdown (debits only) */}
         {catData.length > 0 && (
           <div className="card mx-4 mt-4 p-4">
-            <p className="text-[15px] font-semibold mb-3">Par catégorie</p>
+            <p className="text-[15px] font-semibold mb-3">Dépenses par catégorie</p>
             <ResponsiveContainer width="100%" height={180}>
               <PieChart>
                 <Pie data={catData} dataKey="value" nameKey="label" cx="50%" cy="50%"
@@ -207,7 +240,7 @@ export default function DashboardScreen() {
                   onClick={() => setSelectedCat(selectedCat === c.id ? null : c.id)}>
                   <span className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ background: c.color }} />
                   <span className="text-[13px] text-gray-700 flex-1 truncate">{c.label}</span>
-                  <span className="text-[12px] text-gray-400">{formatPercent(c.value, total)}</span>
+                  <span className="text-[12px] text-gray-400">{formatPercent(c.value, totalDepenses)}</span>
                   <span className="text-[13px] font-semibold">{c.value.toFixed(0)} {sym}</span>
                 </button>
               ))}

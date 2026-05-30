@@ -5,20 +5,28 @@ export type HouseholdMember = 'person1' | 'person2' | 'shared'
 export type RecurrenceFrequency = 'weekly' | 'biweekly' | 'monthly' | 'quarterly' | 'yearly'
 
 export type CategoryId =
-  | 'rent' | 'homeInsurance' | 'healthInsurance' | 'electricity' | 'water'
-  | 'internet' | 'mobile' | 'carInsurance' | 'loanRepayment' | 'taxes'
-  | 'groceries' | 'transport' | 'health' | 'clothing' | 'leisure'
-  | 'restaurants' | 'travel' | 'culture' | 'sport' | 'gifts'
-  | 'children' | 'savings' | 'homeImprovement' | 'subscriptions' | 'other'
+  | 'banque'
+  | 'impots'
+  | 'cadeaux'
+  | 'abonnements'
+  | 'logement'
+  | 'transport'
+  | 'loisirs'
+  | 'besoinsPersonnels'
+  | 'nourriture'
+  | 'entreprise'
+  | 'assurance'
 
 export interface Expense {
   id: string
-  title: string
+  title: string          // boutique / description
   amount: number
   currency: CurrencyCode
   amountInBase: number
-  date: string // 'YYYY-MM-DD'
+  date: string           // 'YYYY-MM-DD'
   category: CategoryId
+  subCategory: string
+  type: 'debit' | 'credit'
   isFixed: boolean
   bank: string
   person: HouseholdMember
@@ -31,6 +39,7 @@ export interface RecurringExpense {
   amount: number
   currency: CurrencyCode
   category: CategoryId
+  subCategory: string
   isFixed: boolean
   bank: string
   person: HouseholdMember

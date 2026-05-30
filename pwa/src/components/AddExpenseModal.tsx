@@ -12,15 +12,17 @@ interface Props {
 export default function AddExpenseModal({ onClose }: Props) {
   const { expenses, recurring, settings, addExpense } = useStore()
 
-  const [title, setTitle]       = useState('')
-  const [amount, setAmount]     = useState('')
-  const [currency, setCurrency] = useState<CurrencyCode>(settings.baseCurrency)
-  const [date, setDate]         = useState(today())
-  const [category, setCategory] = useState<CategoryId>('other')
-  const [isFixed, setIsFixed]   = useState(false)
-  const [bank, setBank]         = useState('')
-  const [person, setPerson]     = useState<HouseholdMember>('person1')
-  const [notes, setNotes]       = useState('')
+  const [title, setTitle]             = useState('')
+  const [amount, setAmount]           = useState('')
+  const [currency, setCurrency]       = useState<CurrencyCode>(settings.baseCurrency)
+  const [date, setDate]               = useState(today())
+  const [category, setCategory]       = useState<CategoryId>('nourriture')
+  const [subCategory, setSubCategory] = useState('')
+  const [type, setType]               = useState<'debit' | 'credit'>('debit')
+  const [isFixed, setIsFixed]         = useState(false)
+  const [bank, setBank]               = useState('')
+  const [person, setPerson]           = useState<HouseholdMember>('person1')
+  const [notes, setNotes]             = useState('')
   const [showCatPicker, setShowCatPicker] = useState(false)
 
   // Suggestions
@@ -34,7 +36,10 @@ export default function AddExpenseModal({ onClose }: Props) {
 
   useEffect(() => {
     const cat = CATEGORIES.find(c => c.id === category)
-    if (cat) setIsFixed(cat.isFixed)
+    if (cat) {
+      setIsFixed(cat.isFixed)
+      setSubCategory(cat.subCategories[0] ?? '')
+    }
   }, [category])
 
   function applyRecurring(r: typeof recurring[number]) {
@@ -42,6 +47,7 @@ export default function AddExpenseModal({ onClose }: Props) {
     setAmount(String(r.amount))
     setCurrency(r.currency)
     setCategory(r.category)
+    setSubCategory(r.subCategory)
     setIsFixed(r.isFixed)
     setBank(r.bank)
     setPerson(r.person)
@@ -51,11 +57,12 @@ export default function AddExpenseModal({ onClose }: Props) {
     e.preventDefault()
     const num = parseFloat(amount.replace(',', '.'))
     if (!title.trim() || isNaN(num)) return
-    addExpense({ title: title.trim(), amount: num, currency, date, category, isFixed, bank, person, notes })
+    addExpense({ title: title.trim(), amount: num, currency, date, category, subCategory, type, isFixed, bank, person, notes })
     onClose()
   }
 
   const cat = CATEGORY_MAP[category]
+  const subCategories = cat?.subCategories ?? []
 
   return (
     <div className="fixed inset-0 z-50 flex flex-col bg-gray-50"
@@ -106,8 +113,8 @@ export default function AddExpenseModal({ onClose }: Props) {
             </div>
           )}
 
-          {/* Description */}
-          <p className="section-header">Description</p>
+          {/* Description* */}
+          <p className="section-header">Description <span className="text-red-500">*</span></p>
           <div className="card mx-4">
             <input type="text" placeholder="Ex : Loyer, Courses Lidl…"
               value={title} onChange={e => setTitle(e.target.value)}
@@ -116,8 +123,8 @@ export default function AddExpenseModal({ onClose }: Props) {
             />
           </div>
 
-          {/* Montant */}
-          <p className="section-header">Montant</p>
+          {/* Montant* */}
+          <p className="section-header">Montant <span className="text-red-500">*</span></p>
           <div className="card mx-4 flex items-center px-4 gap-3">
             <input type="text" inputMode="decimal" placeholder="0,00"
               value={amount} onChange={e => setAmount(e.target.value)}
@@ -132,8 +139,25 @@ export default function AddExpenseModal({ onClose }: Props) {
             </select>
           </div>
 
-          {/* Catégorie */}
-          <p className="section-header">Catégorie</p>
+          {/* Type de transaction */}
+          <p className="section-header">Type</p>
+          <div className="card mx-4 p-1.5">
+            <div className="flex rounded-xl overflow-hidden">
+              <button type="button" onClick={() => setType('debit')}
+                className={`flex-1 py-2 text-[14px] font-semibold rounded-lg transition-colors
+                  ${type === 'debit' ? 'bg-red-500 text-white' : 'text-gray-500'}`}>
+                Débit
+              </button>
+              <button type="button" onClick={() => setType('credit')}
+                className={`flex-1 py-2 text-[14px] font-semibold rounded-lg transition-colors
+                  ${type === 'credit' ? 'bg-green-500 text-white' : 'text-gray-500'}`}>
+                Crédit
+              </button>
+            </div>
+          </div>
+
+          {/* Catégorie* */}
+          <p className="section-header">Catégorie <span className="text-red-500">*</span></p>
           <div className="card mx-4">
             <button type="button" onClick={() => setShowCatPicker(true)}
               className="w-full flex items-center gap-3 px-4 py-3">
@@ -146,12 +170,25 @@ export default function AddExpenseModal({ onClose }: Props) {
             </button>
           </div>
 
-          {/* Type de charge */}
-          <p className="section-header">Type de charge</p>
+          {/* Sous-catégorie */}
+          {subCategories.length > 0 && (
+            <>
+              <p className="section-header">Sous-catégorie</p>
+              <div className="card mx-4 px-4 py-1">
+                <select value={subCategory} onChange={e => setSubCategory(e.target.value)}
+                  className="w-full py-2.5 text-[15px] outline-none bg-transparent">
+                  {subCategories.map(s => <option key={s} value={s}>{s}</option>)}
+                </select>
+              </div>
+            </>
+          )}
+
+          {/* Charge incompressible */}
+          <p className="section-header">Charge incompressible</p>
           <div className="card mx-4 px-4 py-3 flex items-center justify-between">
             <div>
-              <p className="text-[15px] font-medium">Charge incompressible</p>
-              <p className="text-xs text-gray-400">Loyer, assurance, électricité…</p>
+              <p className="text-[15px] font-medium">Charge fixe</p>
+              <p className="text-xs text-gray-400">Loyer, assurance, impôts…</p>
             </div>
             <label className="relative inline-flex items-center cursor-pointer">
               <input type="checkbox" checked={isFixed} onChange={e => setIsFixed(e.target.checked)}

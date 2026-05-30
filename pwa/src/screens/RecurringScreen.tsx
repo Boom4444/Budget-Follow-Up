@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useStore } from '../store/useStore'
 import { CATEGORIES, CATEGORY_MAP, FIXED_CATEGORIES, VARIABLE_CATEGORIES } from '../data/categories'
 import { CURRENCIES } from '../data/currencies'
@@ -41,7 +41,7 @@ export default function RecurringScreen() {
           <div className="card mx-4 mt-4 p-4">
             <p className="text-[12px] text-gray-400">Charge mensuelle estimée</p>
             <p className="text-[28px] font-bold mt-1">
-              {monthlyTotal.toFixed(0).replace(/\B(?=(\d{3})+(?!\d))/g, ' ')} €
+              {monthlyTotal.toFixed(0).replace(/\B(?=(\d{3})+(?!\d))/g, ' ')}
             </p>
             <p className="text-[12px] text-gray-400 mt-1">{recurring.length} modèle{recurring.length > 1 ? 's' : ''}</p>
           </div>
@@ -112,6 +112,7 @@ function RecurringRow({ r, settings, i, total, onEdit, onDelete }: {
           {r.isFixed && <span className="text-[10px]">🔒</span>}
         </div>
         <p className="text-[11px] text-gray-400 mt-0.5">
+          {r.subCategory && <span className="mr-1">{r.subCategory} ·</span>}
           {FREQ_LABELS[r.frequency]} · {personName}
         </p>
       </button>
@@ -132,21 +133,31 @@ function RecurringFormModal({ editItem, settings, onClose, onSave }: {
 }) {
   const [title, setTitle]           = useState(editItem?.title ?? '')
   const [amount, setAmount]         = useState(editItem ? String(editItem.amount) : '')
-  const [currency, setCurrency]     = useState<CurrencyCode>(editItem?.currency ?? 'EUR')
-  const [category, setCategory]     = useState<CategoryId>(editItem?.category ?? 'other')
+  const [currency, setCurrency]     = useState<CurrencyCode>(editItem?.currency ?? settings.baseCurrency)
+  const [category, setCategory]     = useState<CategoryId>(editItem?.category ?? 'nourriture')
+  const [subCategory, setSubCategory] = useState(editItem?.subCategory ?? '')
   const [isFixed, setIsFixed]       = useState(editItem?.isFixed ?? false)
   const [bank, setBank]             = useState(editItem?.bank ?? '')
   const [person, setPerson]         = useState<HouseholdMember>(editItem?.person ?? 'person1')
   const [frequency, setFrequency]   = useState<RecurrenceFrequency>(editItem?.frequency ?? 'monthly')
   const [showCatPicker, setShowCatPicker] = useState(false)
 
+  useEffect(() => {
+    const cat = CATEGORIES.find(c => c.id === category)
+    if (cat) {
+      setIsFixed(cat.isFixed)
+      if (!editItem) setSubCategory(cat.subCategories[0] ?? '')
+    }
+  }, [category])
+
   const cat = CATEGORY_MAP[category]
+  const subCategories = cat?.subCategories ?? []
   const isValid = title.trim() && !isNaN(parseFloat(amount.replace(',', '.')))
 
   function handleSave() {
     const num = parseFloat(amount.replace(',', '.'))
     if (!isValid) return
-    onSave({ title: title.trim(), amount: num, currency, category, isFixed, bank, person, frequency })
+    onSave({ title: title.trim(), amount: num, currency, category, subCategory, isFixed, bank, person, frequency })
   }
 
   return (
@@ -164,7 +175,7 @@ function RecurringFormModal({ editItem, settings, onClose, onSave }: {
       <div className="flex-1 overflow-y-auto scroll-ios">
         <p className="section-header">Description</p>
         <div className="card mx-4">
-          <input type="text" placeholder="Ex : Loyer, EDF, Spotify…"
+          <input type="text" placeholder="Ex : Loyer, Sanitas, Spotify…"
             value={title} onChange={e => setTitle(e.target.value)}
             className="w-full px-4 py-3 text-[17px] outline-none rounded-2xl" />
         </div>
@@ -194,11 +205,23 @@ function RecurringFormModal({ editItem, settings, onClose, onSave }: {
           </button>
         </div>
 
-        <p className="section-header">Type</p>
+        {subCategories.length > 0 && (
+          <>
+            <p className="section-header">Sous-catégorie</p>
+            <div className="card mx-4 px-4 py-1">
+              <select value={subCategory} onChange={e => setSubCategory(e.target.value)}
+                className="w-full py-2.5 text-[15px] outline-none bg-transparent">
+                {subCategories.map(s => <option key={s} value={s}>{s}</option>)}
+              </select>
+            </div>
+          </>
+        )}
+
+        <p className="section-header">Charge incompressible</p>
         <div className="card mx-4 px-4 py-3 flex items-center justify-between">
           <div>
-            <p className="text-[15px] font-medium">Charge incompressible</p>
-            <p className="text-xs text-gray-400">Loyer, assurance, électricité…</p>
+            <p className="text-[15px] font-medium">Charge fixe</p>
+            <p className="text-xs text-gray-400">Loyer, assurance, impôts…</p>
           </div>
           <label className="relative inline-flex items-center cursor-pointer">
             <input type="checkbox" checked={isFixed} onChange={e => setIsFixed(e.target.checked)} className="sr-only peer" />
@@ -272,7 +295,12 @@ function RecurringFormModal({ editItem, settings, onClose, onSave }: {
                 <button key={c.id} type="button" onClick={() => { setCategory(c.id); setShowCatPicker(false) }}
                   className={`w-full flex items-center gap-3 px-4 py-3 ${i < VARIABLE_CATEGORIES.length - 1 ? 'border-b border-gray-100' : ''}`}>
                   <span className="text-2xl">{c.emoji}</span>
-                  <p className="flex-1 text-[15px] text-left">{c.label}</p>
+                  <div className="flex-1 text-left">
+                    <p className="text-[15px]">{c.label}</p>
+                    {c.subCategories.length > 0 && (
+                      <p className="text-xs text-gray-400">{c.subCategories.slice(0,3).join(', ')}{c.subCategories.length > 3 ? '…' : ''}</p>
+                    )}
+                  </div>
                   {category === c.id && <span className="text-blue-600 font-bold">✓</span>}
                 </button>
               ))}
