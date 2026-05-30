@@ -34,6 +34,8 @@ export const useStore = create<AppState>()(
         person2Name: 'Partenaire',
         baseCurrency: 'CHF',
         banks: ['LCL', 'UBS', 'CIC', 'Revolut', 'CS', 'Cash'],
+        theme: 'system',
+        googleDriveClientId: '',
       },
 
       addExpense(e) {

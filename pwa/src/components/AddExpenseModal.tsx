@@ -65,13 +65,13 @@ export default function AddExpenseModal({ onClose }: Props) {
   const subCategories = cat?.subCategories ?? []
 
   return (
-    <div className="fixed inset-0 z-50 flex flex-col bg-gray-50"
+    <div className="fixed inset-0 z-50 flex flex-col bg-gray-50 dark:bg-gray-900"
          style={{ paddingTop: 'env(safe-area-inset-top, 0px)', paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}>
 
       {/* Header */}
-      <div className="bg-white border-b border-gray-200 px-4 py-3 flex items-center justify-between flex-shrink-0">
+      <div className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-4 py-3 flex items-center justify-between flex-shrink-0">
         <button onClick={onClose} className="text-blue-600 font-medium text-[15px]">Annuler</button>
-        <span className="font-semibold text-[17px]">Nouvelle dépense</span>
+        <span className="font-semibold text-[17px] dark:text-white">Nouvelle dépense</span>
         <button form="expense-form" type="submit"
           className="text-blue-600 font-semibold text-[15px] disabled:text-gray-300"
           disabled={!title.trim() || !amount}>
@@ -85,16 +85,16 @@ export default function AddExpenseModal({ onClose }: Props) {
           {/* Suggestions */}
           {(suggestions.length > 0 || recentTitles.length > 0) && (
             <div className="mt-4 px-4">
-              <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2">Suggestions</p>
+              <p className="text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wide mb-2">Suggestions</p>
               <div className="card overflow-hidden">
                 {suggestions.map((r, i) => (
                   <button key={r.id} type="button" onClick={() => applyRecurring(r)}
-                    className={`w-full flex items-center gap-3 px-4 py-3 text-left active:bg-gray-50
-                      ${i < suggestions.length - 1 ? 'border-b border-gray-100' : ''}`}>
+                    className={`w-full flex items-center gap-3 px-4 py-3 text-left active:bg-gray-50 dark:active:bg-gray-700
+                      ${i < suggestions.length - 1 ? 'border-b border-gray-100 dark:border-gray-700' : ''}`}>
                     <span className="text-2xl">{CATEGORY_MAP[r.category].emoji}</span>
                     <div className="flex-1 min-w-0">
-                      <p className="font-medium text-[15px] truncate">{r.title}</p>
-                      <p className="text-xs text-gray-400">{r.frequency === 'monthly' ? 'Mensuel' : r.frequency} · {r.isFixed ? '🔒 Incompressible' : 'Variable'}</p>
+                      <p className="font-medium text-[15px] truncate dark:text-white">{r.title}</p>
+                      <p className="text-xs text-gray-400 dark:text-gray-500">{r.frequency === 'monthly' ? 'Mensuel' : r.frequency} · {r.isFixed ? '🔒 Incompressible' : 'Variable'}</p>
                     </div>
                     <span className="text-blue-600 font-semibold text-[15px] shrink-0">
                       {r.amount.toFixed(2).replace('.', ',')} {CURRENCIES.find(c => c.code === r.currency)?.symbol}
@@ -103,10 +103,10 @@ export default function AddExpenseModal({ onClose }: Props) {
                 ))}
                 {recentTitles.map((t, i) => (
                   <button key={t} type="button" onClick={() => setTitle(t)}
-                    className={`w-full flex items-center gap-3 px-4 py-3 text-left active:bg-gray-50
-                      ${suggestions.length + i < suggestions.length + recentTitles.length - 1 ? 'border-b border-gray-100' : ''}`}>
+                    className={`w-full flex items-center gap-3 px-4 py-3 text-left active:bg-gray-50 dark:active:bg-gray-700
+                      ${suggestions.length + i < suggestions.length + recentTitles.length - 1 ? 'border-b border-gray-100 dark:border-gray-700' : ''}`}>
                     <span className="text-xl text-gray-400">🕐</span>
-                    <p className="font-medium text-[15px]">{t}</p>
+                    <p className="font-medium text-[15px] dark:text-white">{t}</p>
                   </button>
                 ))}
               </div>
@@ -118,7 +118,7 @@ export default function AddExpenseModal({ onClose }: Props) {
           <div className="card mx-4">
             <input type="text" placeholder="Ex : Loyer, Courses Lidl…"
               value={title} onChange={e => setTitle(e.target.value)}
-              className="w-full px-4 py-3 text-[17px] outline-none rounded-2xl"
+              className="w-full px-4 py-3 text-[17px] outline-none rounded-2xl bg-transparent dark:text-white dark:placeholder-gray-500"
               autoFocus
             />
           </div>
@@ -128,9 +128,9 @@ export default function AddExpenseModal({ onClose }: Props) {
           <div className="card mx-4 flex items-center px-4 gap-3">
             <input type="text" inputMode="decimal" placeholder="0,00"
               value={amount} onChange={e => setAmount(e.target.value)}
-              className="flex-1 py-3 text-[22px] font-semibold outline-none min-w-0"
+              className="flex-1 py-3 text-[22px] font-semibold outline-none min-w-0 bg-transparent dark:text-white dark:placeholder-gray-500"
             />
-            <div className="h-8 w-px bg-gray-200" />
+            <div className="h-8 w-px bg-gray-200 dark:bg-gray-600" />
             <select value={currency} onChange={e => setCurrency(e.target.value as CurrencyCode)}
               className="text-[15px] text-blue-600 font-medium outline-none bg-transparent py-3">
               {CURRENCIES.map(c => (
@@ -145,12 +145,12 @@ export default function AddExpenseModal({ onClose }: Props) {
             <div className="flex rounded-xl overflow-hidden">
               <button type="button" onClick={() => setType('debit')}
                 className={`flex-1 py-2 text-[14px] font-semibold rounded-lg transition-colors
-                  ${type === 'debit' ? 'bg-red-500 text-white' : 'text-gray-500'}`}>
+                  ${type === 'debit' ? 'bg-red-500 text-white' : 'text-gray-500 dark:text-gray-400'}`}>
                 Débit
               </button>
               <button type="button" onClick={() => setType('credit')}
                 className={`flex-1 py-2 text-[14px] font-semibold rounded-lg transition-colors
-                  ${type === 'credit' ? 'bg-green-500 text-white' : 'text-gray-500'}`}>
+                  ${type === 'credit' ? 'bg-green-500 text-white' : 'text-gray-500 dark:text-gray-400'}`}>
                 Crédit
               </button>
             </div>
@@ -163,10 +163,10 @@ export default function AddExpenseModal({ onClose }: Props) {
               className="w-full flex items-center gap-3 px-4 py-3">
               <span className="text-2xl">{cat.emoji}</span>
               <div className="flex-1 text-left">
-                <p className="text-[15px] font-medium">{cat.label}</p>
+                <p className="text-[15px] font-medium dark:text-white">{cat.label}</p>
                 {cat.isFixed && <p className="text-xs text-red-500">🔒 Incompressible</p>}
               </div>
-              <span className="text-gray-300 text-lg">›</span>
+              <span className="text-gray-300 dark:text-gray-600 text-lg">›</span>
             </button>
           </div>
 
@@ -176,7 +176,7 @@ export default function AddExpenseModal({ onClose }: Props) {
               <p className="section-header">Sous-catégorie</p>
               <div className="card mx-4 px-4 py-1">
                 <select value={subCategory} onChange={e => setSubCategory(e.target.value)}
-                  className="w-full py-2.5 text-[15px] outline-none bg-transparent">
+                  className="w-full py-2.5 text-[15px] outline-none bg-transparent dark:text-white">
                   {subCategories.map(s => <option key={s} value={s}>{s}</option>)}
                 </select>
               </div>
@@ -187,13 +187,13 @@ export default function AddExpenseModal({ onClose }: Props) {
           <p className="section-header">Charge incompressible</p>
           <div className="card mx-4 px-4 py-3 flex items-center justify-between">
             <div>
-              <p className="text-[15px] font-medium">Charge fixe</p>
-              <p className="text-xs text-gray-400">Loyer, assurance, impôts…</p>
+              <p className="text-[15px] font-medium dark:text-white">Charge fixe</p>
+              <p className="text-xs text-gray-400 dark:text-gray-500">Loyer, assurance, impôts…</p>
             </div>
             <label className="relative inline-flex items-center cursor-pointer">
               <input type="checkbox" checked={isFixed} onChange={e => setIsFixed(e.target.checked)}
                 className="sr-only peer" />
-              <div className="w-11 h-6 bg-gray-200 rounded-full peer-checked:bg-red-500
+              <div className="w-11 h-6 bg-gray-200 dark:bg-gray-600 rounded-full peer-checked:bg-red-500
                 peer-checked:after:translate-x-5 after:content-[''] after:absolute after:top-0.5
                 after:left-0.5 after:bg-white after:rounded-full after:h-5 after:w-5
                 after:transition-transform"></div>
@@ -203,19 +203,19 @@ export default function AddExpenseModal({ onClose }: Props) {
           {/* Qui & Banque */}
           <p className="section-header">Qui & Banque</p>
           <div className="card mx-4 overflow-hidden">
-            <div className="px-4 py-2 flex items-center gap-3 border-b border-gray-100">
-              <span className="text-gray-400 text-sm w-20">Personne</span>
+            <div className="px-4 py-2 flex items-center gap-3 border-b border-gray-100 dark:border-gray-700">
+              <span className="text-gray-400 dark:text-gray-500 text-sm w-20">Personne</span>
               <select value={person} onChange={e => setPerson(e.target.value as HouseholdMember)}
-                className="flex-1 text-[15px] text-right outline-none bg-transparent py-1">
+                className="flex-1 text-[15px] text-right outline-none bg-transparent py-1 dark:text-white">
                 <option value="person1">{settings.person1Name}</option>
                 <option value="person2">{settings.person2Name}</option>
                 <option value="shared">Commun</option>
               </select>
             </div>
             <div className="px-4 py-2 flex items-center gap-3">
-              <span className="text-gray-400 text-sm w-20">Banque</span>
+              <span className="text-gray-400 dark:text-gray-500 text-sm w-20">Banque</span>
               <select value={bank} onChange={e => setBank(e.target.value)}
-                className="flex-1 text-[15px] text-right outline-none bg-transparent py-1">
+                className="flex-1 text-[15px] text-right outline-none bg-transparent py-1 dark:text-white">
                 <option value="">— Non spécifiée —</option>
                 {settings.banks.map(b => <option key={b} value={b}>{b}</option>)}
               </select>
@@ -225,15 +225,15 @@ export default function AddExpenseModal({ onClose }: Props) {
           {/* Date & Notes */}
           <p className="section-header">Date & Notes</p>
           <div className="card mx-4 overflow-hidden">
-            <div className="px-4 py-2 flex items-center gap-3 border-b border-gray-100">
-              <span className="text-gray-400 text-sm w-20">Date</span>
+            <div className="px-4 py-2 flex items-center gap-3 border-b border-gray-100 dark:border-gray-700">
+              <span className="text-gray-400 dark:text-gray-500 text-sm w-20">Date</span>
               <input type="date" value={date} onChange={e => setDate(e.target.value)}
-                className="flex-1 text-[15px] text-right outline-none bg-transparent py-1" />
+                className="flex-1 text-[15px] text-right outline-none bg-transparent py-1 dark:text-white" />
             </div>
             <div className="px-4 py-2">
               <textarea placeholder="Notes (optionnel)" value={notes} onChange={e => setNotes(e.target.value)}
                 rows={2}
-                className="w-full text-[15px] outline-none resize-none bg-transparent py-1 placeholder-gray-300" />
+                className="w-full text-[15px] outline-none resize-none bg-transparent py-1 placeholder-gray-300 dark:text-white dark:placeholder-gray-600" />
             </div>
           </div>
 
@@ -243,11 +243,11 @@ export default function AddExpenseModal({ onClose }: Props) {
 
       {/* Category picker sheet */}
       {showCatPicker && (
-        <div className="absolute inset-0 z-10 flex flex-col bg-gray-50"
+        <div className="absolute inset-0 z-10 flex flex-col bg-gray-50 dark:bg-gray-900"
              style={{ paddingTop: 'env(safe-area-inset-top, 0px)' }}>
-          <div className="bg-white border-b border-gray-200 px-4 py-3 flex items-center justify-between">
+          <div className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-4 py-3 flex items-center justify-between">
             <button onClick={() => setShowCatPicker(false)} className="text-blue-600 font-medium">Annuler</button>
-            <span className="font-semibold">Catégorie</span>
+            <span className="font-semibold dark:text-white">Catégorie</span>
             <div className="w-16" />
           </div>
           <div className="flex-1 overflow-y-auto scroll-ios">
@@ -255,11 +255,11 @@ export default function AddExpenseModal({ onClose }: Props) {
             <div className="card mx-4 overflow-hidden">
               {FIXED_CATEGORIES.map((c, i) => (
                 <button key={c.id} type="button" onClick={() => { setCategory(c.id); setShowCatPicker(false) }}
-                  className={`w-full flex items-center gap-3 px-4 py-3 active:bg-gray-50
-                    ${i < FIXED_CATEGORIES.length - 1 ? 'border-b border-gray-100' : ''}`}>
+                  className={`w-full flex items-center gap-3 px-4 py-3 active:bg-gray-50 dark:active:bg-gray-700
+                    ${i < FIXED_CATEGORIES.length - 1 ? 'border-b border-gray-100 dark:border-gray-700' : ''}`}>
                   <span className="text-2xl">{c.emoji}</span>
                   <div className="flex-1 text-left">
-                    <p className="text-[15px]">{c.label}</p>
+                    <p className="text-[15px] dark:text-white">{c.label}</p>
                     <p className="text-xs text-red-400">Incompressible</p>
                   </div>
                   {category === c.id && <span className="text-blue-600 text-lg font-bold">✓</span>}
@@ -270,10 +270,10 @@ export default function AddExpenseModal({ onClose }: Props) {
             <div className="card mx-4 overflow-hidden mb-8">
               {VARIABLE_CATEGORIES.map((c, i) => (
                 <button key={c.id} type="button" onClick={() => { setCategory(c.id); setShowCatPicker(false) }}
-                  className={`w-full flex items-center gap-3 px-4 py-3 active:bg-gray-50
-                    ${i < VARIABLE_CATEGORIES.length - 1 ? 'border-b border-gray-100' : ''}`}>
+                  className={`w-full flex items-center gap-3 px-4 py-3 active:bg-gray-50 dark:active:bg-gray-700
+                    ${i < VARIABLE_CATEGORIES.length - 1 ? 'border-b border-gray-100 dark:border-gray-700' : ''}`}>
                   <span className="text-2xl">{c.emoji}</span>
-                  <p className="flex-1 text-[15px] text-left">{c.label}</p>
+                  <p className="flex-1 text-[15px] text-left dark:text-white">{c.label}</p>
                   {category === c.id && <span className="text-blue-600 text-lg font-bold">✓</span>}
                 </button>
               ))}

@@ -46,9 +46,13 @@ export interface RecurringExpense {
   frequency: RecurrenceFrequency
 }
 
+export type AppTheme = 'light' | 'dark' | 'system'
+
 export interface AppSettings {
   person1Name: string
   person2Name: string
   baseCurrency: CurrencyCode
   banks: string[]
+  theme: AppTheme
+  googleDriveClientId: string
 }

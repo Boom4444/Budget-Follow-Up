@@ -1,0 +1,223 @@
+import type { BackupData } from './backup'
+
+// Injected at runtime by the GIS script tag
+declare const google: any
+
+export interface DriveFile {
+  id: string
+  name: string
+  createdTime: string
+}
+
+// ── Script loader ─────────────────────────────────────────────────────────────
+
+let scriptLoaded = false
+
+function loadGisScript(): Promise<void> {
+  if (scriptLoaded) return Promise.resolve()
+
+  return new Promise((resolve, reject) => {
+    const existing = document.querySelector(
+      'script[src="https://accounts.google.com/gsi/client"]'
+    )
+    if (existing) {
+      scriptLoaded = true
+      resolve()
+      return
+    }
+
+    const script = document.createElement('script')
+    script.src = 'https://accounts.google.com/gsi/client'
+    script.async = true
+    script.defer = true
+    script.onload = () => {
+      scriptLoaded = true
+      resolve()
+    }
+    script.onerror = () => reject(new Error('Failed to load Google Identity Services script'))
+    document.head.appendChild(script)
+  })
+}
+
+// ── Token request ─────────────────────────────────────────────────────────────
+
+/**
+ * Request a Drive access token via GIS popup.
+ * Loads the GIS script on the first call.
+ */
+export function requestDriveToken(clientId: string): Promise<string> {
+  return loadGisScript().then(
+    () =>
+      new Promise<string>((resolve, reject) => {
+        const client = google.accounts.oauth2.initTokenClient({
+          client_id: clientId,
+          scope: 'https://www.googleapis.com/auth/drive.file',
+          callback: (response: { access_token?: string; error?: string }) => {
+            if (response.error) {
+              reject(new Error(`GIS token error: ${response.error}`))
+            } else if (response.access_token) {
+              resolve(response.access_token)
+            } else {
+              reject(new Error('GIS returned no access token'))
+            }
+          },
+          error_callback: (error: { type: string }) => {
+            reject(new Error(`GIS error: ${error.type}`))
+          },
+        })
+        client.requestAccessToken({ prompt: 'consent' })
+      })
+  )
+}
+
+// ── Internal helpers ──────────────────────────────────────────────────────────
+
+async function driveGet<T>(token: string, url: string): Promise<T> {
+  const res = await fetch(url, {
+    headers: { Authorization: `Bearer ${token}` },
+  })
+  if (!res.ok) {
+    const text = await res.text()
+    throw new Error(`Drive API error ${res.status}: ${text}`)
+  }
+  return res.json() as Promise<T>
+}
+
+/**
+ * Find the "Budget Foyer Backups" folder, creating it if it doesn't exist.
+ * Returns the folder ID.
+ */
+async function getOrCreateFolder(token: string): Promise<string> {
+  const folderName = 'Budget Foyer Backups'
+  const query = encodeURIComponent(
+    `mimeType='application/vnd.google-apps.folder' and name='${folderName}' and trashed=false`
+  )
+  const listUrl = `https://www.googleapis.com/drive/v3/files?q=${query}&fields=files(id,name)&pageSize=1`
+
+  const listRes = await driveGet<{ files: Array<{ id: string; name: string }> }>(
+    token,
+    listUrl
+  )
+
+  if (listRes.files.length > 0) {
+    return listRes.files[0].id
+  }
+
+  // Create the folder
+  const createRes = await fetch('https://www.googleapis.com/drive/v3/files', {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${token}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      name: folderName,
+      mimeType: 'application/vnd.google-apps.folder',
+    }),
+  })
+
+  if (!createRes.ok) {
+    const text = await createRes.text()
+    throw new Error(`Failed to create Drive folder: ${createRes.status} ${text}`)
+  }
+
+  const created: { id: string } = await createRes.json()
+  return created.id
+}
+
+// ── Public API ────────────────────────────────────────────────────────────────
+
+/**
+ * Upload a backup JSON file to the "Budget Foyer Backups" folder.
+ * Creates the folder if it doesn't exist.
+ * Returns the Drive file ID.
+ */
+export async function uploadToDrive(token: string, data: BackupData): Promise<string> {
+  const folderId = await getOrCreateFolder(token)
+
+  const today = new Date().toISOString().slice(0, 10) // YYYY-MM-DD
+  const filename = `budget-backup-${today}.json`
+  const jsonBody = JSON.stringify(data, null, 2)
+
+  const boundary = '-------BackupBoundary314159265358979'
+  const delimiter = `\r\n--${boundary}\r\n`
+  const closeDelimiter = `\r\n--${boundary}--`
+
+  const metadata = JSON.stringify({
+    name: filename,
+    mimeType: 'application/json',
+    parents: [folderId],
+  })
+
+  const multipartBody =
+    delimiter +
+    'Content-Type: application/json; charset=UTF-8\r\n\r\n' +
+    metadata +
+    delimiter +
+    'Content-Type: application/json; charset=UTF-8\r\n\r\n' +
+    jsonBody +
+    closeDelimiter
+
+  const uploadRes = await fetch(
+    'https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id,error',
+    {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${token}`,
+        'Content-Type': `multipart/related; boundary="${boundary}"`,
+      },
+      body: multipartBody,
+    }
+  )
+
+  const uploadJson: { id?: string; error?: { message: string } } = await uploadRes.json()
+
+  if (uploadJson.error) {
+    throw new Error(`Drive upload failed: ${uploadJson.error.message}`)
+  }
+
+  if (!uploadJson.id) {
+    throw new Error('Drive upload returned no file ID')
+  }
+
+  return uploadJson.id
+}
+
+/**
+ * List JSON backup files in the "Budget Foyer Backups" folder, newest first.
+ * Returns an empty array on any error rather than throwing.
+ */
+export async function listDriveBackups(token: string): Promise<DriveFile[]> {
+  try {
+    const folderId = await getOrCreateFolder(token)
+
+    const query = encodeURIComponent(
+      `'${folderId}' in parents and mimeType='application/json' and trashed=false`
+    )
+    const url =
+      `https://www.googleapis.com/drive/v3/files` +
+      `?q=${query}&fields=files(id,name,createdTime)&orderBy=createdTime+desc&pageSize=50`
+
+    const res = await driveGet<{ files: DriveFile[] }>(token, url)
+    return res.files ?? []
+  } catch {
+    return []
+  }
+}
+
+/**
+ * Download the raw JSON string content of a Drive file by ID.
+ */
+export async function downloadFromDrive(token: string, fileId: string): Promise<string> {
+  const url = `https://www.googleapis.com/drive/v3/files/${encodeURIComponent(fileId)}?alt=media`
+  const res = await fetch(url, {
+    headers: { Authorization: `Bearer ${token}` },
+  })
+
+  if (!res.ok) {
+    const text = await res.text()
+    throw new Error(`Drive download failed ${res.status}: ${text}`)
+  }
+
+  return res.text()
+}

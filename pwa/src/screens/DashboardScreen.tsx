@@ -73,14 +73,22 @@ export default function DashboardScreen() {
   }, [debits])
 
   const fmt = (v: number) => v === 0 ? '' : v >= 1000 ? `${(v / 1000).toFixed(0)}k` : String(v)
+  const isDark = document.documentElement.classList.contains('dark')
+  const tooltipStyle = {
+    borderRadius: 8, border: 'none',
+    boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
+    fontSize: 12,
+    background: isDark ? '#1f2937' : '#fff',
+    color: isDark ? '#f9fafb' : '#111827',
+  }
 
   return (
     <div className="flex flex-col h-full"
          style={{ paddingTop: 'env(safe-area-inset-top, 0px)' }}>
       {/* Nav */}
-      <div className="bg-white border-b border-gray-100 px-4 pt-3 pb-0 flex-shrink-0">
+      <div className="bg-white dark:bg-gray-900 border-b border-gray-100 dark:border-gray-700 px-4 pt-3 pb-0 flex-shrink-0">
         <div className="flex items-center justify-between mb-3">
-          <h1 className="text-[22px] font-bold">Tableau de bord</h1>
+          <h1 className="text-[22px] font-bold dark:text-white">Tableau de bord</h1>
           <button onClick={() => setShowAdd(true)}
             className="w-9 h-9 bg-blue-600 rounded-full flex items-center justify-center text-white text-xl font-light shadow-sm">
             +
@@ -90,9 +98,9 @@ export default function DashboardScreen() {
         {/* Year nav */}
         <div className="flex items-center justify-center gap-6 mb-3">
           <button onClick={() => setYear(y => y - 1)} className="text-blue-600 text-2xl px-2">‹</button>
-          <span className="text-[17px] font-bold w-16 text-center">{year}</span>
+          <span className="text-[17px] font-bold w-16 text-center dark:text-white">{year}</span>
           <button onClick={() => setYear(y => Math.min(y + 1, NOW))}
-            className={`text-2xl px-2 ${year >= NOW ? 'text-gray-200' : 'text-blue-600'}`}>›</button>
+            className={`text-2xl px-2 ${year >= NOW ? 'text-gray-200 dark:text-gray-600' : 'text-blue-600'}`}>›</button>
         </div>
 
         {/* Month chips */}
@@ -100,7 +108,9 @@ export default function DashboardScreen() {
           {[null, 1,2,3,4,5,6,7,8,9,10,11,12].map(m => (
             <button key={m ?? 'all'} onClick={() => setMonth(m)}
               className={`px-3 py-1 rounded-full text-[13px] font-medium whitespace-nowrap flex-shrink-0 transition-colors
-                ${month === m ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-600'}`}>
+                ${month === m
+                  ? 'bg-blue-600 text-white'
+                  : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300'}`}>
               {m === null ? 'Année' : shortMonth(m)}
             </button>
           ))}
@@ -119,7 +129,9 @@ export default function DashboardScreen() {
           ].map(opt => (
             <button key={opt.v} onClick={() => setFilterPerson(opt.v as typeof filterPerson)}
               className={`px-3 py-1.5 rounded-full text-[12px] font-medium transition-colors
-                ${filterPerson === opt.v ? 'bg-blue-600 text-white' : 'bg-white text-gray-600 border border-gray-200'}`}>
+                ${filterPerson === opt.v
+                  ? 'bg-blue-600 text-white'
+                  : 'bg-white dark:bg-gray-700 text-gray-600 dark:text-gray-300 border border-gray-200 dark:border-gray-600'}`}>
               {opt.label}
             </button>
           ))}
@@ -127,7 +139,7 @@ export default function DashboardScreen() {
 
         {/* Solde card */}
         <div className="mx-4 mt-3 card p-4">
-          <p className="text-sm text-gray-400 mb-1">
+          <p className="text-sm text-gray-400 dark:text-gray-500 mb-1">
             {month !== null ? `${longMonth(month)} ${year}` : `Solde ${year}`}
           </p>
           <p className={`text-[34px] font-bold tracking-tight ${solde >= 0 ? 'text-green-600' : 'text-red-500'}`}>
@@ -136,11 +148,11 @@ export default function DashboardScreen() {
           <div className="flex gap-4 mt-2">
             <div className="flex items-center gap-1.5">
               <span className="w-2.5 h-2.5 rounded-sm bg-red-400 inline-block"></span>
-              <span className="text-[12px] text-gray-500">{formatAmount(totalDepenses, base)} dépenses</span>
+              <span className="text-[12px] text-gray-500 dark:text-gray-400">{formatAmount(totalDepenses, base)} dépenses</span>
             </div>
             <div className="flex items-center gap-1.5">
               <span className="w-2.5 h-2.5 rounded-sm bg-green-400 inline-block"></span>
-              <span className="text-[12px] text-gray-500">{formatAmount(totalRevenus, base)} revenus</span>
+              <span className="text-[12px] text-gray-500 dark:text-gray-400">{formatAmount(totalRevenus, base)} revenus</span>
             </div>
           </div>
         </div>
@@ -148,53 +160,52 @@ export default function DashboardScreen() {
         {/* Summary cards */}
         <div className="px-4 mt-3 grid grid-cols-2 gap-3">
           <div className="card p-3">
-            <p className="text-[11px] text-gray-400 mb-1">💸 Dépenses</p>
+            <p className="text-[11px] text-gray-400 dark:text-gray-500 mb-1">💸 Dépenses</p>
             <p className="text-[18px] font-bold text-red-500">{formatAmount(totalDepenses, base)}</p>
           </div>
           <div className="card p-3">
-            <p className="text-[11px] text-gray-400 mb-1">💰 Revenus</p>
+            <p className="text-[11px] text-gray-400 dark:text-gray-500 mb-1">💰 Revenus</p>
             <p className="text-[18px] font-bold text-green-600">{formatAmount(totalRevenus, base)}</p>
           </div>
           <div className="card p-3">
-            <p className="text-[11px] text-gray-400 mb-1">🔒 Incompressible</p>
+            <p className="text-[11px] text-gray-400 dark:text-gray-500 mb-1">🔒 Incompressible</p>
             <p className="text-[18px] font-bold text-orange-500">{formatAmount(totalFixed, base)}</p>
-            {totalDepenses > 0 && <p className="text-[11px] text-gray-400">{formatPercent(totalFixed, totalDepenses)} des dépenses</p>}
+            {totalDepenses > 0 && <p className="text-[11px] text-gray-400 dark:text-gray-500">{formatPercent(totalFixed, totalDepenses)} des dépenses</p>}
           </div>
           <div className="card p-3">
-            <p className="text-[11px] text-gray-400 mb-1">📈 Variable</p>
+            <p className="text-[11px] text-gray-400 dark:text-gray-500 mb-1">📈 Variable</p>
             <p className="text-[18px] font-bold text-blue-500">{formatAmount(totalVariable, base)}</p>
-            {totalDepenses > 0 && <p className="text-[11px] text-gray-400">{formatPercent(totalVariable, totalDepenses)} des dépenses</p>}
+            {totalDepenses > 0 && <p className="text-[11px] text-gray-400 dark:text-gray-500">{formatPercent(totalVariable, totalDepenses)} des dépenses</p>}
           </div>
         </div>
 
         {/* Per-person cards */}
         <div className="px-4 mt-3 grid grid-cols-2 gap-3">
           <div className="card p-3">
-            <p className="text-[11px] text-gray-400 mb-1">👤 {settings.person1Name}</p>
-            <p className="text-[18px] font-bold">{formatAmount(totalP1, base)}</p>
+            <p className="text-[11px] text-gray-400 dark:text-gray-500 mb-1">👤 {settings.person1Name}</p>
+            <p className="text-[18px] font-bold dark:text-white">{formatAmount(totalP1, base)}</p>
           </div>
           <div className="card p-3">
-            <p className="text-[11px] text-gray-400 mb-1">👤 {settings.person2Name}</p>
-            <p className="text-[18px] font-bold">{formatAmount(totalP2, base)}</p>
+            <p className="text-[11px] text-gray-400 dark:text-gray-500 mb-1">👤 {settings.person2Name}</p>
+            <p className="text-[18px] font-bold dark:text-white">{formatAmount(totalP2, base)}</p>
           </div>
         </div>
         {totalShared > 0 && (
           <div className="card mx-4 mt-3 p-3">
-            <p className="text-[11px] text-gray-400 mb-1">👥 Commun</p>
-            <p className="text-[18px] font-bold">{formatAmount(totalShared, base)}</p>
+            <p className="text-[11px] text-gray-400 dark:text-gray-500 mb-1">👥 Commun</p>
+            <p className="text-[18px] font-bold dark:text-white">{formatAmount(totalShared, base)}</p>
           </div>
         )}
 
         {/* Monthly bar chart */}
         {monthlyData.some(d => d.fixed + d.variable + d.revenus > 0) && (
           <div className="card mx-4 mt-4 p-4">
-            <p className="text-[15px] font-semibold mb-3">Évolution mensuelle</p>
+            <p className="text-[15px] font-semibold mb-3 dark:text-white">Évolution mensuelle</p>
             <ResponsiveContainer width="100%" height={170}>
               <BarChart data={monthlyData} margin={{ top: 0, right: 0, bottom: 0, left: -20 }} barSize={5} barGap={1} barCategoryGap={4}>
-                <XAxis dataKey="name" tick={{ fontSize: 10, fill: '#9ca3af' }} axisLine={false} tickLine={false} />
-                <YAxis tick={{ fontSize: 10, fill: '#9ca3af' }} axisLine={false} tickLine={false} tickFormatter={fmt} />
-                <Tooltip
-                  contentStyle={{ borderRadius: 8, border: 'none', boxShadow: '0 4px 12px rgba(0,0,0,0.1)', fontSize: 12 }}
+                <XAxis dataKey="name" tick={{ fontSize: 10, fill: isDark ? '#6b7280' : '#9ca3af' }} axisLine={false} tickLine={false} />
+                <YAxis tick={{ fontSize: 10, fill: isDark ? '#6b7280' : '#9ca3af' }} axisLine={false} tickLine={false} tickFormatter={fmt} />
+                <Tooltip contentStyle={tooltipStyle}
                   formatter={(v: number, name: string) => [
                     `${v} ${sym}`,
                     name === 'fixed' ? 'Incompressible' : name === 'variable' ? 'Variable' : 'Revenus',
@@ -206,9 +217,9 @@ export default function DashboardScreen() {
               </BarChart>
             </ResponsiveContainer>
             <div className="flex justify-center gap-4 mt-2 flex-wrap">
-              <span className="flex items-center gap-1 text-[11px] text-gray-500"><span className="w-3 h-2 rounded-sm bg-red-400 inline-block" /> Incompressible</span>
-              <span className="flex items-center gap-1 text-[11px] text-gray-500"><span className="w-3 h-2 rounded-sm bg-blue-400 inline-block" /> Variable</span>
-              <span className="flex items-center gap-1 text-[11px] text-gray-500"><span className="w-3 h-2 rounded-sm bg-green-400 inline-block" /> Revenus</span>
+              <span className="flex items-center gap-1 text-[11px] text-gray-500 dark:text-gray-400"><span className="w-3 h-2 rounded-sm bg-red-400 inline-block" /> Incompressible</span>
+              <span className="flex items-center gap-1 text-[11px] text-gray-500 dark:text-gray-400"><span className="w-3 h-2 rounded-sm bg-blue-400 inline-block" /> Variable</span>
+              <span className="flex items-center gap-1 text-[11px] text-gray-500 dark:text-gray-400"><span className="w-3 h-2 rounded-sm bg-green-400 inline-block" /> Revenus</span>
             </div>
           </div>
         )}
@@ -216,7 +227,7 @@ export default function DashboardScreen() {
         {/* Category breakdown (debits only) */}
         {catData.length > 0 && (
           <div className="card mx-4 mt-4 p-4">
-            <p className="text-[15px] font-semibold mb-3">Dépenses par catégorie</p>
+            <p className="text-[15px] font-semibold mb-3 dark:text-white">Dépenses par catégorie</p>
             <ResponsiveContainer width="100%" height={180}>
               <PieChart>
                 <Pie data={catData} dataKey="value" nameKey="label" cx="50%" cy="50%"
@@ -227,8 +238,7 @@ export default function DashboardScreen() {
                       opacity={selectedCat === null || selectedCat === entry.id ? 1 : 0.3} />
                   ))}
                 </Pie>
-                <Tooltip
-                  contentStyle={{ borderRadius: 8, border: 'none', boxShadow: '0 4px 12px rgba(0,0,0,0.1)', fontSize: 12 }}
+                <Tooltip contentStyle={tooltipStyle}
                   formatter={(v: number) => [`${v.toFixed(0)} ${sym}`, '']}
                 />
               </PieChart>
@@ -239,9 +249,9 @@ export default function DashboardScreen() {
                 <button key={c.id} className="w-full flex items-center gap-2 text-left"
                   onClick={() => setSelectedCat(selectedCat === c.id ? null : c.id)}>
                   <span className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ background: c.color }} />
-                  <span className="text-[13px] text-gray-700 flex-1 truncate">{c.label}</span>
-                  <span className="text-[12px] text-gray-400">{formatPercent(c.value, totalDepenses)}</span>
-                  <span className="text-[13px] font-semibold">{c.value.toFixed(0)} {sym}</span>
+                  <span className="text-[13px] text-gray-700 dark:text-gray-200 flex-1 truncate">{c.label}</span>
+                  <span className="text-[12px] text-gray-400 dark:text-gray-500">{formatPercent(c.value, totalDepenses)}</span>
+                  <span className="text-[13px] font-semibold dark:text-white">{c.value.toFixed(0)} {sym}</span>
                 </button>
               ))}
             </div>
@@ -252,8 +262,8 @@ export default function DashboardScreen() {
         {filtered.length === 0 && (
           <div className="flex flex-col items-center justify-center py-16 px-8 text-center">
             <span className="text-5xl mb-4">📊</span>
-            <p className="text-[17px] font-semibold text-gray-700 mb-1">Aucune dépense</p>
-            <p className="text-[14px] text-gray-400 mb-4">Commencez à saisir vos dépenses</p>
+            <p className="text-[17px] font-semibold text-gray-700 dark:text-gray-200 mb-1">Aucune dépense</p>
+            <p className="text-[14px] text-gray-400 dark:text-gray-500 mb-4">Commencez à saisir vos dépenses</p>
             <button onClick={() => setShowAdd(true)}
               className="px-5 py-2.5 bg-blue-600 text-white rounded-xl font-medium text-[15px]">
               Ajouter une dépense
