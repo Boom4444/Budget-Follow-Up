@@ -6,7 +6,10 @@ export default function UpdatePrompt() {
     needRefresh: [needRefresh, setNeedRefresh],
     offlineReady: [offlineReady, setOfflineReady],
     updateServiceWorker,
-  } = useRegisterSW()
+  } = useRegisterSW({
+    // Start checking immediately, don't wait for the load event
+    immediate: true,
+  })
 
   // Auto-dismiss "offline ready" banner after 3 seconds
   useEffect(() => {
@@ -14,6 +17,19 @@ export default function UpdatePrompt() {
     const timer = setTimeout(() => setOfflineReady(false), 3000)
     return () => clearTimeout(timer)
   }, [offlineReady, setOfflineReady])
+
+  // On iOS standalone PWA, WebKit suspends SW update checks when the app is
+  // in the background. Calling registration.update() on each foreground
+  // transition ensures the new SW is detected without needing to reinstall.
+  useEffect(() => {
+    const onVisible = () => {
+      if (document.visibilityState === 'visible') {
+        navigator.serviceWorker?.getRegistration().then(reg => reg?.update())
+      }
+    }
+    document.addEventListener('visibilitychange', onVisible)
+    return () => document.removeEventListener('visibilitychange', onVisible)
+  }, [])
 
   if (!needRefresh && !offlineReady) return null
 
