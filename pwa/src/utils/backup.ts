@@ -1,9 +1,9 @@
 import { v4 as uuid } from 'uuid'
 import { convertToBase } from '../data/currencies'
 import { CATEGORY_MAP } from '../data/categories'
-import type { Expense, RecurringExpense, AppSettings, CategoryId, CurrencyCode, HouseholdMember } from '../models/types'
+import type { Expense, RecurringExpense, AppSettings, CategoryId, CurrencyCode, HouseholdMember, MonthlyBudget } from '../models/types'
 
-export const BACKUP_VERSION = 2
+export const BACKUP_VERSION = 3
 
 export interface BackupData {
   version: number
@@ -11,6 +11,7 @@ export interface BackupData {
   settings: AppSettings
   expenses: Expense[]
   recurring: RecurringExpense[]
+  budgets?: MonthlyBudget[]
 }
 
 // ── CSV column mapping ────────────────────────────────────────────────────────
@@ -29,8 +30,18 @@ const CSV_CAT_MAP: Record<string, CategoryId> = {
   'loisirs':                  'loisirs',
   'besoins personnels':       'besoinsPersonnels',
   'nourriture':               'nourriture',
+  'alimentation':             'nourriture',
   'entreprise':               'entreprise',
   'assurance':                'assurance',
+  'santé':                    'sante',
+  'sante':                    'sante',
+  'habillement':              'habillement',
+  'maison':                   'maison',
+  'beauté':                   'beaute',
+  'beaute':                   'beaute',
+  'sport':                    'sport',
+  'autre':                    'autre',
+  'autres':                   'autre',
 }
 
 const CSV_HEADER =
@@ -76,6 +87,7 @@ export function exportJSON(
   expenses: Expense[],
   recurring: RecurringExpense[],
   settings: AppSettings,
+  budgets: MonthlyBudget[] = [],
 ): void {
   const data: BackupData = {
     version: BACKUP_VERSION,
@@ -83,6 +95,7 @@ export function exportJSON(
     settings,
     expenses,
     recurring,
+    budgets,
   }
   const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' })
   downloadBlob(blob, `budget-backup-${isoDate()}.json`)

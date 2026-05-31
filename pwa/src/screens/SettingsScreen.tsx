@@ -1,8 +1,9 @@
 import { useState, useRef, useEffect } from 'react'
 import { useStore } from '../store/useStore'
 import { CURRENCIES } from '../data/currencies'
-import type { CurrencyCode, AppTheme } from '../models/types'
+import type { CurrencyCode, AppTheme, MonthlyBudget, CustomCategoryDef } from '../models/types'
 import type { Expense, RecurringExpense } from '../models/types'
+import { v4 as uuid } from 'uuid'
 import {
   exportJSON, exportCSV,
   parseJSONBackup, parseCSV,
@@ -18,6 +19,7 @@ import { useRegisterSW } from 'virtual:pwa-register/react'
 interface PendingImport {
   expenses: Expense[]
   recurring: RecurringExpense[]
+  budgets: MonthlyBudget[]
   label: string
 }
 
@@ -32,12 +34,15 @@ const THEME_OPTIONS: { value: AppTheme; label: string; icon: string }[] = [
 ]
 
 export default function SettingsScreen({ onShowHelp }: Props) {
-  const { settings, updateSettings, loadDemoData, expenses, recurring, importData, clearData } = useStore()
+  const { settings, updateSettings, loadDemoData, expenses, recurring, budgets, importData, clearData } = useStore()
   const {
     needRefresh: [needRefresh],
     updateServiceWorker,
   } = useRegisterSW()
   const [newBank, setNewBank] = useState('')
+  const [newCatEmoji, setNewCatEmoji] = useState('📦')
+  const [newCatLabel, setNewCatLabel] = useState('')
+  const [newCatFixed, setNewCatFixed] = useState(false)
   const [showConfirmDemo, setShowConfirmDemo] = useState(false)
   const [showRates, setShowRates] = useState(false)
   const [backupSlots, setBackupSlots] = useState<AutoBackupSlot[]>([])
@@ -70,6 +75,21 @@ export default function SettingsScreen({ onShowHelp }: Props) {
     updateSettings({ banks: settings.banks.filter(b => b !== bank) })
   }
 
+  function addCustomCategory() {
+    const label = newCatLabel.trim()
+    if (!label) return
+    const custom = settings.customCategories ?? []
+    const newCat: CustomCategoryDef = { id: `custom_${uuid().slice(0, 8)}`, label, emoji: newCatEmoji, isFixed: newCatFixed }
+    updateSettings({ customCategories: [...custom, newCat] })
+    setNewCatLabel('')
+    setNewCatEmoji('📦')
+    setNewCatFixed(false)
+  }
+
+  function removeCustomCategory(id: string) {
+    updateSettings({ customCategories: (settings.customCategories ?? []).filter(c => c.id !== id) })
+  }
+
   function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]
     if (!file) return
@@ -83,14 +103,14 @@ export default function SettingsScreen({ onShowHelp }: Props) {
           setImportError('Fichier JSON invalide ou vide.')
           return
         }
-        setPending({ expenses: backup.expenses, recurring: backup.recurring ?? [], label: `${backup.expenses.length} dépenses depuis ${file.name}` })
+        setPending({ expenses: backup.expenses, recurring: backup.recurring ?? [], budgets: backup.budgets ?? [], label: `${backup.expenses.length} dépenses depuis ${file.name}` })
       } else {
         const parsed = parseCSV(text, settings.baseCurrency)
         if (parsed.length === 0) {
           setImportError('Aucune dépense trouvée dans le fichier.')
           return
         }
-        setPending({ expenses: parsed, recurring: [], label: `${parsed.length} dépenses depuis ${file.name}` })
+        setPending({ expenses: parsed, recurring: [], budgets: [], label: `${parsed.length} dépenses depuis ${file.name}` })
       }
     }
     reader.readAsText(file, 'utf-8')
@@ -99,7 +119,7 @@ export default function SettingsScreen({ onShowHelp }: Props) {
 
   function confirmImport(merge: boolean) {
     if (!pending) return
-    importData(pending.expenses, pending.recurring, merge)
+    importData(pending.expenses, pending.recurring, pending.budgets, merge)
     setBackupSlots(getAutoBackupSlots())
     setPending(null)
   }
@@ -129,11 +149,12 @@ export default function SettingsScreen({ onShowHelp }: Props) {
     setDriveError('')
     try {
       await uploadToDrive(driveToken, {
-        version: 2,
+        version: 3,
         exportedAt: new Date().toISOString(),
         settings,
         expenses,
         recurring,
+        budgets,
       })
       const files = await listDriveBackups(driveToken)
       setDriveFiles(files)
@@ -152,7 +173,7 @@ export default function SettingsScreen({ onShowHelp }: Props) {
       const text = await downloadFromDrive(driveToken, fileId)
       const backup = parseJSONBackup(text)
       if (!backup) { setDriveError('Fichier invalide'); return }
-      setPending({ expenses: backup.expenses, recurring: backup.recurring ?? [], label: `${backup.expenses.length} dépenses depuis Drive` })
+      setPending({ expenses: backup.expenses, recurring: backup.recurring ?? [], budgets: backup.budgets ?? [], label: `${backup.expenses.length} dépenses depuis Drive` })
     } catch (err: any) {
       setDriveError(err?.message ?? 'Échec du téléchargement')
     } finally {
@@ -238,6 +259,49 @@ export default function SettingsScreen({ onShowHelp }: Props) {
           )}
         </div>
 
+        {/* Custom categories */}
+        <p className="section-header">Catégories personnalisées</p>
+        <div className="card mx-4 overflow-hidden">
+          {(settings.customCategories ?? []).map((cat, i) => (
+            <div key={cat.id} className={`flex items-center gap-3 px-4 py-3 ${i < (settings.customCategories ?? []).length - 1 ? 'border-b border-gray-100 dark:border-gray-700' : ''}`}>
+              <span className="text-xl">{cat.emoji}</span>
+              <div className="flex-1 min-w-0">
+                <p className="text-[15px] dark:text-white">{cat.label}</p>
+                {cat.isFixed && <p className="text-[11px] text-red-400">Incompressible</p>}
+              </div>
+              <button onClick={() => removeCustomCategory(cat.id)} className="text-red-400 text-xl">×</button>
+            </div>
+          ))}
+          <div className={`px-4 py-3 ${(settings.customCategories ?? []).length > 0 ? 'border-t border-gray-100 dark:border-gray-700' : ''}`}>
+            <div className="flex items-center gap-2 mb-2">
+              <input
+                type="text"
+                placeholder="😀"
+                value={newCatEmoji}
+                onChange={e => setNewCatEmoji(e.target.value)}
+                className="w-12 text-center text-[22px] outline-none bg-transparent"
+                maxLength={4}
+              />
+              <input
+                type="text"
+                placeholder="Nom de la catégorie…"
+                value={newCatLabel}
+                onChange={e => setNewCatLabel(e.target.value)}
+                onKeyDown={e => e.key === 'Enter' && addCustomCategory()}
+                className="flex-1 text-[15px] outline-none bg-transparent dark:text-white dark:placeholder-gray-500"
+              />
+              {newCatLabel && (
+                <button onClick={addCustomCategory} className="text-blue-600 text-[14px] font-medium">OK</button>
+              )}
+            </div>
+            <label className="flex items-center gap-2">
+              <input type="checkbox" checked={newCatFixed} onChange={e => setNewCatFixed(e.target.checked)}
+                className="w-4 h-4 accent-red-500" />
+              <span className="text-[13px] text-gray-500 dark:text-gray-400">Charge incompressible</span>
+            </label>
+          </div>
+        </div>
+
         {/* Banks */}
         <p className="section-header">Banques</p>
         <div className="card mx-4 overflow-hidden">
@@ -262,7 +326,7 @@ export default function SettingsScreen({ onShowHelp }: Props) {
         {/* Backup & Data */}
         <p className="section-header">Sauvegarde & Données</p>
         <div className="card mx-4 overflow-hidden">
-          <button onClick={() => exportJSON(expenses, recurring, settings)}
+          <button onClick={() => exportJSON(expenses, recurring, settings, budgets)}
             className="w-full flex items-center justify-between px-4 py-3 border-b border-gray-100 dark:border-gray-700 text-left">
             <span className="text-[15px] text-blue-600">Exporter JSON</span>
             <span className="text-gray-400 dark:text-gray-500 text-[13px]">↑ Sauvegarde complète</span>

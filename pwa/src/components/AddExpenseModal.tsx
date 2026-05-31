@@ -1,31 +1,43 @@
 import { useState, useEffect } from 'react'
 import { useStore } from '../store/useStore'
-import { CATEGORIES, FIXED_CATEGORIES, VARIABLE_CATEGORIES, CATEGORY_MAP } from '../data/categories'
+import { CATEGORIES, FIXED_CATEGORIES, VARIABLE_CATEGORIES, getCategoryMeta } from '../data/categories'
 import { CURRENCIES } from '../data/currencies'
 import { today } from '../utils/dates'
-import type { CategoryId, CurrencyCode, HouseholdMember } from '../models/types'
+import type { CurrencyCode, HouseholdMember } from '../models/types'
 
 interface Props {
   onClose: () => void
+  prefill?: {
+    title?: string
+    amount?: number
+    currency?: CurrencyCode
+    date?: string
+    category?: string
+    subCategory?: string
+    type?: 'debit' | 'credit'
+    bank?: string
+    person?: HouseholdMember
+    notes?: string
+  }
 }
 
-export default function AddExpenseModal({ onClose }: Props) {
+export default function AddExpenseModal({ onClose, prefill }: Props) {
   const { expenses, recurring, settings, addExpense } = useStore()
+  const customCategories = settings.customCategories ?? []
 
-  const [title, setTitle]             = useState('')
-  const [amount, setAmount]           = useState('')
-  const [currency, setCurrency]       = useState<CurrencyCode>(settings.baseCurrency)
-  const [date, setDate]               = useState(today())
-  const [category, setCategory]       = useState<CategoryId>('nourriture')
-  const [subCategory, setSubCategory] = useState('')
-  const [type, setType]               = useState<'debit' | 'credit'>('debit')
+  const [title, setTitle]             = useState(prefill?.title ?? '')
+  const [amount, setAmount]           = useState(prefill?.amount != null ? String(prefill.amount) : '')
+  const [currency, setCurrency]       = useState<CurrencyCode>(prefill?.currency ?? settings.baseCurrency)
+  const [date, setDate]               = useState(prefill?.date ?? today())
+  const [category, setCategory]       = useState<string>(prefill?.category ?? 'nourriture')
+  const [subCategory, setSubCategory] = useState(prefill?.subCategory ?? '')
+  const [type, setType]               = useState<'debit' | 'credit'>(prefill?.type ?? 'debit')
   const [isFixed, setIsFixed]         = useState(false)
-  const [bank, setBank]               = useState('')
-  const [person, setPerson]           = useState<HouseholdMember>('person1')
-  const [notes, setNotes]             = useState('')
+  const [bank, setBank]               = useState(prefill?.bank ?? '')
+  const [person, setPerson]           = useState<HouseholdMember>(prefill?.person ?? 'person1')
+  const [notes, setNotes]             = useState(prefill?.notes ?? '')
   const [showCatPicker, setShowCatPicker] = useState(false)
 
-  // Suggestions
   const suggestions = title.length === 0
     ? recurring.slice(0, 5)
     : recurring.filter(r => r.title.toLowerCase().includes(title.toLowerCase())).slice(0, 4)
@@ -35,7 +47,7 @@ export default function AddExpenseModal({ onClose }: Props) {
     : [...new Set(expenses.filter(e => e.title.toLowerCase().includes(title.toLowerCase())).map(e => e.title))].slice(0, 3)
 
   useEffect(() => {
-    const cat = CATEGORIES.find(c => c.id === category)
+    const cat = getCategoryMeta(category, customCategories)
     if (cat) {
       setIsFixed(cat.isFixed)
       setSubCategory(cat.subCategories[0] ?? '')
@@ -61,7 +73,7 @@ export default function AddExpenseModal({ onClose }: Props) {
     onClose()
   }
 
-  const cat = CATEGORY_MAP[category]
+  const cat = getCategoryMeta(category, customCategories)
   const subCategories = cat?.subCategories ?? []
 
   return (
@@ -87,20 +99,23 @@ export default function AddExpenseModal({ onClose }: Props) {
             <div className="mt-4 px-4">
               <p className="text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wide mb-2">Suggestions</p>
               <div className="card overflow-hidden">
-                {suggestions.map((r, i) => (
-                  <button key={r.id} type="button" onClick={() => applyRecurring(r)}
-                    className={`w-full flex items-center gap-3 px-4 py-3 text-left active:bg-gray-50 dark:active:bg-gray-700
-                      ${i < suggestions.length - 1 ? 'border-b border-gray-100 dark:border-gray-700' : ''}`}>
-                    <span className="text-2xl">{CATEGORY_MAP[r.category].emoji}</span>
-                    <div className="flex-1 min-w-0">
-                      <p className="font-medium text-[15px] truncate dark:text-white">{r.title}</p>
-                      <p className="text-xs text-gray-400 dark:text-gray-500">{r.frequency === 'monthly' ? 'Mensuel' : r.frequency} · {r.isFixed ? '🔒 Incompressible' : 'Variable'}</p>
-                    </div>
-                    <span className="text-blue-600 font-semibold text-[15px] shrink-0">
-                      {r.amount.toFixed(2).replace('.', ',')} {CURRENCIES.find(c => c.code === r.currency)?.symbol}
-                    </span>
-                  </button>
-                ))}
+                {suggestions.map((r, i) => {
+                  const rCat = getCategoryMeta(r.category, customCategories)
+                  return (
+                    <button key={r.id} type="button" onClick={() => applyRecurring(r)}
+                      className={`w-full flex items-center gap-3 px-4 py-3 text-left active:bg-gray-50 dark:active:bg-gray-700
+                        ${i < suggestions.length - 1 ? 'border-b border-gray-100 dark:border-gray-700' : ''}`}>
+                      <span className="text-2xl">{rCat?.emoji ?? '📦'}</span>
+                      <div className="flex-1 min-w-0">
+                        <p className="font-medium text-[15px] truncate dark:text-white">{r.title}</p>
+                        <p className="text-xs text-gray-400 dark:text-gray-500">{r.frequency === 'monthly' ? 'Mensuel' : r.frequency} · {r.isFixed ? '🔒 Incompressible' : 'Variable'}</p>
+                      </div>
+                      <span className="text-blue-600 font-semibold text-[15px] shrink-0">
+                        {r.amount.toFixed(2).replace('.', ',')} {CURRENCIES.find(c => c.code === r.currency)?.symbol}
+                      </span>
+                    </button>
+                  )
+                })}
                 {recentTitles.map((t, i) => (
                   <button key={t} type="button" onClick={() => setTitle(t)}
                     className={`w-full flex items-center gap-3 px-4 py-3 text-left active:bg-gray-50 dark:active:bg-gray-700
@@ -113,17 +128,17 @@ export default function AddExpenseModal({ onClose }: Props) {
             </div>
           )}
 
-          {/* Description* */}
+          {/* Description */}
           <p className="section-header">Description <span className="text-red-500">*</span></p>
           <div className="card mx-4">
             <input type="text" placeholder="Ex : Loyer, Courses Lidl…"
               value={title} onChange={e => setTitle(e.target.value)}
               className="w-full px-4 py-3 text-[17px] outline-none rounded-2xl bg-transparent dark:text-white dark:placeholder-gray-500"
-              autoFocus
+              autoFocus={!prefill?.title}
             />
           </div>
 
-          {/* Montant* */}
+          {/* Montant */}
           <p className="section-header">Montant <span className="text-red-500">*</span></p>
           <div className="card mx-4 flex items-center px-4 gap-3">
             <input type="text" inputMode="decimal" placeholder="0,00"
@@ -139,7 +154,7 @@ export default function AddExpenseModal({ onClose }: Props) {
             </select>
           </div>
 
-          {/* Type de transaction */}
+          {/* Type */}
           <p className="section-header">Type</p>
           <div className="card mx-4 p-1.5">
             <div className="flex rounded-xl overflow-hidden">
@@ -156,15 +171,15 @@ export default function AddExpenseModal({ onClose }: Props) {
             </div>
           </div>
 
-          {/* Catégorie* */}
+          {/* Catégorie */}
           <p className="section-header">Catégorie <span className="text-red-500">*</span></p>
           <div className="card mx-4">
             <button type="button" onClick={() => setShowCatPicker(true)}
               className="w-full flex items-center gap-3 px-4 py-3">
-              <span className="text-2xl">{cat.emoji}</span>
+              <span className="text-2xl">{cat?.emoji ?? '📦'}</span>
               <div className="flex-1 text-left">
-                <p className="text-[15px] font-medium dark:text-white">{cat.label}</p>
-                {cat.isFixed && <p className="text-xs text-red-500">🔒 Incompressible</p>}
+                <p className="text-[15px] font-medium dark:text-white">{cat?.label ?? category}</p>
+                {cat?.isFixed && <p className="text-xs text-red-500">🔒 Incompressible</p>}
               </div>
               <span className="text-gray-300 dark:text-gray-600 text-lg">›</span>
             </button>
@@ -267,7 +282,7 @@ export default function AddExpenseModal({ onClose }: Props) {
               ))}
             </div>
             <p className="section-header">Charges courantes</p>
-            <div className="card mx-4 overflow-hidden mb-8">
+            <div className="card mx-4 overflow-hidden">
               {VARIABLE_CATEGORIES.map((c, i) => (
                 <button key={c.id} type="button" onClick={() => { setCategory(c.id); setShowCatPicker(false) }}
                   className={`w-full flex items-center gap-3 px-4 py-3 active:bg-gray-50 dark:active:bg-gray-700
@@ -278,6 +293,23 @@ export default function AddExpenseModal({ onClose }: Props) {
                 </button>
               ))}
             </div>
+            {customCategories.length > 0 && (
+              <>
+                <p className="section-header">Mes catégories</p>
+                <div className="card mx-4 overflow-hidden mb-8">
+                  {customCategories.map((c, i) => (
+                    <button key={c.id} type="button" onClick={() => { setCategory(c.id); setShowCatPicker(false) }}
+                      className={`w-full flex items-center gap-3 px-4 py-3 active:bg-gray-50 dark:active:bg-gray-700
+                        ${i < customCategories.length - 1 ? 'border-b border-gray-100 dark:border-gray-700' : ''}`}>
+                      <span className="text-2xl">{c.emoji}</span>
+                      <p className="flex-1 text-[15px] text-left dark:text-white">{c.label}</p>
+                      {category === c.id && <span className="text-blue-600 text-lg font-bold">✓</span>}
+                    </button>
+                  ))}
+                </div>
+              </>
+            )}
+            {customCategories.length === 0 && <div className="h-8" />}
           </div>
         </div>
       )}

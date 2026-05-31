@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import { useStore } from '../store/useStore'
 import { CATEGORIES, CATEGORY_MAP, FIXED_CATEGORIES, VARIABLE_CATEGORIES } from '../data/categories'
 import { CURRENCIES } from '../data/currencies'
-import type { RecurringExpense, CategoryId, CurrencyCode, HouseholdMember, RecurrenceFrequency } from '../models/types'
+import type { RecurringExpense, CurrencyCode, HouseholdMember, RecurrenceFrequency } from '../models/types'
 
 const FREQ_LABELS: Record<RecurrenceFrequency, string> = {
   weekly: 'Hebdomadaire', biweekly: 'Bi-mensuel',
@@ -134,7 +134,7 @@ function RecurringFormModal({ editItem, settings, onClose, onSave }: {
   const [title, setTitle]           = useState(editItem?.title ?? '')
   const [amount, setAmount]         = useState(editItem ? String(editItem.amount) : '')
   const [currency, setCurrency]     = useState<CurrencyCode>(editItem?.currency ?? settings.baseCurrency)
-  const [category, setCategory]     = useState<CategoryId>(editItem?.category ?? 'nourriture')
+  const [category, setCategory]     = useState<string>(editItem?.category ?? 'nourriture')
   const [subCategory, setSubCategory] = useState(editItem?.subCategory ?? '')
   const [isFixed, setIsFixed]       = useState(editItem?.isFixed ?? false)
   const [bank, setBank]             = useState(editItem?.bank ?? '')
