@@ -24,9 +24,9 @@ interface AppState {
   clearData: () => void
 
   budgets: MonthlyBudget[]
-  setBudgetItem: (year: number, month: number, categoryId: CategoryId, amount: number) => void
-  setBudgetItems: (year: number, month: number, items: BudgetItem[]) => void
-  copyBudget: (fromYear: number, fromMonth: number, toYear: number, toMonth: number) => void
+  setBudgetItem: (year: number, month: number, person: HouseholdMember, categoryId: CategoryId, amount: number) => void
+  setBudgetItems: (year: number, month: number, person: HouseholdMember, items: BudgetItem[]) => void
+  copyBudget: (fromYear: number, fromMonth: number, fromPerson: HouseholdMember, toYear: number, toMonth: number, toPerson: HouseholdMember) => void
 }
 
 export const useStore = create<AppState>()(
@@ -261,38 +261,52 @@ export const useStore = create<AppState>()(
         set({ expenses: [], recurring: [] })
       },
 
-      setBudgetItem(year, month, categoryId, amount) {
+      setBudgetItem(year, month, person, categoryId, amount) {
         set(s => {
-          const existing = s.budgets.find(b => b.year === year && b.month === month)
+          const match = (b: MonthlyBudget) => b.year === year && b.month === month && b.person === person
+          const existing = s.budgets.find(match)
           if (existing) {
             const items = existing.items.filter(i => i.categoryId !== categoryId)
             if (amount > 0) items.push({ categoryId, amount })
-            return { budgets: s.budgets.map(b => b.year === year && b.month === month ? { ...b, items } : b) }
+            return { budgets: s.budgets.map(b => match(b) ? { ...b, items } : b) }
           }
           if (amount <= 0) return {}
-          return { budgets: [...s.budgets, { year, month, items: [{ categoryId, amount }] }] }
+          return { budgets: [...s.budgets, { year, month, person, items: [{ categoryId, amount }] }] }
         })
       },
 
-      setBudgetItems(year, month, items) {
+      setBudgetItems(year, month, person, items) {
         set(s => {
-          const filtered = s.budgets.filter(b => !(b.year === year && b.month === month))
-          return { budgets: items.length > 0 ? [...filtered, { year, month, items }] : filtered }
+          const filtered = s.budgets.filter(b => !(b.year === year && b.month === month && b.person === person))
+          return { budgets: items.length > 0 ? [...filtered, { year, month, person, items }] : filtered }
         })
       },
 
-      copyBudget(fromYear, fromMonth, toYear, toMonth) {
-        const src = get().budgets.find(b => b.year === fromYear && b.month === fromMonth)
+      copyBudget(fromYear, fromMonth, fromPerson, toYear, toMonth, toPerson) {
+        const src = get().budgets.find(b => b.year === fromYear && b.month === fromMonth && b.person === fromPerson)
         if (!src) return
         set(s => {
-          const filtered = s.budgets.filter(b => !(b.year === toYear && b.month === toMonth))
-          return { budgets: [...filtered, { year: toYear, month: toMonth, items: [...src.items] }] }
+          const filtered = s.budgets.filter(b => !(b.year === toYear && b.month === toMonth && b.person === toPerson))
+          return { budgets: [...filtered, { year: toYear, month: toMonth, person: toPerson, items: [...src.items] }] }
         })
       },
     }),
     {
       name: 'budget-app-store',
-      version: 2,
+      version: 3,
+      migrate(persistedState, version) {
+        const s = persistedState as any
+        if (version < 3) {
+          // Budget items from v2 had no person — treat them as person1
+          return {
+            ...s,
+            budgets: (s.budgets ?? []).map((b: any) =>
+              b.person ? b : { ...b, person: 'person1' as HouseholdMember }
+            ),
+          }
+        }
+        return s
+      },
     }
   )
 )

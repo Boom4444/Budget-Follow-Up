@@ -56,6 +56,7 @@ export interface BudgetItem {
 export interface MonthlyBudget {
   year: number
   month: number
+  person: HouseholdMember
   items: BudgetItem[]
 }
 
