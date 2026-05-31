@@ -159,7 +159,7 @@ export async function uploadToDrive(token: string, data: BackupData): Promise<st
     closeDelimiter
 
   const uploadRes = await fetch(
-    'https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id,error',
+    'https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id',
     {
       method: 'POST',
       headers: {
@@ -170,11 +170,12 @@ export async function uploadToDrive(token: string, data: BackupData): Promise<st
     }
   )
 
-  const uploadJson: { id?: string; error?: { message: string } } = await uploadRes.json()
-
-  if (uploadJson.error) {
-    throw new Error(`Drive upload failed: ${uploadJson.error.message}`)
+  if (!uploadRes.ok) {
+    const errJson = await uploadRes.json().catch(() => ({})) as { error?: { message: string } }
+    throw new Error(`Drive upload failed: ${errJson.error?.message ?? uploadRes.statusText}`)
   }
+
+  const uploadJson: { id?: string } = await uploadRes.json()
 
   if (!uploadJson.id) {
     throw new Error('Drive upload returned no file ID')
