@@ -30,8 +30,18 @@ const CSV_CAT_MAP: Record<string, CategoryId> = {
   'loisirs':                  'loisirs',
   'besoins personnels':       'besoinsPersonnels',
   'nourriture':               'nourriture',
+  'alimentation':             'nourriture',
   'entreprise':               'entreprise',
   'assurance':                'assurance',
+  'santé':                    'sante',
+  'sante':                    'sante',
+  'habillement':              'habillement',
+  'maison':                   'maison',
+  'beauté':                   'beaute',
+  'beaute':                   'beaute',
+  'sport':                    'sport',
+  'autre':                    'autre',
+  'autres':                   'autre',
 }
 
 const CSV_HEADER =

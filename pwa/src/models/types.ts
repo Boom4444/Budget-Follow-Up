@@ -16,15 +16,28 @@ export type CategoryId =
   | 'nourriture'
   | 'entreprise'
   | 'assurance'
+  | 'sante'
+  | 'habillement'
+  | 'maison'
+  | 'beaute'
+  | 'sport'
+  | 'autre'
+
+export interface CustomCategoryDef {
+  id: string
+  label: string
+  emoji: string
+  isFixed: boolean
+}
 
 export interface Expense {
   id: string
-  title: string          // boutique / description
+  title: string
   amount: number
   currency: CurrencyCode
   amountInBase: number
   date: string           // 'YYYY-MM-DD'
-  category: CategoryId
+  category: string       // CategoryId or custom category id
   subCategory: string
   type: 'debit' | 'credit'
   isFixed: boolean
@@ -38,7 +51,7 @@ export interface RecurringExpense {
   title: string
   amount: number
   currency: CurrencyCode
-  category: CategoryId
+  category: string       // CategoryId or custom category id
   subCategory: string
   isFixed: boolean
   bank: string
@@ -49,7 +62,7 @@ export interface RecurringExpense {
 export type AppTheme = 'light' | 'dark' | 'system'
 
 export interface BudgetItem {
-  categoryId: CategoryId
+  categoryId: string     // CategoryId or custom category id
   amount: number
 }
 
@@ -68,4 +81,5 @@ export interface AppSettings {
   banks: string[]
   theme: AppTheme
   googleDriveClientId: string
+  customCategories: CustomCategoryDef[]
 }

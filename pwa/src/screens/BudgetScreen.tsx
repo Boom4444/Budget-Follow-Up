@@ -7,7 +7,7 @@ import { CATEGORIES, CATEGORY_MAP } from '../data/categories'
 import { convertToBase } from '../data/currencies'
 import { formatAmount } from '../utils/formatters'
 import { currentYear, currentMonth, longMonth } from '../utils/dates'
-import type { CategoryId, HouseholdMember } from '../models/types'
+import type { HouseholdMember } from '../models/types'
 
 function prevMonth(y: number, m: number) {
   return m === 1 ? { year: y - 1, month: 12 } : { year: y, month: m - 1 }
@@ -25,7 +25,7 @@ export default function BudgetScreen() {
   const [year, setYear]     = useState(currentYear())
   const [month, setMonth]   = useState(currentMonth())
   const [person, setPerson] = useState<HouseholdMember>('person1')
-  const [editCat, setEditCat]             = useState<CategoryId | null>(null)
+  const [editCat, setEditCat]             = useState<string | null>(null)
   const [editAmount, setEditAmount]       = useState('')
   const [editingIncome, setEditingIncome] = useState(false)
   const [incomeInput, setIncomeInput]     = useState('')
@@ -152,7 +152,7 @@ export default function BudgetScreen() {
   function prefillFromFixed() {
     const existing = budget?.items ?? []
     const fixedItems = Object.entries(fixedByCategory).map(([categoryId, amount]) => ({
-      categoryId: categoryId as CategoryId, amount: Math.round(amount),
+      categoryId: categoryId, amount: Math.round(amount),
     }))
     const merged = [...existing.filter(i => !fixedByCategory[i.categoryId]), ...fixedItems]
     setBudgetItems(year, month, person, merged)
@@ -164,12 +164,12 @@ export default function BudgetScreen() {
       map[r.category] = (map[r.category] ?? 0) + convertToBase(r.amount, r.currency, base)
     })
     setBudgetItems(year, month, person, Object.entries(map).map(([categoryId, amount]) => ({
-      categoryId: categoryId as CategoryId, amount: Math.round(amount),
+      categoryId: categoryId, amount: Math.round(amount),
     })))
   }
 
   // ── Edit modal ────────────────────────────────────────────────────────────
-  function openEdit(catId: CategoryId) {
+  function openEdit(catId: string) {
     const current = budget?.items.find(i => i.categoryId === catId)
     setEditAmount(current ? String(current.amount) : '')
     setEditCat(catId)
