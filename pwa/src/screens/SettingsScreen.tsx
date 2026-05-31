@@ -302,6 +302,32 @@ export default function SettingsScreen({ onShowHelp }: Props) {
           </div>
         </div>
 
+        {/* Claude API */}
+        <p className="section-header">Assistant IA</p>
+        <div className="card mx-4 overflow-hidden">
+          <div className="px-4 py-3 border-b border-gray-100 dark:border-gray-700">
+            <p className="text-[15px] font-medium dark:text-white mb-0.5">Clé API Claude</p>
+            <p className="text-[12px] text-gray-400 dark:text-gray-500">Obtenez une clé sur console.anthropic.com</p>
+          </div>
+          <div className="px-4 py-3">
+            <input
+              type="password"
+              placeholder="sk-ant-…"
+              value={settings.claudeApiKey ?? ''}
+              onChange={e => updateSettings({ claudeApiKey: e.target.value })}
+              className="w-full text-[14px] outline-none bg-transparent dark:text-white dark:placeholder-gray-500 font-mono"
+              autoComplete="off"
+              autoCorrect="off"
+              spellCheck={false}
+            />
+          </div>
+          {(settings.claudeApiKey ?? '').length > 10 && (
+            <div className="px-4 pb-3">
+              <p className="text-[12px] text-green-600 dark:text-green-400">✓ Clé configurée — accédez à l'onglet IA</p>
+            </div>
+          )}
+        </div>
+
         {/* Banks */}
         <p className="section-header">Banques</p>
         <div className="card mx-4 overflow-hidden">

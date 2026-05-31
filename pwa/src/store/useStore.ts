@@ -44,6 +44,7 @@ export const useStore = create<AppState>()(
         theme: 'system',
         googleDriveClientId: '',
         customCategories: [],
+        claudeApiKey: '',
       },
 
       addExpense(e) {
@@ -307,7 +308,7 @@ export const useStore = create<AppState>()(
     }),
     {
       name: 'budget-app-store',
-      version: 4,
+      version: 5,
       migrate(persistedState, version) {
         const s = persistedState as any
         let state = { ...s }
@@ -325,6 +326,15 @@ export const useStore = create<AppState>()(
             settings: {
               ...state.settings,
               customCategories: state.settings?.customCategories ?? [],
+            },
+          }
+        }
+        if (version < 5) {
+          state = {
+            ...state,
+            settings: {
+              ...state.settings,
+              claudeApiKey: state.settings?.claudeApiKey ?? '',
             },
           }
         }

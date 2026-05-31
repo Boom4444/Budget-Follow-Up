@@ -6,16 +6,18 @@ import RecurringScreen from './screens/RecurringScreen'
 import SettingsScreen from './screens/SettingsScreen'
 import BudgetScreen from './screens/BudgetScreen'
 import HelpScreen from './screens/HelpScreen'
+import AIChatScreen from './screens/AIChatScreen'
 import UpdatePrompt from './components/UpdatePrompt'
 
-type Tab = 'dashboard' | 'expenses' | 'budget' | 'recurring' | 'settings'
+type Tab = 'dashboard' | 'expenses' | 'budget' | 'recurring' | 'ai' | 'settings'
 
 const TABS: { id: Tab; label: string; icon: string }[] = [
-  { id: 'dashboard', label: 'Tableau',    icon: '📊' },
-  { id: 'expenses',  label: 'Dépenses',   icon: '💸' },
-  { id: 'budget',    label: 'Budget',     icon: '🎯' },
-  { id: 'recurring', label: 'Récurrentes', icon: '🔄' },
-  { id: 'settings',  label: 'Réglages',   icon: '⚙️' },
+  { id: 'dashboard', label: 'Tableau',  icon: '📊' },
+  { id: 'expenses',  label: 'Dépenses', icon: '💸' },
+  { id: 'budget',    label: 'Budget',   icon: '🎯' },
+  { id: 'recurring', label: 'Récur.',   icon: '🔄' },
+  { id: 'ai',        label: 'IA',       icon: '🤖' },
+  { id: 'settings',  label: 'Réglages', icon: '⚙️' },
 ]
 
 export default function App() {
@@ -50,6 +52,7 @@ export default function App() {
         {tab === 'expenses'   && <ExpensesScreen />}
         {tab === 'budget'     && <BudgetScreen />}
         {tab === 'recurring'  && <RecurringScreen />}
+        {tab === 'ai'         && <AIChatScreen />}
         {tab === 'settings'   && <SettingsScreen onShowHelp={() => setShowHelp(true)} />}
       </div>
 

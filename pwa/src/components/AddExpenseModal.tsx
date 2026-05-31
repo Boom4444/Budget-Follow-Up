@@ -37,6 +37,7 @@ export default function AddExpenseModal({ onClose, prefill }: Props) {
   const [person, setPerson]           = useState<HouseholdMember>(prefill?.person ?? 'person1')
   const [notes, setNotes]             = useState(prefill?.notes ?? '')
   const [showCatPicker, setShowCatPicker] = useState(false)
+  const [splitPct, setSplitPct] = useState(50)   // person1's share when person='shared'
 
   const suggestions = title.length === 0
     ? recurring.slice(0, 5)
@@ -69,7 +70,8 @@ export default function AddExpenseModal({ onClose, prefill }: Props) {
     e.preventDefault()
     const num = parseFloat(amount.replace(',', '.'))
     if (!title.trim() || isNaN(num)) return
-    addExpense({ title: title.trim(), amount: num, currency, date, category, subCategory, type, isFixed, bank, person, notes })
+    const splitRatio = person === 'shared' ? { person1: splitPct, person2: 100 - splitPct } : undefined
+    addExpense({ title: title.trim(), amount: num, currency, date, category, subCategory, type, isFixed, bank, person, notes, splitRatio })
     onClose()
   }
 
@@ -227,6 +229,21 @@ export default function AddExpenseModal({ onClose, prefill }: Props) {
                 <option value="shared">Commun</option>
               </select>
             </div>
+            {person === 'shared' && (
+              <div className="px-4 py-3 border-b border-gray-100 dark:border-gray-700">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-[12px] font-semibold text-blue-600">{settings.person1Name} · {splitPct}%</span>
+                  <span className="text-[12px] text-gray-400 dark:text-gray-500">Répartition</span>
+                  <span className="text-[12px] font-semibold text-purple-600">{100 - splitPct}% · {settings.person2Name}</span>
+                </div>
+                <input type="range" min={0} max={100} step={5}
+                  value={splitPct} onChange={e => setSplitPct(Number(e.target.value))}
+                  className="w-full accent-blue-600" />
+                <p className="text-[11px] text-center text-gray-400 dark:text-gray-500 mt-1">
+                  {splitPct === 50 ? 'Partage équitable' : `${settings.person1Name} paie ${splitPct}%, ${settings.person2Name} paie ${100 - splitPct}%`}
+                </p>
+              </div>
+            )}
             <div className="px-4 py-2 flex items-center gap-3">
               <span className="text-gray-400 dark:text-gray-500 text-sm w-20">Banque</span>
               <select value={bank} onChange={e => setBank(e.target.value)}

@@ -5,6 +5,7 @@ import { CATEGORY_MAP } from '../data/categories'
 import { CURRENCY_MAP } from '../data/currencies'
 import { formatAmount, formatPercent } from '../utils/formatters'
 import { currentYear, shortMonth, longMonth } from '../utils/dates'
+import { getPersonShare } from '../utils/expenses'
 import AddExpenseModal from '../components/AddExpenseModal'
 
 export default function DashboardScreen() {
@@ -37,9 +38,10 @@ export default function DashboardScreen() {
   const solde         = totalRevenus - totalDepenses
   const totalFixed    = debits.filter(e => e.isFixed).reduce((s, e) => s + e.amountInBase, 0)
   const totalVariable = totalDepenses - totalFixed
-  const totalP1       = debits.filter(e => e.person === 'person1').reduce((s, e) => s + e.amountInBase, 0)
-  const totalP2       = debits.filter(e => e.person === 'person2').reduce((s, e) => s + e.amountInBase, 0)
-  const totalShared   = debits.filter(e => e.person === 'shared').reduce((s, e) => s + e.amountInBase, 0)
+  const totalP1       = debits.reduce((s, e) => s + getPersonShare(e, 'person1'), 0)
+  const totalP2       = debits.reduce((s, e) => s + getPersonShare(e, 'person2'), 0)
+  const sharedP1      = debits.filter(e => e.person === 'shared').reduce((s, e) => s + getPersonShare(e, 'person1'), 0)
+  const sharedP2      = debits.filter(e => e.person === 'shared').reduce((s, e) => s + getPersonShare(e, 'person2'), 0)
 
   const monthlyData = useMemo(() => Array.from({ length: 12 }, (_, i) => {
     const m = i + 1
@@ -179,23 +181,19 @@ export default function DashboardScreen() {
           </div>
         </div>
 
-        {/* Per-person cards */}
+        {/* Per-person cards (includes each person's share of shared expenses) */}
         <div className="px-4 mt-3 grid grid-cols-2 gap-3">
           <div className="card p-3">
             <p className="text-[11px] text-gray-400 dark:text-gray-500 mb-1">👤 {settings.person1Name}</p>
             <p className="text-[18px] font-bold dark:text-white">{formatAmount(totalP1, base)}</p>
+            {sharedP1 > 0 && <p className="text-[10px] text-gray-400 dark:text-gray-500 mt-0.5">dont {formatAmount(sharedP1, base)} commun</p>}
           </div>
           <div className="card p-3">
             <p className="text-[11px] text-gray-400 dark:text-gray-500 mb-1">👤 {settings.person2Name}</p>
             <p className="text-[18px] font-bold dark:text-white">{formatAmount(totalP2, base)}</p>
+            {sharedP2 > 0 && <p className="text-[10px] text-gray-400 dark:text-gray-500 mt-0.5">dont {formatAmount(sharedP2, base)} commun</p>}
           </div>
         </div>
-        {totalShared > 0 && (
-          <div className="card mx-4 mt-3 p-3">
-            <p className="text-[11px] text-gray-400 dark:text-gray-500 mb-1">👥 Commun</p>
-            <p className="text-[18px] font-bold dark:text-white">{formatAmount(totalShared, base)}</p>
-          </div>
-        )}
 
         {/* Monthly bar chart */}
         {monthlyData.some(d => d.fixed + d.variable + d.revenus > 0) && (

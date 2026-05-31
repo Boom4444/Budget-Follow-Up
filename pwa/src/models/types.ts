@@ -44,6 +44,7 @@ export interface Expense {
   bank: string
   person: HouseholdMember
   notes: string
+  splitRatio?: { person1: number; person2: number }  // percentages summing to 100, only for person='shared'
 }
 
 export interface RecurringExpense {
@@ -82,4 +83,5 @@ export interface AppSettings {
   theme: AppTheme
   googleDriveClientId: string
   customCategories: CustomCategoryDef[]
+  claudeApiKey: string
 }
