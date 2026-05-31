@@ -19,15 +19,17 @@ function nextMonth(y: number, m: number) {
 type ActiveTab = 'planifier' | 'suivi' | 'ecarts' | 'graphique'
 
 export default function BudgetScreen() {
-  const { expenses, recurring, budgets, settings, setBudgetItem, setBudgetItems, copyBudget } = useStore()
+  const { expenses, recurring, budgets, settings, setBudgetItem, setBudgetItems, copyBudget, setIncome } = useStore()
   const base = settings.baseCurrency
 
   const [year, setYear]     = useState(currentYear())
   const [month, setMonth]   = useState(currentMonth())
   const [person, setPerson] = useState<HouseholdMember>('person1')
-  const [editCat, setEditCat]       = useState<CategoryId | null>(null)
-  const [editAmount, setEditAmount] = useState('')
-  const [activeTab, setActiveTab]   = useState<ActiveTab>('planifier')
+  const [editCat, setEditCat]             = useState<CategoryId | null>(null)
+  const [editAmount, setEditAmount]       = useState('')
+  const [editingIncome, setEditingIncome] = useState(false)
+  const [incomeInput, setIncomeInput]     = useState('')
+  const [activeTab, setActiveTab]         = useState<ActiveTab>('planifier')
 
   const isDark = document.documentElement.classList.contains('dark')
 
@@ -98,6 +100,21 @@ export default function BudgetScreen() {
   const totalVariable = rows.reduce((s, r) => s + r.variable, 0)
   const totalDev      = totalActual - totalBudgeted
   const globalPct     = totalBudgeted > 0 ? Math.min((totalActual / totalBudgeted) * 100, 100) : 0
+
+  const estimatedIncome = budget?.estimatedIncome ?? 0
+  const actualIncome = useMemo(() =>
+    expenses
+      .filter(e =>
+        parseInt(e.date.slice(0, 4)) === year &&
+        parseInt(e.date.slice(5, 7)) === month &&
+        e.type === 'credit' &&
+        e.person === person
+      )
+      .reduce((s, e) => s + e.amountInBase, 0),
+    [expenses, year, month, person]
+  )
+  const plannedBalance = estimatedIncome - totalBudgeted
+  const actualBalance  = actualIncome  - totalActual
 
   const deviationRows = rows
     .filter(r => r.budgeted > 0)
@@ -217,25 +234,47 @@ export default function BudgetScreen() {
         {/* Summary card */}
         {budget && (
           <div className="card mx-4 mt-4 p-4">
+            {/* Expenses row */}
             <div className="flex justify-between items-start mb-3">
               <div>
-                <p className="text-[11px] text-gray-400 dark:text-gray-500">Budget prévu</p>
-                <p className="text-[20px] font-bold dark:text-white">{formatAmount(totalBudgeted, base)}</p>
+                <p className="text-[11px] text-gray-400 dark:text-gray-500">Dépenses prévues</p>
+                <p className="text-[18px] font-bold dark:text-white">{formatAmount(totalBudgeted, base)}</p>
               </div>
               <div className="text-right">
                 <p className="text-[11px] text-gray-400 dark:text-gray-500">Dépenses réelles</p>
-                <p className="text-[20px] font-bold dark:text-white">{formatAmount(totalActual, base)}</p>
+                <p className="text-[18px] font-bold dark:text-white">{formatAmount(totalActual, base)}</p>
               </div>
             </div>
-            <div className="h-2.5 bg-gray-100 dark:bg-gray-700 rounded-full overflow-hidden mb-2">
+            {/* Progress bar */}
+            <div className="h-2 bg-gray-100 dark:bg-gray-700 rounded-full overflow-hidden mb-3">
               <div className={`h-full rounded-full transition-all ${pctColor(totalBudgeted > 0 ? (totalActual / totalBudgeted) * 100 : null)}`}
                 style={{ width: `${globalPct}%` }} />
             </div>
-            <div className="flex justify-between items-center">
+            {/* Income + balance row */}
+            {(estimatedIncome > 0 || actualIncome > 0) && (
+              <div className="flex justify-between items-center pt-2 border-t border-gray-100 dark:border-gray-700 mt-1">
+                <div>
+                  <p className="text-[11px] text-gray-400 dark:text-gray-500">Revenus prévus</p>
+                  <p className="text-[14px] font-semibold text-green-600">{estimatedIncome > 0 ? formatAmount(estimatedIncome, base) : '—'}</p>
+                </div>
+                <div className="text-center">
+                  <p className="text-[11px] text-gray-400 dark:text-gray-500">Revenus réels</p>
+                  <p className="text-[14px] font-semibold text-green-600">{actualIncome > 0 ? formatAmount(actualIncome, base) : '—'}</p>
+                </div>
+                <div className="text-right">
+                  <p className="text-[11px] text-gray-400 dark:text-gray-500">Balance prévisionnelle</p>
+                  <p className={`text-[14px] font-bold ${plannedBalance >= 0 ? 'text-green-600' : 'text-red-500'}`}>
+                    {plannedBalance >= 0 ? '+' : ''}{formatAmount(plannedBalance, base)}
+                  </p>
+                </div>
+              </div>
+            )}
+            {/* Deviation */}
+            <div className="flex justify-between items-center mt-2">
               <p className="text-[12px] text-gray-400 dark:text-gray-500">{globalPct.toFixed(0)}% utilisé</p>
-              <p className={`text-[14px] font-semibold ${totalDev <= 0 ? 'text-green-600' : 'text-red-500'}`}>
+              <p className={`text-[13px] font-semibold ${totalDev <= 0 ? 'text-green-600' : 'text-red-500'}`}>
                 {totalDev <= 0 ? '▼' : '▲'} {formatAmount(Math.abs(totalDev), base)}
-                {totalDev <= 0 ? ' d\'économie' : ' de dépassement'}
+                {totalDev <= 0 ? ' sous budget' : ' dépassement'}
               </p>
             </div>
           </div>
@@ -273,6 +312,40 @@ export default function BudgetScreen() {
         ══════════════════════════════════════════════════════════════════ */}
         {activeTab === 'planifier' && (
           <>
+            {/* Income section */}
+            <p className="section-header">💰 Revenus prévus</p>
+            <div className="card mx-4 overflow-hidden">
+              <button
+                onClick={() => { setIncomeInput(estimatedIncome > 0 ? String(estimatedIncome) : ''); setEditingIncome(true) }}
+                className="w-full flex items-center justify-between px-4 py-3 text-left">
+                <div>
+                  <p className="text-[14px] font-medium dark:text-white">
+                    {personTabs.find(p2 => p2.id === person)?.label}
+                  </p>
+                  {actualIncome > 0 && (
+                    <p className="text-[11px] text-gray-400 dark:text-gray-500">
+                      Réel ce mois : {formatAmount(actualIncome, base)}
+                    </p>
+                  )}
+                </div>
+                <div className="text-right">
+                  {estimatedIncome > 0 ? (
+                    <p className="text-[16px] font-bold text-green-600">{formatAmount(estimatedIncome, base)}</p>
+                  ) : (
+                    <p className="text-[13px] text-gray-300 dark:text-gray-600">Saisir ›</p>
+                  )}
+                </div>
+              </button>
+              {estimatedIncome > 0 && totalBudgeted > 0 && (
+                <div className="px-4 py-2 bg-gray-50 dark:bg-gray-700/50 border-t border-gray-100 dark:border-gray-700 flex justify-between items-center">
+                  <span className="text-[12px] text-gray-500 dark:text-gray-400">Balance prévisionnelle</span>
+                  <span className={`text-[13px] font-bold ${plannedBalance >= 0 ? 'text-green-600' : 'text-red-500'}`}>
+                    {plannedBalance >= 0 ? '+' : ''}{formatAmount(plannedBalance, base)}
+                  </span>
+                </div>
+              )}
+            </div>
+
             {/* Pre-fill banner */}
             {fixedCatIds.length > 0 && !fixedPreFilled && (
               <div className="mx-4 mt-4 bg-blue-50 dark:bg-blue-900/30 rounded-2xl p-4">
@@ -416,18 +489,32 @@ export default function BudgetScreen() {
             {/* Planning total */}
             {budget && (
               <div className="card mx-4 mt-4 overflow-hidden">
+                {estimatedIncome > 0 && (
+                  <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100 dark:border-gray-700">
+                    <span className="text-[13px] text-gray-500 dark:text-gray-400">💰 Revenus prévus</span>
+                    <span className="text-[14px] font-medium text-green-600">+{formatAmount(estimatedIncome, base)}</span>
+                  </div>
+                )}
                 <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100 dark:border-gray-700">
                   <span className="text-[13px] text-gray-500 dark:text-gray-400">🔒 Charges fixes</span>
-                  <span className="text-[14px] font-medium dark:text-white">{formatAmount(totalFixed, base)}</span>
+                  <span className="text-[14px] font-medium dark:text-white">−{formatAmount(totalFixed, base)}</span>
                 </div>
                 <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100 dark:border-gray-700">
-                  <span className="text-[13px] text-gray-500 dark:text-gray-400">✏️ Dépenses estimées</span>
-                  <span className="text-[14px] font-medium dark:text-white">{formatAmount(totalVariable, base)}</span>
+                  <span className="text-[13px] text-gray-500 dark:text-gray-400">✏️ Dépenses variables</span>
+                  <span className="text-[14px] font-medium dark:text-white">−{formatAmount(totalVariable, base)}</span>
                 </div>
-                <div className="flex items-center justify-between px-4 py-3 bg-gray-50 dark:bg-gray-700/50">
-                  <span className="text-[14px] font-bold dark:text-white">Total prévu</span>
-                  <span className="text-[16px] font-bold text-blue-600">{formatAmount(totalBudgeted, base)}</span>
+                <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100 dark:border-gray-700 bg-gray-50 dark:bg-gray-700/50">
+                  <span className="text-[13px] font-semibold dark:text-white">Total dépenses prévues</span>
+                  <span className="text-[15px] font-bold text-blue-600">{formatAmount(totalBudgeted, base)}</span>
                 </div>
+                {estimatedIncome > 0 && (
+                  <div className="flex items-center justify-between px-4 py-3">
+                    <span className="text-[14px] font-bold dark:text-white">Balance prévisionnelle</span>
+                    <span className={`text-[16px] font-bold ${plannedBalance >= 0 ? 'text-green-600' : 'text-red-500'}`}>
+                      {plannedBalance >= 0 ? '+' : ''}{formatAmount(plannedBalance, base)}
+                    </span>
+                  </div>
+                )}
               </div>
             )}
           </>
@@ -696,6 +783,50 @@ export default function BudgetScreen() {
 
         <div className="h-4" />
       </div>
+
+      {/* ── Income modal ───────────────────────────────────────────────────── */}
+      {editingIncome && (
+        <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/40"
+          onClick={e => e.target === e.currentTarget && setEditingIncome(false)}>
+          <div className="bg-white dark:bg-gray-800 rounded-t-3xl w-full p-6"
+            style={{ paddingBottom: 'calc(1.5rem + env(safe-area-inset-bottom, 0px))' }}>
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-10 h-10 rounded-xl flex items-center justify-center text-xl bg-green-100">💰</div>
+              <div>
+                <p className="text-[17px] font-bold dark:text-white">Revenus prévus</p>
+                <p className="text-[12px] text-gray-400 dark:text-gray-500">
+                  {personTabs.find(p2 => p2.id === person)?.label} · {longMonth(month)} {year}
+                </p>
+                {actualIncome > 0 && (
+                  <p className="text-[12px] text-green-600">Réel : {formatAmount(actualIncome, base)}</p>
+                )}
+              </div>
+            </div>
+            <p className="text-[13px] text-gray-400 dark:text-gray-500 mb-1">Montant estimé ({base})</p>
+            <input
+              type="text" inputMode="decimal" placeholder="0"
+              value={incomeInput}
+              onChange={e => setIncomeInput(e.target.value)}
+              autoFocus
+              className="w-full text-[32px] font-bold outline-none bg-transparent dark:text-white mb-4 border-b-2 border-green-500 pb-1"
+            />
+            <div className="flex gap-3">
+              <button onClick={() => setEditingIncome(false)}
+                className="flex-1 py-3 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 rounded-xl font-medium">
+                Annuler
+              </button>
+              <button onClick={() => {
+                const n = parseFloat(incomeInput.replace(',', '.'))
+                setIncome(year, month, person, isNaN(n) ? 0 : n)
+                setEditingIncome(false)
+              }}
+                className="flex-1 py-3 bg-green-600 text-white rounded-xl font-semibold">
+                Enregistrer
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ── Edit modal ─────────────────────────────────────────────────────── */}
       {editCat && (

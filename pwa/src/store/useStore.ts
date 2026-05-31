@@ -20,13 +20,14 @@ interface AppState {
 
   updateSettings: (patch: Partial<AppSettings>) => void
   loadDemoData: () => void
-  importData: (expenses: Expense[], recurring: RecurringExpense[], merge?: boolean) => void
+  importData: (expenses: Expense[], recurring: RecurringExpense[], budgets: MonthlyBudget[], merge?: boolean) => void
   clearData: () => void
 
   budgets: MonthlyBudget[]
   setBudgetItem: (year: number, month: number, person: HouseholdMember, categoryId: CategoryId, amount: number) => void
   setBudgetItems: (year: number, month: number, person: HouseholdMember, items: BudgetItem[]) => void
   copyBudget: (fromYear: number, fromMonth: number, fromPerson: HouseholdMember, toYear: number, toMonth: number, toPerson: HouseholdMember) => void
+  setIncome: (year: number, month: number, person: HouseholdMember, amount: number) => void
 }
 
 export const useStore = create<AppState>()(
@@ -248,10 +249,11 @@ export const useStore = create<AppState>()(
         autoSave(s.expenses, s.recurring, s.settings)
       },
 
-      importData(newExpenses, newRecurring, merge = false) {
+      importData(newExpenses, newRecurring, newBudgets, merge = false) {
         set(s => ({
           expenses:  merge ? [...s.expenses,  ...newExpenses]  : newExpenses,
           recurring: merge ? [...s.recurring, ...newRecurring] : newRecurring,
+          budgets:   merge ? [...s.budgets,   ...newBudgets]   : newBudgets,
         }))
         const { expenses, recurring, settings } = get()
         autoSave(expenses, recurring, settings)
@@ -287,7 +289,18 @@ export const useStore = create<AppState>()(
         if (!src) return
         set(s => {
           const filtered = s.budgets.filter(b => !(b.year === toYear && b.month === toMonth && b.person === toPerson))
-          return { budgets: [...filtered, { year: toYear, month: toMonth, person: toPerson, items: [...src.items] }] }
+          return { budgets: [...filtered, { year: toYear, month: toMonth, person: toPerson, estimatedIncome: src.estimatedIncome, items: [...src.items] }] }
+        })
+      },
+
+      setIncome(year, month, person, amount) {
+        set(s => {
+          const match = (b: MonthlyBudget) => b.year === year && b.month === month && b.person === person
+          const existing = s.budgets.find(match)
+          if (existing) {
+            return { budgets: s.budgets.map(b => match(b) ? { ...b, estimatedIncome: amount } : b) }
+          }
+          return { budgets: [...s.budgets, { year, month, person, estimatedIncome: amount, items: [] }] }
         })
       },
     }),

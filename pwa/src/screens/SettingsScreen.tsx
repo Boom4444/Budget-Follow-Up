@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect } from 'react'
 import { useStore } from '../store/useStore'
 import { CURRENCIES } from '../data/currencies'
-import type { CurrencyCode, AppTheme } from '../models/types'
+import type { CurrencyCode, AppTheme, MonthlyBudget } from '../models/types'
 import type { Expense, RecurringExpense } from '../models/types'
 import {
   exportJSON, exportCSV,
@@ -18,6 +18,7 @@ import { useRegisterSW } from 'virtual:pwa-register/react'
 interface PendingImport {
   expenses: Expense[]
   recurring: RecurringExpense[]
+  budgets: MonthlyBudget[]
   label: string
 }
 
@@ -32,7 +33,7 @@ const THEME_OPTIONS: { value: AppTheme; label: string; icon: string }[] = [
 ]
 
 export default function SettingsScreen({ onShowHelp }: Props) {
-  const { settings, updateSettings, loadDemoData, expenses, recurring, importData, clearData } = useStore()
+  const { settings, updateSettings, loadDemoData, expenses, recurring, budgets, importData, clearData } = useStore()
   const {
     needRefresh: [needRefresh],
     updateServiceWorker,
@@ -83,14 +84,14 @@ export default function SettingsScreen({ onShowHelp }: Props) {
           setImportError('Fichier JSON invalide ou vide.')
           return
         }
-        setPending({ expenses: backup.expenses, recurring: backup.recurring ?? [], label: `${backup.expenses.length} dépenses depuis ${file.name}` })
+        setPending({ expenses: backup.expenses, recurring: backup.recurring ?? [], budgets: backup.budgets ?? [], label: `${backup.expenses.length} dépenses depuis ${file.name}` })
       } else {
         const parsed = parseCSV(text, settings.baseCurrency)
         if (parsed.length === 0) {
           setImportError('Aucune dépense trouvée dans le fichier.')
           return
         }
-        setPending({ expenses: parsed, recurring: [], label: `${parsed.length} dépenses depuis ${file.name}` })
+        setPending({ expenses: parsed, recurring: [], budgets: [], label: `${parsed.length} dépenses depuis ${file.name}` })
       }
     }
     reader.readAsText(file, 'utf-8')
@@ -99,7 +100,7 @@ export default function SettingsScreen({ onShowHelp }: Props) {
 
   function confirmImport(merge: boolean) {
     if (!pending) return
-    importData(pending.expenses, pending.recurring, merge)
+    importData(pending.expenses, pending.recurring, pending.budgets, merge)
     setBackupSlots(getAutoBackupSlots())
     setPending(null)
   }
@@ -129,11 +130,12 @@ export default function SettingsScreen({ onShowHelp }: Props) {
     setDriveError('')
     try {
       await uploadToDrive(driveToken, {
-        version: 2,
+        version: 3,
         exportedAt: new Date().toISOString(),
         settings,
         expenses,
         recurring,
+        budgets,
       })
       const files = await listDriveBackups(driveToken)
       setDriveFiles(files)
@@ -152,7 +154,7 @@ export default function SettingsScreen({ onShowHelp }: Props) {
       const text = await downloadFromDrive(driveToken, fileId)
       const backup = parseJSONBackup(text)
       if (!backup) { setDriveError('Fichier invalide'); return }
-      setPending({ expenses: backup.expenses, recurring: backup.recurring ?? [], label: `${backup.expenses.length} dépenses depuis Drive` })
+      setPending({ expenses: backup.expenses, recurring: backup.recurring ?? [], budgets: backup.budgets ?? [], label: `${backup.expenses.length} dépenses depuis Drive` })
     } catch (err: any) {
       setDriveError(err?.message ?? 'Échec du téléchargement')
     } finally {
@@ -262,7 +264,7 @@ export default function SettingsScreen({ onShowHelp }: Props) {
         {/* Backup & Data */}
         <p className="section-header">Sauvegarde & Données</p>
         <div className="card mx-4 overflow-hidden">
-          <button onClick={() => exportJSON(expenses, recurring, settings)}
+          <button onClick={() => exportJSON(expenses, recurring, settings, budgets)}
             className="w-full flex items-center justify-between px-4 py-3 border-b border-gray-100 dark:border-gray-700 text-left">
             <span className="text-[15px] text-blue-600">Exporter JSON</span>
             <span className="text-gray-400 dark:text-gray-500 text-[13px]">↑ Sauvegarde complète</span>
