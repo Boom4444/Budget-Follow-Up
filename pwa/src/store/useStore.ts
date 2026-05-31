@@ -1,7 +1,7 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 import { v4 as uuid } from 'uuid'
-import type { Expense, RecurringExpense, AppSettings, CurrencyCode, CategoryId, HouseholdMember } from '../models/types'
+import type { Expense, RecurringExpense, AppSettings, CurrencyCode, CategoryId, HouseholdMember, MonthlyBudget, BudgetItem } from '../models/types'
 import { convertToBase } from '../data/currencies'
 import { autoSave } from '../utils/backup'
 
@@ -22,6 +22,11 @@ interface AppState {
   loadDemoData: () => void
   importData: (expenses: Expense[], recurring: RecurringExpense[], merge?: boolean) => void
   clearData: () => void
+
+  budgets: MonthlyBudget[]
+  setBudgetItem: (year: number, month: number, categoryId: CategoryId, amount: number) => void
+  setBudgetItems: (year: number, month: number, items: BudgetItem[]) => void
+  copyBudget: (fromYear: number, fromMonth: number, toYear: number, toMonth: number) => void
 }
 
 export const useStore = create<AppState>()(
@@ -29,6 +34,7 @@ export const useStore = create<AppState>()(
     (set, get) => ({
       expenses: [],
       recurring: [],
+      budgets: [],
       settings: {
         person1Name: 'Moi',
         person2Name: 'Partenaire',
@@ -253,6 +259,35 @@ export const useStore = create<AppState>()(
 
       clearData() {
         set({ expenses: [], recurring: [] })
+      },
+
+      setBudgetItem(year, month, categoryId, amount) {
+        set(s => {
+          const existing = s.budgets.find(b => b.year === year && b.month === month)
+          if (existing) {
+            const items = existing.items.filter(i => i.categoryId !== categoryId)
+            if (amount > 0) items.push({ categoryId, amount })
+            return { budgets: s.budgets.map(b => b.year === year && b.month === month ? { ...b, items } : b) }
+          }
+          if (amount <= 0) return {}
+          return { budgets: [...s.budgets, { year, month, items: [{ categoryId, amount }] }] }
+        })
+      },
+
+      setBudgetItems(year, month, items) {
+        set(s => {
+          const filtered = s.budgets.filter(b => !(b.year === year && b.month === month))
+          return { budgets: items.length > 0 ? [...filtered, { year, month, items }] : filtered }
+        })
+      },
+
+      copyBudget(fromYear, fromMonth, toYear, toMonth) {
+        const src = get().budgets.find(b => b.year === fromYear && b.month === fromMonth)
+        if (!src) return
+        set(s => {
+          const filtered = s.budgets.filter(b => !(b.year === toYear && b.month === toMonth))
+          return { budgets: [...filtered, { year: toYear, month: toMonth, items: [...src.items] }] }
+        })
       },
     }),
     {

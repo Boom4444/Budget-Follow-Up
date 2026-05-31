@@ -13,11 +13,16 @@ import {
   requestDriveToken, uploadToDrive, listDriveBackups, downloadFromDrive,
 } from '../utils/googleDrive'
 import type { DriveFile } from '../utils/googleDrive'
+import { useRegisterSW } from 'virtual:pwa-register/react'
 
 interface PendingImport {
   expenses: Expense[]
   recurring: RecurringExpense[]
   label: string
+}
+
+interface Props {
+  onShowHelp?: () => void
 }
 
 const THEME_OPTIONS: { value: AppTheme; label: string; icon: string }[] = [
@@ -26,8 +31,12 @@ const THEME_OPTIONS: { value: AppTheme; label: string; icon: string }[] = [
   { value: 'system', label: 'Système',  icon: '⚙️' },
 ]
 
-export default function SettingsScreen() {
+export default function SettingsScreen({ onShowHelp }: Props) {
   const { settings, updateSettings, loadDemoData, expenses, recurring, importData, clearData } = useStore()
+  const {
+    needRefresh: [needRefresh],
+    updateServiceWorker,
+  } = useRegisterSW()
   const [newBank, setNewBank] = useState('')
   const [showConfirmDemo, setShowConfirmDemo] = useState(false)
   const [showRates, setShowRates] = useState(false)
@@ -370,10 +379,25 @@ export default function SettingsScreen() {
         {/* About */}
         <p className="section-header">À propos</p>
         <div className="card mx-4 overflow-hidden mb-8">
-          <div className="px-4 py-3 border-b border-gray-100 dark:border-gray-700 flex justify-between">
+          {onShowHelp && (
+            <button onClick={onShowHelp}
+              className="w-full flex items-center justify-between px-4 py-3 border-b border-gray-100 dark:border-gray-700 text-left">
+              <span className="text-[15px] text-blue-600">❓ Aide &amp; Guide</span>
+              <span className="text-gray-400 dark:text-gray-500">›</span>
+            </button>
+          )}
+          <div className="px-4 py-3 border-b border-gray-100 dark:border-gray-700 flex justify-between items-center">
             <span className="text-[15px] text-gray-600 dark:text-gray-300">Version</span>
-            <span className="text-[15px] text-gray-400 dark:text-gray-500">1.0.0</span>
+            <span className="text-[15px] text-gray-400 dark:text-gray-500">{__APP_VERSION__}</span>
           </div>
+          <button
+            onClick={() => updateServiceWorker(true)}
+            className="w-full flex items-center justify-between px-4 py-3 border-b border-gray-100 dark:border-gray-700 text-left">
+            <span className={`text-[15px] ${needRefresh ? 'text-orange-500 font-semibold' : 'text-blue-600'}`}>
+              {needRefresh ? '🔄 Mise à jour disponible !' : 'Vérifier les mises à jour'}
+            </span>
+            {needRefresh && <span className="text-orange-500 text-[12px] font-medium">Mettre à jour</span>}
+          </button>
           <div className="px-4 py-3 flex justify-between">
             <span className="text-[15px] text-gray-600 dark:text-gray-300">Données</span>
             <span className="text-[15px] text-gray-400 dark:text-gray-500">Stockées localement</span>

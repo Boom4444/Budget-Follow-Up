@@ -48,6 +48,17 @@ export interface RecurringExpense {
 
 export type AppTheme = 'light' | 'dark' | 'system'
 
+export interface BudgetItem {
+  categoryId: CategoryId
+  amount: number
+}
+
+export interface MonthlyBudget {
+  year: number
+  month: number
+  items: BudgetItem[]
+}
+
 export interface AppSettings {
   person1Name: string
   person2Name: string
