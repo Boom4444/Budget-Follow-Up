@@ -118,6 +118,19 @@ const KEYWORD_RULES: Array<{ keywords: string[]; category: string; subCategory: 
   { keywords: ['decathlon', 'sport 2000', 'go sport', 'intersport'], category: 'sport', subCategory: 'Équipement' },
 ]
 
+const EXCHANGE_PATTERNS = [
+  /^exchanged? (to|from) [a-z]{3}/i,
+  /^currency exchange/i,
+  /^fx (conversion|fee)/i,
+  /^change de devises/i,
+  /^bureau de change/i,
+]
+
+function isCurrencyExchange(desc: string, revolut_type?: string): boolean {
+  if (revolut_type?.toLowerCase() === 'exchange') return true
+  return EXCHANGE_PATTERNS.some(p => p.test(desc.trim()))
+}
+
 function classify(description: string): { category: string; subCategory: string; needsReview: boolean } {
   const lower = description.toLowerCase()
   for (const rule of KEYWORD_RULES) {
@@ -197,6 +210,7 @@ function parseRevolutCSV(lines: string[]): ImportedTransaction[] {
   const amountIdx  = col('amount')
   const currencyIdx= col('currency')
   const stateIdx   = col('state')
+  const typeIdx = col('type')
 
   const out: ImportedTransaction[] = []
   for (const line of lines.slice(1)) {
@@ -204,12 +218,14 @@ function parseRevolutCSV(lines: string[]): ImportedTransaction[] {
     const cols = splitLine(line, sep)
     if (cols.length < 5) continue
     if (stateIdx >= 0 && (cols[stateIdx] ?? '').toLowerCase() !== 'completed') continue
+    const txType = typeIdx >= 0 ? (cols[typeIdx] ?? '').toLowerCase() : ''; if (txType === 'exchange') continue
 
     const amount = parseAmount(cols[amountIdx] ?? '')
     if (amount === 0) continue
 
     const currency = ((cols[currencyIdx] ?? 'EUR').trim().toUpperCase()) as CurrencyCode
     const description = cols[descIdx] ?? ''
+    if (isCurrencyExchange(description, cols[typeIdx] ?? '')) continue
     const { category, subCategory, needsReview } = classify(description)
 
     out.push({
@@ -246,6 +262,7 @@ function parseCICCSV(lines: string[]): ImportedTransaction[] {
     if (amount === 0) continue
 
     const description = cols[labelIdx >= 0 ? labelIdx : 3] ?? ''
+    if (isCurrencyExchange(description)) continue
     const { category, subCategory, needsReview } = classify(description)
 
     out.push({
@@ -282,6 +299,7 @@ function parseCaisseEpargneCSV(lines: string[]): ImportedTransaction[] {
     if (amount === 0) continue
 
     const description = cols[labelIdx >= 0 ? labelIdx : 3] ?? ''
+    if (isCurrencyExchange(description)) continue
     const { category, subCategory, needsReview } = classify(description)
 
     out.push({
@@ -320,6 +338,7 @@ function parseUBSLines(lines: string[]): ImportedTransaction[] {
     if (debit === 0 && credit === 0) continue
 
     const description = cols[descIdx >= 0 ? descIdx : 2] ?? ''
+    if (isCurrencyExchange(description)) continue
     const { category, subCategory, needsReview } = classify(description)
 
     out.push({
@@ -358,6 +377,7 @@ function parseGenericLines(lines: string[], bankName: string): ImportedTransacti
     if (amount === 0) continue
 
     const description = labelIdx >= 0 ? (cols[labelIdx] ?? '') : (cols[1] ?? '')
+    if (isCurrencyExchange(description)) continue
     const { category, subCategory, needsReview } = classify(description)
 
     out.push({

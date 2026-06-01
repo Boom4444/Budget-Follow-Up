@@ -33,6 +33,22 @@ const THEME_OPTIONS: { value: AppTheme; label: string; icon: string }[] = [
   { value: 'system', label: 'Système',  icon: '⚙️' },
 ]
 
+const EMOJI_GROUPS = [
+  { label: 'Logement & Maison', emojis: ['🏠', '🏡', '🏢', '🛋️', '💡', '🔧', '🪴', '🛁', '🚿', '🪑', '🛏️', '🪟'] },
+  { label: 'Nourriture', emojis: ['🍽️', '🛒', '🥘', '🍕', '☕', '🧺', '🍷', '🍰', '🥗', '🌮', '🍣', '🍜'] },
+  { label: 'Transport', emojis: ['🚗', '✈️', '🚂', '⛽', '🛵', '🚌', '🚕', '🛞', '🚴', '🏍️', '⛵', '🚁'] },
+  { label: 'Loisirs & Voyage', emojis: ['🎯', '🎮', '🏖️', '🎬', '🎸', '🎲', '🎨', '🎭', '⛷️', '🏄', '🎃', '🎡'] },
+  { label: 'Travail', emojis: ['💼', '💻', '📊', '📱', '📧', '💰', '📝', '🗃️', '📋', '🖊️', '🔒', '📞'] },
+  { label: 'Santé', emojis: ['💊', '🏥', '🩺', '💉', '🩹', '🧬', '👓', '🦷', '🩻', '🌡️', '🧪', '💆'] },
+  { label: 'Mode', emojis: ['👔', '👗', '💄', '👠', '👟', '🧳', '💍', '👜', '🎩', '👒', '🧣', '🥿'] },
+  { label: 'Sport', emojis: ['🏋️', '🏊', '⚽', '🎾', '🚴', '🏃', '🥊', '⛷️', '🤸', '🧘', '🎿', '🏇'] },
+  { label: 'Beauté', emojis: ['💇', '💅', '🧴', '🪒', '🪭', '🧖', '🌸', '✨', '💐', '🌺', '🌹', '💋'] },
+  { label: 'Famille & Cadeaux', emojis: ['👨‍👩‍👧', '🎁', '💝', '🎂', '👶', '🐾', '🎀', '🧸', '🎈', '🥳', '🎉', '💌'] },
+  { label: 'Finance', emojis: ['💳', '🏦', '💸', '💎', '🪙', '💵', '📈', '🧾', '📑', '🏧', '💹', '🔐'] },
+  { label: 'Tech', emojis: ['📱', '💻', '📺', '🎧', '📷', '🕹️', '🖥️', '⌚', '🔋', '📡', '🤖', '🖨️'] },
+  { label: 'Divers', emojis: ['⭐', '🌟', '✨', '🔖', '📌', '🗓️', '🏷️', '📦', '🗝️', '🔑', '🎗️', '🌈'] },
+]
+
 export default function SettingsScreen({ onShowHelp }: Props) {
   const { settings, updateSettings, loadDemoData, expenses, recurring, budgets, importData, clearData } = useStore()
   const {
@@ -43,6 +59,7 @@ export default function SettingsScreen({ onShowHelp }: Props) {
   const [newCatEmoji, setNewCatEmoji] = useState('📦')
   const [newCatLabel, setNewCatLabel] = useState('')
   const [newCatFixed, setNewCatFixed] = useState(false)
+  const [showEmojiPicker, setShowEmojiPicker] = useState(false)
   const [showConfirmDemo, setShowConfirmDemo] = useState(false)
   const [showRates, setShowRates] = useState(false)
   const [backupSlots, setBackupSlots] = useState<AutoBackupSlot[]>([])
@@ -273,32 +290,35 @@ export default function SettingsScreen({ onShowHelp }: Props) {
             </div>
           ))}
           <div className={`px-4 py-3 ${(settings.customCategories ?? []).length > 0 ? 'border-t border-gray-100 dark:border-gray-700' : ''}`}>
-            <div className="flex items-center gap-2 mb-2">
-              <input
-                type="text"
-                placeholder="😀"
-                value={newCatEmoji}
-                onChange={e => setNewCatEmoji(e.target.value)}
-                className="w-12 text-center text-[22px] outline-none bg-transparent"
-                maxLength={4}
-              />
+            <div className="flex items-center gap-2 mb-2.5">
+              <button
+                type="button"
+                onClick={() => setShowEmojiPicker(true)}
+                className="w-12 h-12 rounded-xl bg-gray-100 dark:bg-gray-700 flex items-center justify-center text-[26px] border-2 border-dashed border-gray-300 dark:border-gray-600 flex-shrink-0">
+                {newCatEmoji}
+              </button>
               <input
                 type="text"
                 placeholder="Nom de la catégorie…"
                 value={newCatLabel}
                 onChange={e => setNewCatLabel(e.target.value)}
                 onKeyDown={e => e.key === 'Enter' && addCustomCategory()}
-                className="flex-1 text-[15px] outline-none bg-transparent dark:text-white dark:placeholder-gray-500"
+                className="flex-1 text-[15px] outline-none bg-transparent dark:text-white dark:placeholder-gray-500 py-1"
               />
-              {newCatLabel && (
-                <button onClick={addCustomCategory} className="text-blue-600 text-[14px] font-medium">OK</button>
-              )}
             </div>
-            <label className="flex items-center gap-2">
-              <input type="checkbox" checked={newCatFixed} onChange={e => setNewCatFixed(e.target.checked)}
-                className="w-4 h-4 accent-red-500" />
-              <span className="text-[13px] text-gray-500 dark:text-gray-400">Charge incompressible</span>
-            </label>
+            <div className="flex items-center justify-between">
+              <label className="flex items-center gap-2">
+                <input type="checkbox" checked={newCatFixed} onChange={e => setNewCatFixed(e.target.checked)}
+                  className="w-4 h-4 accent-red-500" />
+                <span className="text-[13px] text-gray-500 dark:text-gray-400">Charge incompressible</span>
+              </label>
+              <button
+                onClick={addCustomCategory}
+                disabled={!newCatLabel.trim()}
+                className="px-4 py-1.5 bg-blue-600 text-white rounded-xl text-[14px] font-semibold disabled:opacity-30 transition-opacity">
+                Ajouter
+              </button>
+            </div>
           </div>
         </div>
 
@@ -494,6 +514,44 @@ export default function SettingsScreen({ onShowHelp }: Props) {
           </div>
         </div>
       </div>
+
+      {/* Emoji picker sheet */}
+      {showEmojiPicker && (
+        <div className="fixed inset-0 z-50 flex flex-col"
+             style={{ paddingTop: 'env(safe-area-inset-top, 0px)' }}>
+          <div className="flex-1 bg-black/40" onClick={() => setShowEmojiPicker(false)} />
+          <div className="bg-white dark:bg-gray-900 rounded-t-3xl flex flex-col"
+               style={{ maxHeight: '70vh' }}>
+            <div className="flex items-center justify-between px-5 pt-4 pb-2 flex-shrink-0">
+              <span className="text-[17px] font-semibold dark:text-white">Choisir une icône</span>
+              <button onClick={() => setShowEmojiPicker(false)}
+                className="text-blue-600 font-medium text-[15px]">Fermer</button>
+            </div>
+            <div className="overflow-y-auto scroll-ios pb-6 px-4">
+              {EMOJI_GROUPS.map(group => (
+                <div key={group.label} className="mb-4">
+                  <p className="text-[11px] font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wide mb-2">
+                    {group.label}
+                  </p>
+                  <div className="grid grid-cols-6 gap-2">
+                    {group.emojis.map(emoji => (
+                      <button
+                        key={emoji}
+                        onClick={() => { setNewCatEmoji(emoji); setShowEmojiPicker(false) }}
+                        className={`h-12 rounded-xl text-[24px] flex items-center justify-center transition-colors
+                          ${newCatEmoji === emoji
+                            ? 'bg-blue-100 dark:bg-blue-900/40 ring-2 ring-blue-500'
+                            : 'bg-gray-100 dark:bg-gray-800 active:bg-gray-200 dark:active:bg-gray-700'}`}>
+                        {emoji}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ── Modals ── */}
 

@@ -27,6 +27,7 @@ export default function ExpensesScreen() {
   const [importLoading, setImportLoading] = useState(false)
   const [importError, setImportError] = useState('')
   const [importFilter, setImportFilter] = useState<'all' | 'review'>('all')
+  const [importPerson, setImportPerson] = useState<HouseholdMember>('person1')
 
   const NOW = currentYear()
 
@@ -118,7 +119,7 @@ export default function ExpensesScreen() {
         type: t.type,
         isFixed: false,
         bank: t.bank,
-        person: 'person1' as HouseholdMember,
+        person: importPerson,
         notes: '',
       })
     })
@@ -126,11 +127,24 @@ export default function ExpensesScreen() {
     setImportTxns([])
   }
 
-  const displayedTxns = importFilter === 'review'
-    ? importTxns.filter(t => t.needsReview)
-    : importTxns
-
   const reviewCount = importTxns.filter(t => t.needsReview).length
+
+  const importDateRange = useMemo(() => {
+    if (importTxns.length === 0) return null
+    const dates = importTxns.map(t => t.date).sort()
+    const fmt = (d: string) => {
+      const [y, m, day] = d.split('-')
+      return `${day}/${m}/${y.slice(2)}`
+    }
+    return { from: fmt(dates[0]), to: fmt(dates[dates.length - 1]) }
+  }, [importTxns])
+
+  const importDebitCount = importTxns.filter(t => t.type === 'debit').length
+  const importCreditCount = importTxns.filter(t => t.type === 'credit').length
+
+  const displayedTxns = importFilter === 'review'
+    ? [...importTxns.filter(t => t.needsReview), ...importTxns.filter(t => !t.needsReview)]
+    : importTxns
 
   return (
     <div className="flex flex-col h-full"
@@ -140,11 +154,22 @@ export default function ExpensesScreen() {
         <div className="flex items-center justify-between mb-3">
           <h1 className="text-[22px] font-bold dark:text-white">Dépenses</h1>
           <div className="flex items-center gap-2">
-            <button onClick={() => importRef.current?.click()}
+            <button
+              onClick={() => importRef.current?.click()}
               disabled={importLoading}
               title="Importer un relevé bancaire"
-              className="w-9 h-9 bg-gray-100 dark:bg-gray-700 rounded-full flex items-center justify-center text-gray-600 dark:text-gray-300 text-lg">
-              {importLoading ? '…' : '📥'}
+              className="flex items-center gap-1.5 px-3 py-2 bg-gray-100 dark:bg-gray-700 rounded-xl text-[13px] font-medium text-gray-700 dark:text-gray-200">
+              {importLoading ? (
+                <span className="text-[14px]">…</span>
+              ) : (
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+                  <polyline points="14 2 14 8 20 8"/>
+                  <line x1="12" y1="18" x2="12" y2="12"/>
+                  <polyline points="9 15 12 18 15 15"/>
+                </svg>
+              )}
+              Relevé
             </button>
             <button onClick={() => setShowAdd(true)}
               className="w-9 h-9 bg-blue-600 rounded-full flex items-center justify-center text-white text-xl font-light">
@@ -332,8 +357,9 @@ export default function ExpensesScreen() {
               className="text-blue-600 font-medium text-[15px]">Annuler</button>
             <div className="flex-1 text-center">
               <p className="font-semibold text-[16px] dark:text-white">{importResult.bankName}</p>
-              <p className="text-[12px] text-gray-400 dark:text-gray-500">
-                {importTxns.length} transaction{importTxns.length > 1 ? 's' : ''}
+              <p className="text-[11px] text-gray-400 dark:text-gray-500">
+                {importDateRange && `${importDateRange.from} → ${importDateRange.to} · `}
+                {importDebitCount} débit{importDebitCount > 1 ? 's' : ''}{importCreditCount > 0 ? `, ${importCreditCount} crédit${importCreditCount > 1 ? 's' : ''}` : ''}
                 {reviewCount > 0 && ` · ${reviewCount} à classifier`}
               </p>
             </div>
@@ -341,6 +367,23 @@ export default function ExpensesScreen() {
               className="text-blue-600 font-semibold text-[15px]">
               Importer
             </button>
+          </div>
+
+          {/* Person selector */}
+          <div className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-4 py-2 flex items-center gap-3 flex-shrink-0">
+            <span className="text-[13px] text-gray-500 dark:text-gray-400 flex-shrink-0">Compte de :</span>
+            <div className="flex gap-2">
+              {(['person1', 'person2'] as HouseholdMember[]).map(p => (
+                <button key={p} onClick={() => setImportPerson(p)}
+                  className={`px-3 py-1 rounded-full text-[13px] font-medium transition-colors ${
+                    importPerson === p
+                      ? 'bg-blue-600 text-white'
+                      : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300'
+                  }`}>
+                  {p === 'person1' ? settings.person1Name : settings.person2Name}
+                </button>
+              ))}
+            </div>
           </div>
 
           {/* Filter */}
@@ -352,7 +395,7 @@ export default function ExpensesScreen() {
               </button>
               <button onClick={() => setImportFilter('review')}
                 className={`px-3 py-1 rounded-full text-[13px] font-medium ${importFilter === 'review' ? 'bg-orange-500 text-white' : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300'}`}>
-                À classifier ({reviewCount})
+                À classifier ({reviewCount}/{importTxns.length})
               </button>
             </div>
           )}
@@ -393,8 +436,15 @@ export default function ExpensesScreen() {
                             </div>
                             <p className="text-[11px] text-gray-400 dark:text-gray-500 mb-1.5">{t.date} · {t.bank}</p>
                             {/* Category select */}
-                            <div className={`flex items-center gap-1.5 ${t.needsReview ? 'bg-orange-50 dark:bg-orange-950 rounded-lg px-2 py-1' : ''}`}>
-                              {t.needsReview && <span className="text-orange-500 text-[11px]">⚠</span>}
+                            <div className={`flex items-center gap-1.5 ${
+                              t.needsReview
+                                ? 'bg-orange-50 dark:bg-orange-950 rounded-lg px-2 py-1'
+                                : importFilter === 'review' ? 'bg-green-50 dark:bg-green-950/30 rounded-lg px-2 py-1' : ''
+                            }`}>
+                              {t.needsReview
+                                ? <span className="text-orange-500 text-[11px]">⚠</span>
+                                : importFilter === 'review' ? <span className="text-green-500 text-[11px]">✓</span> : null
+                              }
                               <select
                                 value={t.suggestedCategory}
                                 onChange={e => {
