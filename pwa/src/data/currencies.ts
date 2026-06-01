@@ -26,16 +26,56 @@ export const CURRENCY_MAP = Object.fromEntries(
   CURRENCIES.map(c => [c.code, c])
 ) as Record<CurrencyCode, CurrencyMeta>
 
-// 1 EUR = X foreign currency (approximate)
-export const EUR_RATES: Record<CurrencyCode, number> = {
+// Fallback rates: 1 EUR = X (used when live rates unavailable for that currency)
+const FALLBACK_RATES: Record<CurrencyCode, number> = {
   EUR: 1, USD: 1.08, GBP: 0.86, CHF: 0.96,
   MAD: 10.85, DZD: 145.2, TND: 3.35,
   JPY: 162.5, CAD: 1.47, AUD: 1.65, SGD: 1.45, AED: 3.97,
 }
 
+export const EUR_RATES = FALLBACK_RATES
+
+// Live rates: 1 EUR = X, refreshed monthly via Frankfurter API
+let liveRates: Record<CurrencyCode, number> = { ...FALLBACK_RATES }
+
+const CACHE_KEY = 'budget-live-rates'
+// Currencies supported by Frankfurter (excludes MAD, DZD, TND, AED — kept from fallback)
+const FRANKFURTER_SUPPORTED: CurrencyCode[] = ['USD', 'GBP', 'CHF', 'JPY', 'CAD', 'AUD', 'SGD']
+
+export function getLiveRates(): Record<CurrencyCode, number> {
+  return { ...liveRates }
+}
+
+export async function refreshExchangeRates(): Promise<void> {
+  const today = new Date()
+  const currentMonth = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}`
+
+  try {
+    const cached = JSON.parse(localStorage.getItem(CACHE_KEY) ?? 'null')
+    if (cached?.month === currentMonth && cached.rates) {
+      liveRates = { ...FALLBACK_RATES, ...cached.rates }
+      return
+    }
+  } catch { /* ignore stale cache */ }
+
+  try {
+    const res = await fetch('https://api.frankfurter.app/latest?from=EUR')
+    if (!res.ok) return
+    const data: { rates: Record<string, number> } = await res.json()
+
+    const rates: Partial<Record<CurrencyCode, number>> = {}
+    for (const code of FRANKFURTER_SUPPORTED) {
+      if (data.rates[code] != null) rates[code] = data.rates[code]
+    }
+
+    liveRates = { ...FALLBACK_RATES, ...rates }
+    localStorage.setItem(CACHE_KEY, JSON.stringify({ month: currentMonth, rates }))
+  } catch { /* keep fallback rates on network failure */ }
+}
+
 export function convertToBase(amount: number, from: CurrencyCode, base: CurrencyCode): number {
   if (from === base) return amount
-  const fromRate = EUR_RATES[from]
-  const baseRate = EUR_RATES[base]
+  const fromRate = liveRates[from]
+  const baseRate = liveRates[base]
   return (amount / fromRate) * baseRate
 }

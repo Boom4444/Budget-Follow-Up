@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useStore } from './store/useStore'
+import { refreshExchangeRates } from './data/currencies'
 import DashboardScreen from './screens/DashboardScreen'
 import ExpensesScreen from './screens/ExpensesScreen'
 import RecurringScreen from './screens/RecurringScreen'
@@ -24,6 +25,10 @@ export default function App() {
   const [tab, setTab] = useState<Tab>('dashboard')
   const [showHelp, setShowHelp] = useState(false)
   const { settings } = useStore()
+
+  useEffect(() => {
+    refreshExchangeRates()
+  }, [])
 
   useEffect(() => {
     const html = document.documentElement

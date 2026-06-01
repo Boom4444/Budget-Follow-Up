@@ -2,25 +2,62 @@ import { useState, useMemo } from 'react'
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell, PieChart, Pie } from 'recharts'
 import { useStore } from '../store/useStore'
 import { CATEGORY_MAP } from '../data/categories'
-import { CURRENCY_MAP } from '../data/currencies'
+import { CURRENCIES, CURRENCY_MAP } from '../data/currencies'
 import { formatAmount, formatPercent } from '../utils/formatters'
 import { currentYear, shortMonth, longMonth } from '../utils/dates'
-import { getPersonShare } from '../utils/expenses'
+import type { Expense, CurrencyCode } from '../models/types'
 import AddExpenseModal from '../components/AddExpenseModal'
 
 export default function DashboardScreen() {
   const { expenses, settings } = useStore()
   const base = settings.baseCurrency
-  const sym = CURRENCY_MAP[base].symbol
 
   const [year, setYear] = useState(currentYear())
   const [month, setMonth] = useState<number | null>(null)
   const [filterPerson, setFilterPerson] = useState<'all' | 'person1' | 'person2' | 'shared'>('all')
+  const [viewCurrency, setViewCurrency] = useState<'all' | CurrencyCode>('all')
+  const [chartRange, setChartRange] = useState<6 | 12 | 24>(12)
   const [showAdd, setShowAdd] = useState(false)
   const [selectedCat, setSelectedCat] = useState<string | null>(null)
 
   const NOW = currentYear()
+  const isDark = document.documentElement.classList.contains('dark')
 
+  const tooltipStyle = {
+    borderRadius: 8, border: 'none',
+    boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
+    fontSize: 12,
+    background: isDark ? '#1f2937' : '#fff',
+    color: isDark ? '#f9fafb' : '#111827',
+  }
+
+  // Currencies that actually appear in expense data
+  const availableCurrencies = useMemo(() => {
+    const seen = new Set<CurrencyCode>()
+    expenses.forEach(e => seen.add(e.currency))
+    return CURRENCIES.filter(c => seen.has(c.code))
+  }, [expenses])
+
+  const showCurrencyFilter = availableCurrencies.length > 1
+
+  // Display currency and symbol
+  const displayCurr: CurrencyCode = viewCurrency === 'all' ? base : viewCurrency
+  const sym = CURRENCY_MAP[displayCurr]?.symbol ?? displayCurr
+
+  // Amount accessor: native currency amount or base-converted
+  const getAmt = (e: Expense) => viewCurrency === 'all' ? e.amountInBase : e.amount
+
+  // Per-person share (accounts for split ratio on shared expenses)
+  function personShareAmt(e: Expense, person: 'person1' | 'person2'): number {
+    if (e.type !== 'debit') return 0
+    const amt = getAmt(e)
+    if (e.person === person) return amt
+    if (e.person !== 'shared') return 0
+    const ratio = e.splitRatio ?? { person1: 50, person2: 50 }
+    return amt * (ratio[person] / 100)
+  }
+
+  // Base filter: year + month + person
   const filtered = useMemo(() => expenses.filter(e => {
     const ey = parseInt(e.date.slice(0, 4))
     const em = parseInt(e.date.slice(5, 7))
@@ -30,39 +67,56 @@ export default function DashboardScreen() {
     return true
   }), [expenses, year, month, filterPerson])
 
-  const debits  = filtered.filter(e => e.type === 'debit')
-  const credits = filtered.filter(e => e.type === 'credit')
+  // Currency filter on top of base filter
+  const filteredCurr = useMemo(() =>
+    viewCurrency === 'all' ? filtered : filtered.filter(e => e.currency === viewCurrency)
+  , [filtered, viewCurrency])
 
-  const totalDepenses = debits.reduce((s, e) => s + e.amountInBase, 0)
-  const totalRevenus  = credits.reduce((s, e) => s + e.amountInBase, 0)
+  const debits  = filteredCurr.filter(e => e.type === 'debit')
+  const credits = filteredCurr.filter(e => e.type === 'credit')
+
+  const totalDepenses = debits.reduce((s, e) => s + getAmt(e), 0)
+  const totalRevenus  = credits.reduce((s, e) => s + getAmt(e), 0)
   const solde         = totalRevenus - totalDepenses
-  const totalFixed    = debits.filter(e => e.isFixed).reduce((s, e) => s + e.amountInBase, 0)
+  const totalFixed    = debits.filter(e => e.isFixed).reduce((s, e) => s + getAmt(e), 0)
   const totalVariable = totalDepenses - totalFixed
-  const totalP1       = debits.reduce((s, e) => s + getPersonShare(e, 'person1'), 0)
-  const totalP2       = debits.reduce((s, e) => s + getPersonShare(e, 'person2'), 0)
-  const sharedP1      = debits.filter(e => e.person === 'shared').reduce((s, e) => s + getPersonShare(e, 'person1'), 0)
-  const sharedP2      = debits.filter(e => e.person === 'shared').reduce((s, e) => s + getPersonShare(e, 'person2'), 0)
+  const totalP1       = debits.reduce((s, e) => s + personShareAmt(e, 'person1'), 0)
+  const totalP2       = debits.reduce((s, e) => s + personShareAmt(e, 'person2'), 0)
+  const sharedP1      = debits.filter(e => e.person === 'shared').reduce((s, e) => s + personShareAmt(e, 'person1'), 0)
+  const sharedP2      = debits.filter(e => e.person === 'shared').reduce((s, e) => s + personShareAmt(e, 'person2'), 0)
 
-  const monthlyData = useMemo(() => Array.from({ length: 12 }, (_, i) => {
-    const m = i + 1
-    const mes = expenses.filter(e =>
-      parseInt(e.date.slice(0, 4)) === year &&
-      parseInt(e.date.slice(5, 7)) === m &&
-      (filterPerson === 'all' || e.person === filterPerson)
-    )
-    const debitMes  = mes.filter(e => e.type === 'debit')
-    const creditMes = mes.filter(e => e.type === 'credit')
-    return {
-      name: shortMonth(m),
-      fixed:    Math.round(debitMes.filter(e => e.isFixed).reduce((s, e) => s + e.amountInBase, 0)),
-      variable: Math.round(debitMes.filter(e => !e.isFixed).reduce((s, e) => s + e.amountInBase, 0)),
-      revenus:  Math.round(creditMes.reduce((s, e) => s + e.amountInBase, 0)),
+  // Rolling window chart: last chartRange months from today
+  const monthlyData = useMemo(() => {
+    const result: { name: string; fixed: number; variable: number; revenus: number }[] = []
+    const now = new Date()
+    let y = now.getFullYear()
+    let m = now.getMonth() + 1
+
+    for (let i = 0; i < chartRange; i++) {
+      const mes = expenses.filter(e => {
+        const ey = parseInt(e.date.slice(0, 4))
+        const em = parseInt(e.date.slice(5, 7))
+        return ey === y && em === m &&
+          (filterPerson === 'all' || e.person === filterPerson) &&
+          (viewCurrency === 'all' || e.currency === viewCurrency)
+      })
+      const debitMes  = mes.filter(e => e.type === 'debit')
+      const creditMes = mes.filter(e => e.type === 'credit')
+      const a = (e: Expense) => viewCurrency === 'all' ? e.amountInBase : e.amount
+      result.unshift({
+        name: chartRange > 12 ? `${shortMonth(m)}'${String(y).slice(2)}` : shortMonth(m),
+        fixed:    Math.round(debitMes.filter(e => e.isFixed).reduce((s, e) => s + a(e), 0)),
+        variable: Math.round(debitMes.filter(e => !e.isFixed).reduce((s, e) => s + a(e), 0)),
+        revenus:  Math.round(creditMes.reduce((s, e) => s + a(e), 0)),
+      })
+      if (m === 1) { y--; m = 12 } else { m-- }
     }
-  }), [expenses, year, filterPerson])
+    return result
+  }, [expenses, chartRange, filterPerson, viewCurrency])
 
   const catData = useMemo(() => {
     const map: Record<string, number> = {}
-    debits.forEach(e => { map[e.category] = (map[e.category] ?? 0) + e.amountInBase })
+    debits.forEach(e => { map[e.category] = (map[e.category] ?? 0) + getAmt(e) })
     return Object.entries(map)
       .map(([id, val]) => ({
         id,
@@ -72,17 +126,9 @@ export default function DashboardScreen() {
       }))
       .sort((a, b) => b.value - a.value)
       .slice(0, 8)
-  }, [debits])
+  }, [debits, viewCurrency]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const fmt = (v: number) => v === 0 ? '' : v >= 1000 ? `${(v / 1000).toFixed(0)}k` : String(v)
-  const isDark = document.documentElement.classList.contains('dark')
-  const tooltipStyle = {
-    borderRadius: 8, border: 'none',
-    boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
-    fontSize: 12,
-    background: isDark ? '#1f2937' : '#fff',
-    color: isDark ? '#f9fafb' : '#111827',
-  }
 
   return (
     <div className="flex flex-col h-full"
@@ -139,10 +185,37 @@ export default function DashboardScreen() {
           ))}
         </div>
 
+        {/* Currency filter (only shown when multiple currencies present) */}
+        {showCurrencyFilter && (
+          <div className="flex gap-1.5 overflow-x-auto px-4 mt-2 pb-1 no-scrollbar">
+            <button
+              onClick={() => setViewCurrency('all')}
+              className={`px-3 py-1 rounded-full text-[12px] font-medium whitespace-nowrap flex-shrink-0 transition-colors
+                ${viewCurrency === 'all'
+                  ? 'bg-violet-600 text-white'
+                  : 'bg-white dark:bg-gray-700 text-gray-600 dark:text-gray-300 border border-gray-200 dark:border-gray-600'}`}>
+              Toutes devises
+            </button>
+            {availableCurrencies.map(c => (
+              <button key={c.code}
+                onClick={() => setViewCurrency(viewCurrency === c.code ? 'all' : c.code)}
+                className={`px-3 py-1 rounded-full text-[12px] font-medium whitespace-nowrap flex-shrink-0 transition-colors
+                  ${viewCurrency === c.code
+                    ? 'bg-violet-600 text-white'
+                    : 'bg-white dark:bg-gray-700 text-gray-600 dark:text-gray-300 border border-gray-200 dark:border-gray-600'}`}>
+                {c.flag} {c.code}
+              </button>
+            ))}
+          </div>
+        )}
+
         {/* Solde card */}
         <div className="mx-4 mt-3 card p-4">
           <p className="text-sm text-gray-400 dark:text-gray-500 mb-1">
             {month !== null ? `${longMonth(month)} ${year}` : `Solde ${year}`}
+            {viewCurrency !== 'all' && (
+              <span className="ml-2 text-violet-500 font-medium">· {viewCurrency} seulement</span>
+            )}
           </p>
           <p className={`text-[34px] font-bold tracking-tight ${solde >= 0 ? 'text-green-600' : 'text-red-500'}`}>
             {solde >= 0 ? '+' : ''}{solde.toFixed(0).replace(/\B(?=(\d{3})+(?!\d))/g, ' ')} {sym}
@@ -150,11 +223,11 @@ export default function DashboardScreen() {
           <div className="flex gap-4 mt-2">
             <div className="flex items-center gap-1.5">
               <span className="w-2.5 h-2.5 rounded-sm bg-red-400 inline-block"></span>
-              <span className="text-[12px] text-gray-500 dark:text-gray-400">{formatAmount(totalDepenses, base)} dépenses</span>
+              <span className="text-[12px] text-gray-500 dark:text-gray-400">{formatAmount(totalDepenses, displayCurr)} dépenses</span>
             </div>
             <div className="flex items-center gap-1.5">
               <span className="w-2.5 h-2.5 rounded-sm bg-green-400 inline-block"></span>
-              <span className="text-[12px] text-gray-500 dark:text-gray-400">{formatAmount(totalRevenus, base)} revenus</span>
+              <span className="text-[12px] text-gray-500 dark:text-gray-400">{formatAmount(totalRevenus, displayCurr)} revenus</span>
             </div>
           </div>
         </div>
@@ -163,47 +236,61 @@ export default function DashboardScreen() {
         <div className="px-4 mt-3 grid grid-cols-2 gap-3">
           <div className="card p-3">
             <p className="text-[11px] text-gray-400 dark:text-gray-500 mb-1">💸 Dépenses</p>
-            <p className="text-[18px] font-bold text-red-500">{formatAmount(totalDepenses, base)}</p>
+            <p className="text-[18px] font-bold text-red-500">{formatAmount(totalDepenses, displayCurr)}</p>
           </div>
           <div className="card p-3">
             <p className="text-[11px] text-gray-400 dark:text-gray-500 mb-1">💰 Revenus</p>
-            <p className="text-[18px] font-bold text-green-600">{formatAmount(totalRevenus, base)}</p>
+            <p className="text-[18px] font-bold text-green-600">{formatAmount(totalRevenus, displayCurr)}</p>
           </div>
           <div className="card p-3">
             <p className="text-[11px] text-gray-400 dark:text-gray-500 mb-1">🔒 Incompressible</p>
-            <p className="text-[18px] font-bold text-orange-500">{formatAmount(totalFixed, base)}</p>
+            <p className="text-[18px] font-bold text-orange-500">{formatAmount(totalFixed, displayCurr)}</p>
             {totalDepenses > 0 && <p className="text-[11px] text-gray-400 dark:text-gray-500">{formatPercent(totalFixed, totalDepenses)} des dépenses</p>}
           </div>
           <div className="card p-3">
             <p className="text-[11px] text-gray-400 dark:text-gray-500 mb-1">📈 Variable</p>
-            <p className="text-[18px] font-bold text-blue-500">{formatAmount(totalVariable, base)}</p>
+            <p className="text-[18px] font-bold text-blue-500">{formatAmount(totalVariable, displayCurr)}</p>
             {totalDepenses > 0 && <p className="text-[11px] text-gray-400 dark:text-gray-500">{formatPercent(totalVariable, totalDepenses)} des dépenses</p>}
           </div>
         </div>
 
-        {/* Per-person cards (includes each person's share of shared expenses) */}
+        {/* Per-person cards */}
         <div className="px-4 mt-3 grid grid-cols-2 gap-3">
           <div className="card p-3">
             <p className="text-[11px] text-gray-400 dark:text-gray-500 mb-1">👤 {settings.person1Name}</p>
-            <p className="text-[18px] font-bold dark:text-white">{formatAmount(totalP1, base)}</p>
-            {sharedP1 > 0 && <p className="text-[10px] text-gray-400 dark:text-gray-500 mt-0.5">dont {formatAmount(sharedP1, base)} commun</p>}
+            <p className="text-[18px] font-bold dark:text-white">{formatAmount(totalP1, displayCurr)}</p>
+            {sharedP1 > 0 && <p className="text-[10px] text-gray-400 dark:text-gray-500 mt-0.5">dont {formatAmount(sharedP1, displayCurr)} commun</p>}
           </div>
           <div className="card p-3">
             <p className="text-[11px] text-gray-400 dark:text-gray-500 mb-1">👤 {settings.person2Name}</p>
-            <p className="text-[18px] font-bold dark:text-white">{formatAmount(totalP2, base)}</p>
-            {sharedP2 > 0 && <p className="text-[10px] text-gray-400 dark:text-gray-500 mt-0.5">dont {formatAmount(sharedP2, base)} commun</p>}
+            <p className="text-[18px] font-bold dark:text-white">{formatAmount(totalP2, displayCurr)}</p>
+            {sharedP2 > 0 && <p className="text-[10px] text-gray-400 dark:text-gray-500 mt-0.5">dont {formatAmount(sharedP2, displayCurr)} commun</p>}
           </div>
         </div>
 
-        {/* Monthly bar chart */}
+        {/* Monthly bar chart with range selector */}
         {monthlyData.some(d => d.fixed + d.variable + d.revenus > 0) && (
           <div className="card mx-4 mt-4 p-4">
-            <p className="text-[15px] font-semibold mb-3 dark:text-white">Évolution mensuelle</p>
+            <div className="flex items-center justify-between mb-3">
+              <p className="text-[15px] font-semibold dark:text-white">Évolution mensuelle</p>
+              <div className="flex gap-1">
+                {([6, 12, 24] as const).map(r => (
+                  <button key={r} onClick={() => setChartRange(r)}
+                    className={`px-2.5 py-1 rounded-lg text-[11px] font-semibold transition-colors
+                      ${chartRange === r
+                        ? 'bg-blue-600 text-white'
+                        : 'bg-gray-100 dark:bg-gray-800 text-gray-500 dark:text-gray-400'}`}>
+                    {r}M
+                  </button>
+                ))}
+              </div>
+            </div>
             <ResponsiveContainer width="100%" height={170}>
               <BarChart data={monthlyData} margin={{ top: 0, right: 0, bottom: 0, left: -20 }} barSize={5} barGap={1} barCategoryGap={4}>
                 <XAxis dataKey="name" tick={{ fontSize: 10, fill: isDark ? '#6b7280' : '#9ca3af' }} axisLine={false} tickLine={false} />
                 <YAxis tick={{ fontSize: 10, fill: isDark ? '#6b7280' : '#9ca3af' }} axisLine={false} tickLine={false} tickFormatter={fmt} />
                 <Tooltip contentStyle={tooltipStyle}
+                  cursor={{ fill: isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.04)' }}
                   formatter={(v: number, name: string) => [
                     `${v} ${sym}`,
                     name === 'fixed' ? 'Incompressible' : name === 'variable' ? 'Variable' : 'Revenus',
@@ -257,7 +344,7 @@ export default function DashboardScreen() {
         )}
 
         {/* Empty state */}
-        {filtered.length === 0 && (
+        {filteredCurr.length === 0 && (
           <div className="flex flex-col items-center justify-center py-16 px-8 text-center">
             <span className="text-5xl mb-4">📊</span>
             <p className="text-[17px] font-semibold text-gray-700 dark:text-gray-200 mb-1">Aucune dépense</p>
