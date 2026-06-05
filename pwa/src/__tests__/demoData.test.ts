@@ -45,49 +45,49 @@ const JANVIER_2026: RawRow[] = [
   { date: '2026-01-03', bank: 'Revolut',category: 'loisirs',    subCategory: 'Autres Loisirs',     ...debit(19.27,  'EUR'), title: 'Fnac',                    notes: 'Jeu de société + crayons' },
   { date: '2026-01-03', bank: 'Revolut',category: 'nourriture', subCategory: 'Courses',            ...debit(319.77, 'EUR'), title: 'Intermarché',             notes: 'Courses avec Angèle' },
   { date: '2026-01-05', bank: 'UBS',    category: 'assurance',  subCategory: 'Maladie (Lamal)',    ...debit(442.75, 'CHF'), title: 'Sanitas',                 notes: '' },
-  { date: '2026-01-05', bank: 'UBS',    category: 'entreprise', subCategory: 'Restaurant Travail', ...debit(12,     'CHF'), title: 'Pictet',                  notes: 'Repas' },
-  { date: '2026-01-05', bank: 'UBS',    category: 'entreprise', subCategory: 'Restaurant Travail', ...debit(2.30,   'CHF'), title: 'Pictet',                  notes: 'Fruit petit déjeuner' },
-  { date: '2026-01-06', bank: 'UBS',    category: 'entreprise', subCategory: 'Restaurant Travail', ...debit(12,     'CHF'), title: 'Pictet',                  notes: 'Repas' },
+  { date: '2026-01-05', bank: 'UBS',    category: 'entreprise', subCategory: 'Repas Travail', ...debit(12,     'CHF'), title: 'Pictet',                  notes: 'Repas' },
+  { date: '2026-01-05', bank: 'UBS',    category: 'entreprise', subCategory: 'Repas Travail', ...debit(2.30,   'CHF'), title: 'Pictet',                  notes: 'Fruit petit déjeuner' },
+  { date: '2026-01-06', bank: 'UBS',    category: 'entreprise', subCategory: 'Repas Travail', ...debit(12,     'CHF'), title: 'Pictet',                  notes: 'Repas' },
   { date: '2026-01-07', bank: 'CIC',    category: 'cadeaux',    subCategory: 'Revenus Supplémentaires', ...credit(300, 'EUR'), title: 'Angèle',              notes: 'Remboursement crédit (dernier pour la voiture)' },
   { date: '2026-01-07', bank: 'UBS',    category: 'cadeaux',    subCategory: 'Autres Cadeaux',     ...debit(30,    'CHF'), title: 'Sabine A.',               notes: 'Twint naissance enfant Quentin D.' },
   { date: '2026-01-07', bank: 'UBS',    category: 'cadeaux',    subCategory: 'Autres Cadeaux',     ...debit(30,    'CHF'), title: 'Sabine A.',               notes: 'Twint départ Sophie P.' },
   { date: '2026-01-07', bank: 'UBS',    category: 'nourriture', subCategory: 'Autres Nourriture',  ...debit(27.20, 'CHF'), title: 'Aux Merveilleux de Fred', notes: 'Petit-déjeuner anniversaire' },
-  { date: '2026-01-07', bank: 'UBS',    category: 'entreprise', subCategory: 'Restaurant Travail', ...debit(25,    'CHF'), title: 'Pictet',                  notes: 'Repas + consigne Tupperware' },
+  { date: '2026-01-07', bank: 'UBS',    category: 'entreprise', subCategory: 'Repas Travail', ...debit(25,    'CHF'), title: 'Pictet',                  notes: 'Repas + consigne Tupperware' },
   { date: '2026-01-08', bank: 'CIC',    category: 'banque',     subCategory: 'Frais Carte',        ...debit(5.47,  'EUR'), title: 'CIC',                     notes: '' },
   { date: '2026-01-08', bank: 'Revolut',category: 'loisirs',    subCategory: 'Autres Loisirs',     ...debit(25.90, 'CHF'), title: 'Meta Pay',                notes: '1er jeu avec Oculus' },
-  { date: '2026-01-08', bank: 'Revolut',category: 'besoinsPersonnels', subCategory: 'Livres/Education', ...debit(80, 'CHF'), title: 'Apple',               notes: 'CISSP Renouvellement questions 6 mois' },
-  { date: '2026-01-08', bank: 'UBS',    category: 'entreprise', subCategory: 'Restaurant Travail', ...debit(22,    'CHF'), title: 'Pictet',                  notes: 'Repas + consigne Tupperware' },
+  { date: '2026-01-08', bank: 'Revolut',category: 'besoinsPersonnels', subCategory: 'Livres / Éducation', ...debit(80, 'CHF'), title: 'Apple',               notes: 'CISSP Renouvellement questions 6 mois' },
+  { date: '2026-01-08', bank: 'UBS',    category: 'entreprise', subCategory: 'Repas Travail', ...debit(22,    'CHF'), title: 'Pictet',                  notes: 'Repas + consigne Tupperware' },
   { date: '2026-01-08', bank: 'UBS',    category: 'cadeaux',    subCategory: 'Revenus Supplémentaires', ...credit(200, 'CHF'), title: 'Maman',              notes: 'Cadeau d\'anniversaire' },
   { date: '2026-01-09', bank: 'UBS',    category: 'nourriture', subCategory: 'Restaurant',         ...debit(50.20, 'CHF'), title: 'Uber Eats',               notes: 'Mister Tacos avec Angèle' },
-  { date: '2026-01-09', bank: 'UBS',    category: 'entreprise', subCategory: 'Restaurant Travail', ...debit(12,    'CHF'), title: 'Pictet',                  notes: 'Repas' },
+  { date: '2026-01-09', bank: 'UBS',    category: 'entreprise', subCategory: 'Repas Travail', ...debit(12,    'CHF'), title: 'Pictet',                  notes: 'Repas' },
   { date: '2026-01-10', bank: 'Revolut',category: 'transport',  subCategory: 'Péages',             ...debit(33.50, 'EUR'), title: 'Area',                    notes: 'Péages pour Roynac' },
   { date: '2026-01-11', bank: 'Revolut',category: 'transport',  subCategory: 'Péages',             ...debit(18.80, 'EUR'), title: 'APRR',                    notes: 'Péage retour Roynac pour Lyon' },
-  { date: '2026-01-12', bank: 'UBS',    category: 'entreprise', subCategory: 'Restaurant Travail', ...debit(10.05, 'CHF'), title: 'Pictet',                  notes: 'Repas' },
-  { date: '2026-01-12', bank: 'UBS',    category: 'entreprise', subCategory: 'Restaurant Travail', ...debit(8,     'CHF'), title: 'Pictet',                  notes: 'Petit-déjeuner' },
-  { date: '2026-01-12', bank: 'UBS',    category: 'entreprise', subCategory: 'Restaurant Travail', ...credit(15,   'CHF'), title: 'Pictet',                  notes: 'Retour consignes repas' },
+  { date: '2026-01-12', bank: 'UBS',    category: 'entreprise', subCategory: 'Repas Travail', ...debit(10.05, 'CHF'), title: 'Pictet',                  notes: 'Repas' },
+  { date: '2026-01-12', bank: 'UBS',    category: 'entreprise', subCategory: 'Repas Travail', ...debit(8,     'CHF'), title: 'Pictet',                  notes: 'Petit-déjeuner' },
+  { date: '2026-01-12', bank: 'UBS',    category: 'entreprise', subCategory: 'Repas Travail', ...credit(15,   'CHF'), title: 'Pictet',                  notes: 'Retour consignes repas' },
   { date: '2026-01-13', bank: 'CIC',    category: 'cadeaux',    subCategory: 'Famille',            ...debit(200,   'EUR'), title: 'La Poste',                notes: 'Retrait cash anniversaire Léna' },
-  { date: '2026-01-13', bank: 'UBS',    category: 'entreprise', subCategory: 'Restaurant Travail', ...debit(12,    'CHF'), title: 'Pictet',                  notes: 'Repas' },
+  { date: '2026-01-13', bank: 'UBS',    category: 'entreprise', subCategory: 'Repas Travail', ...debit(12,    'CHF'), title: 'Pictet',                  notes: 'Repas' },
   { date: '2026-01-14', bank: 'UBS',    category: 'nourriture', subCategory: 'Restaurant',         ...debit(71.10, 'CHF'), title: 'Uber Eats',               notes: 'Mister Tacos avec Angèle' },
   { date: '2026-01-14', bank: 'UBS',    category: 'cadeaux',    subCategory: 'Revenus Supplémentaires', ...credit(2000, 'CHF'), title: 'Maman',             notes: 'Remboursement équivalente Adrien (Restant=3k)' },
   { date: '2026-01-15', bank: 'UBS',    category: 'loisirs',    subCategory: 'Autres Loisirs',     ...debit(43,    'CHF'), title: 'Remy W.',                 notes: 'Tabacs pipe' },
-  { date: '2026-01-15', bank: 'UBS',    category: 'entreprise', subCategory: 'Restaurant Travail', ...debit(17.80, 'CHF'), title: 'Pictet',                  notes: 'Repas' },
+  { date: '2026-01-15', bank: 'UBS',    category: 'entreprise', subCategory: 'Repas Travail', ...debit(17.80, 'CHF'), title: 'Pictet',                  notes: 'Repas' },
   { date: '2026-01-16', bank: 'Revolut',category: 'logement',   subCategory: 'Location Logement',  ...debit(102,   'EUR'), title: 'Quentin L.',              notes: 'Moitié AirBnb weekend Château d\'Oex' },
   { date: '2026-01-16', bank: 'UBS',    category: 'nourriture', subCategory: 'Restaurant',         ...debit(133,   'CHF'), title: 'Les Sales Gosses',         notes: 'Restaurant anciens EY' },
   { date: '2026-01-16', bank: 'UBS',    category: 'nourriture', subCategory: 'Restaurant',         ...credit(57,   'CHF'), title: 'Alexandre K.',            notes: 'Remboursement restaurant' },
   { date: '2026-01-16', bank: 'UBS',    category: 'loisirs',    subCategory: 'Bars',               ...debit(27,    'CHF'), title: 'Oh No Lulu!',             notes: 'Bar avec anciens EY' },
-  { date: '2026-01-16', bank: 'UBS',    category: 'entreprise', subCategory: 'Restaurant Travail', ...debit(12.05, 'CHF'), title: 'Pictet',                  notes: 'Repas' },
-  { date: '2026-01-16', bank: 'UBS',    category: 'entreprise', subCategory: 'Restaurant Travail', ...debit(3.35,  'CHF'), title: 'Pictet',                  notes: 'Fruit petit déjeuner' },
-  { date: '2026-01-16', bank: 'UBS',    category: 'entreprise', subCategory: 'Restaurant Travail', ...credit(25,   'CHF'), title: 'Pictet',                  notes: 'Retour consignes repas' },
+  { date: '2026-01-16', bank: 'UBS',    category: 'entreprise', subCategory: 'Repas Travail', ...debit(12.05, 'CHF'), title: 'Pictet',                  notes: 'Repas' },
+  { date: '2026-01-16', bank: 'UBS',    category: 'entreprise', subCategory: 'Repas Travail', ...debit(3.35,  'CHF'), title: 'Pictet',                  notes: 'Fruit petit déjeuner' },
+  { date: '2026-01-16', bank: 'UBS',    category: 'entreprise', subCategory: 'Repas Travail', ...credit(25,   'CHF'), title: 'Pictet',                  notes: 'Retour consignes repas' },
   { date: '2026-01-19', bank: 'UBS',    category: 'impots',     subCategory: 'Global',             ...debit(1611,  'CHF'), title: 'Etat',                    notes: 'Acompte 2026 (1/12)' },
   { date: '2026-01-28', bank: 'LCL',    category: 'banque',     subCategory: 'Prêt',               ...debit(535.67,'EUR'), title: 'LCL',                     notes: 'Échéance prêt 36/60' },
 ]
 
 const JUIN_2024: RawRow[] = [
   { date: '2024-06-01', bank: 'CIC',    category: 'loisirs',    subCategory: 'Voyage',             ...debit(130,   'EUR'), title: 'Click & Boat',            notes: 'Location bateau Italie avec Quentin et Alex (1/3)' },
-  { date: '2024-06-01', bank: 'Revolut',category: 'loisirs',    subCategory: 'Location Logement',  ...debit(315,   'EUR'), title: 'Airbnb',                  notes: 'Airbnb Italie avec Quentin et Alex (1/3)' },
+  { date: '2024-06-01', bank: 'Revolut',category: 'loisirs',    subCategory: 'Voyage',  ...debit(315,   'EUR'), title: 'Airbnb',                  notes: 'Airbnb Italie avec Quentin et Alex (1/3)' },
   { date: '2024-06-01', bank: 'Revolut',category: 'loisirs',    subCategory: 'Voyage',             ...credit(125,  'EUR'), title: 'Quentin Liardeaux',       notes: 'Remboursement 1/3 bateau Italie' },
   { date: '2024-06-01', bank: 'Revolut',category: 'loisirs',    subCategory: 'Voyage',             ...credit(310,  'EUR'), title: 'Quentin Liardeaux',       notes: 'Remboursement 1/3 logement Italie' },
-  { date: '2024-06-01', bank: 'Revolut',category: 'besoinsPersonnels', subCategory: 'Livres/Education', ...debit(34.94, 'EUR'), title: 'Les Arts Frontières', notes: 'Achat BD + Solo Leveling T13' },
+  { date: '2024-06-01', bank: 'Revolut',category: 'besoinsPersonnels', subCategory: 'Livres / Éducation', ...debit(34.94, 'EUR'), title: 'Les Arts Frontières', notes: 'Achat BD + Solo Leveling T13' },
   { date: '2024-06-01', bank: 'CS',     category: 'assurance',  subCategory: 'Maladie (Complémentaire)', ...debit(93.1, 'CHF'), title: 'Groupe Mutuel',    notes: 'Assurance complémentaire juin' },
   { date: '2024-06-01', bank: 'CS',     category: 'logement',   subCategory: 'Loyer Suisse',       ...debit(100,   'CHF'), title: 'Mme. Febo',               notes: '' },
   { date: '2024-06-01', bank: 'Cash',   category: 'logement',   subCategory: 'Location Logement',  ...debit(400,   'EUR'), title: 'Jacques',                 notes: 'Loyer avril 2024' },
@@ -96,40 +96,40 @@ const JUIN_2024: RawRow[] = [
   { date: '2024-06-02', bank: 'Revolut',category: 'loisirs',    subCategory: 'Bars',               ...credit(20,   'EUR'), title: 'Alexandre Keusen',        notes: 'Remboursement bars' },
   { date: '2024-06-02', bank: 'Revolut',category: 'loisirs',    subCategory: 'Bars',               ...credit(20,   'EUR'), title: 'Louise Dramé',            notes: 'Remboursement bars' },
   { date: '2024-06-03', bank: 'CS',     category: 'entreprise', subCategory: 'Transport Travail',  ...debit(84.30, 'CHF'), title: 'CFF',                     notes: 'Train Genève-Zurich passage panel' },
-  { date: '2024-06-03', bank: 'CS',     category: 'entreprise', subCategory: 'Restaurant Travail', ...debit(31.80, 'CHF'), title: 'Umamido',                 notes: '' },
+  { date: '2024-06-03', bank: 'CS',     category: 'entreprise', subCategory: 'Repas Travail', ...debit(31.80, 'CHF'), title: 'Umamido',                 notes: '' },
   { date: '2024-06-04', bank: 'CS',     category: 'entreprise', subCategory: 'Transport Travail',  ...debit(78.50, 'CHF'), title: 'CFF',                     notes: 'Train Zurich-Genève retour panel' },
-  { date: '2024-06-04', bank: 'CS',     category: 'entreprise', subCategory: 'Restaurant Travail', ...debit(18,    'CHF'), title: 'Suweena Fine Thai Food',  notes: 'Pad Thai bureau Zurich' },
+  { date: '2024-06-04', bank: 'CS',     category: 'entreprise', subCategory: 'Repas Travail', ...debit(18,    'CHF'), title: 'Suweena Fine Thai Food',  notes: 'Pad Thai bureau Zurich' },
   { date: '2024-06-04', bank: 'CS',     category: 'nourriture', subCategory: 'Restaurant',         ...debit(13.30, 'CHF'), title: 'Bloody Bar',              notes: 'Petit déjeuner avant Zurich' },
   { date: '2024-06-04', bank: 'Revolut',category: 'nourriture', subCategory: 'Courses',            ...debit(19.88, 'EUR'), title: 'Intermarché',             notes: '' },
   { date: '2024-06-04', bank: 'CIC',    category: 'abonnements',subCategory: 'Spotify',            ...debit(14.99, 'EUR'), title: 'Spotify',                 notes: '' },
-  { date: '2024-06-05', bank: 'CS',     category: 'entreprise', subCategory: 'Restaurant Travail', ...credit(204.8,'CHF'), title: 'EY',                      notes: '' },
+  { date: '2024-06-05', bank: 'CS',     category: 'entreprise', subCategory: 'Repas Travail', ...credit(204.8,'CHF'), title: 'EY',                      notes: '' },
   { date: '2024-06-05', bank: 'CIC',    category: 'besoinsPersonnels', subCategory: 'Autres Besoins', ...debit(33.98,'EUR'), title: 'Amazon',               notes: '' },
-  { date: '2024-06-07', bank: 'CS',     category: 'entreprise', subCategory: 'Restaurant Travail', ...debit(17,    'CHF'), title: 'Satay Sarray',            notes: '' },
-  { date: '2024-06-10', bank: 'CS',     category: 'entreprise', subCategory: 'Restaurant Travail', ...debit(16.90, 'CHF'), title: 'Genecand Traiteur',       notes: '' },
+  { date: '2024-06-07', bank: 'CS',     category: 'entreprise', subCategory: 'Repas Travail', ...debit(17,    'CHF'), title: 'Satay Sarray',            notes: '' },
+  { date: '2024-06-10', bank: 'CS',     category: 'entreprise', subCategory: 'Repas Travail', ...debit(16.90, 'CHF'), title: 'Genecand Traiteur',       notes: '' },
   { date: '2024-06-13', bank: 'Revolut',category: 'loisirs',    subCategory: 'Bars',               ...credit(35,   'EUR'), title: 'Louise Dramé',            notes: 'Remboursement bar Le Balthazar' },
   { date: '2024-06-13', bank: 'Revolut',category: 'loisirs',    subCategory: 'Bars',               ...credit(20,   'EUR'), title: 'Juliette Coste',          notes: 'Remboursement bar Le Balthazar' },
   { date: '2024-06-15', bank: 'Revolut',category: 'nourriture', subCategory: 'Restaurant',         ...debit(29,    'CHF'), title: 'Pierre Hermé',            notes: '' },
   { date: '2024-06-15', bank: 'Revolut',category: 'nourriture', subCategory: 'Autres Nourriture',  ...debit(3.50,  'CHF'), title: 'Speciality Coffee',       notes: 'Café Lyon' },
   { date: '2024-06-16', bank: 'Revolut',category: 'nourriture', subCategory: 'Restaurant',         ...debit(7.20,  'CHF'), title: 'DiVoglia',                notes: 'Café moulu' },
-  { date: '2024-06-17', bank: 'CS',     category: 'entreprise', subCategory: 'Restaurant Travail', ...debit(11.90, 'CHF'), title: 'Migros',                  notes: '' },
+  { date: '2024-06-17', bank: 'CS',     category: 'entreprise', subCategory: 'Repas Travail', ...debit(11.90, 'CHF'), title: 'Migros',                  notes: '' },
   { date: '2024-06-17', bank: 'CIC',    category: 'loisirs',    subCategory: 'Autres Loisirs',     ...debit(1.99,  'EUR'), title: 'Amazon',                  notes: '' },
-  { date: '2024-06-17', bank: 'CIC',    category: 'transport',  subCategory: 'SNCF',               ...debit(18.60, 'EUR'), title: 'SNCF',                    notes: '' },
+  { date: '2024-06-17', bank: 'CIC',    category: 'transport',  subCategory: 'SNCF / Train',               ...debit(18.60, 'EUR'), title: 'SNCF',                    notes: '' },
   { date: '2024-06-17', bank: 'CIC',    category: 'nourriture', subCategory: 'Restaurant',         ...credit(38,   'EUR'), title: 'Angèle',                  notes: 'Remboursement restaurants Angèle' },
-  { date: '2024-06-18', bank: 'Revolut',category: 'cadeaux',    subCategory: 'Angèle',             ...debit(200,   'CHF'), title: 'Léna Fournier',           notes: 'Tapis de course Angèle' },
+  { date: '2024-06-18', bank: 'Revolut',category: 'cadeaux',    subCategory: 'Couple',             ...debit(200,   'CHF'), title: 'Léna Fournier',           notes: 'Tapis de course Angèle' },
   { date: '2024-06-18', bank: 'CIC',    category: 'transport',  subCategory: 'Autres Transport',   ...debit(0.50,  'EUR'), title: 'Velivert',                notes: 'Vélo Sainté' },
   { date: '2024-06-19', bank: 'CIC',    category: 'transport',  subCategory: 'Autres Transport',   ...debit(75,    'EUR'), title: 'GetAround',               notes: 'Location voiture réserve Pal' },
-  { date: '2024-06-20', bank: 'CIC',    category: 'cadeaux',    subCategory: 'Angèle',             ...debit(94.60, 'EUR'), title: 'Fever',                   notes: 'CandleLight Cathédrale Fourvière anniversaire Angèle' },
+  { date: '2024-06-20', bank: 'CIC',    category: 'cadeaux',    subCategory: 'Couple',             ...debit(94.60, 'EUR'), title: 'Fever',                   notes: 'CandleLight Cathédrale Fourvière anniversaire Angèle' },
   { date: '2024-06-23', bank: 'Revolut',category: 'nourriture', subCategory: 'Autres Nourriture',  ...debit(13.80, 'CHF'), title: 'New York Coffee',         notes: '' },
   { date: '2024-06-23', bank: 'Revolut',category: 'transport',  subCategory: 'Essence',            ...debit(22.90, 'CHF'), title: 'Eni',                     notes: '' },
   { date: '2024-06-24', bank: 'CS',     category: 'entreprise', subCategory: 'Salaire',            ...credit(6418.9,'CHF'), title: 'EY',                     notes: 'Salaire juin 2024' },
   { date: '2024-06-24', bank: 'Revolut',category: 'transport',  subCategory: 'Autres Transport',   ...debit(4,     'EUR'), title: 'Cumul',                   notes: 'Péage vacances Italie' },
   { date: '2024-06-24', bank: 'Revolut',category: 'nourriture', subCategory: 'Restaurant',         ...debit(6,     'EUR'), title: 'Gelateria Vernazza',      notes: 'Glaces avec Quentin et Alex' },
-  { date: '2024-06-24', bank: 'Revolut',category: 'transport',  subCategory: 'SNCF',               ...debit(30,    'EUR'), title: 'Trenitalia',              notes: 'Trains Cinque Terre' },
+  { date: '2024-06-24', bank: 'Revolut',category: 'transport',  subCategory: 'SNCF / Train',               ...debit(30,    'EUR'), title: 'Trenitalia',              notes: 'Trains Cinque Terre' },
   { date: '2024-06-24', bank: 'Revolut',category: 'nourriture', subCategory: 'Autres Nourriture',  ...debit(3.60,  'EUR'), title: 'Sadyra Srls',             notes: 'Café' },
   { date: '2024-06-24', bank: 'CIC',    category: 'transport',  subCategory: 'Autres Transport',   ...debit(4.40,  'EUR'), title: 'Autoroute',               notes: '' },
-  { date: '2024-06-24', bank: 'CIC',    category: 'transport',  subCategory: 'SNCF',               ...debit(6.80,  'EUR'), title: 'SNCF',                    notes: '' },
+  { date: '2024-06-24', bank: 'CIC',    category: 'transport',  subCategory: 'SNCF / Train',               ...debit(6.80,  'EUR'), title: 'SNCF',                    notes: '' },
   { date: '2024-06-24', bank: 'CIC',    category: 'transport',  subCategory: 'Autres Transport',   ...debit(4.40,  'EUR'), title: 'Autoroute',               notes: '' },
-  { date: '2024-06-24', bank: 'CIC',    category: 'loisirs',    subCategory: 'Activité/Sortie',    ...debit(187,   'EUR'), title: 'Grand Parc Puy Du Fou',   notes: 'Puy Du Fou avec Angèle et Jacky' },
+  { date: '2024-06-24', bank: 'CIC',    category: 'loisirs',    subCategory: 'Activité / Sortie',    ...debit(187,   'EUR'), title: 'Grand Parc Puy Du Fou',   notes: 'Puy Du Fou avec Angèle et Jacky' },
   { date: '2024-06-25', bank: 'CIC',    category: 'transport',  subCategory: 'Autres Transport',   ...debit(14.30, 'EUR'), title: 'Autoroute',               notes: '' },
   { date: '2024-06-25', bank: 'CIC',    category: 'logement',   subCategory: 'Location Logement',  ...debit(30,    'EUR'), title: 'Airbnb',                  notes: 'Puy Du Fou avec Angèle et Jacky (1/3)' },
   { date: '2024-06-25', bank: 'CIC',    category: 'logement',   subCategory: 'Location Logement',  ...debit(34,    'EUR'), title: 'Airbnb',                  notes: 'Puy Du Fou avec Angèle et Jacky (1/3)' },
@@ -189,8 +189,8 @@ describe('Conversion de devises', () => {
 // ─── Tests : catégories ───────────────────────────────────────────────────────
 
 describe('Catégories', () => {
-  it('11 catégories au total', () => {
-    expect(CATEGORIES).toHaveLength(11)
+  it('17 catégories au total', () => {
+    expect(CATEGORIES).toHaveLength(17)
   })
 
   it('banque a les sous-catégories Prêt et Frais Carte', () => {
@@ -214,16 +214,16 @@ describe('Catégories', () => {
     expect(subs).toContain('Location Logement')
   })
 
-  it('loisirs a Alcool et Activité/Sortie', () => {
+  it('loisirs a Alcool et Activité / Sortie', () => {
     const subs = CATEGORY_MAP['loisirs'].subCategories
     expect(subs).toContain('Alcool')
-    expect(subs).toContain('Activité/Sortie')
+    expect(subs).toContain('Activité / Sortie')
   })
 
-  it('entreprise a Salaire, Restaurant Travail, Transport Travail', () => {
+  it('entreprise a Salaire, Repas Travail, Transport Travail', () => {
     const subs = CATEGORY_MAP['entreprise'].subCategories
     expect(subs).toContain('Salaire')
-    expect(subs).toContain('Restaurant Travail')
+    expect(subs).toContain('Repas Travail')
     expect(subs).toContain('Transport Travail')
   })
 
@@ -326,18 +326,18 @@ describe('Données Janvier 2026', () => {
     expect(row!.subCategory).toBe('Courses')
   })
 
-  it('12 entrées débit "Restaurant Travail" (déjeuners Pictet)', () => {
+  it('12 entrées débit "Repas Travail" (déjeuners Pictet)', () => {
     // 05/1×2, 06/1, 07/1, 08/1, 09/1×2, 12/1×2, 13/1, 15/1, 16/1×2 = 12
     const repas = JANVIER_2026.filter(r =>
-      r.subCategory === 'Restaurant Travail' && r.type === 'debit'
+      r.subCategory === 'Repas Travail' && r.type === 'debit'
     )
     expect(repas).toHaveLength(12)
   })
 
-  it('2 entrées crédit "Restaurant Travail" (retours consignes Pictet)', () => {
+  it('2 entrées crédit "Repas Travail" (retours consignes Pictet)', () => {
     // 12/1 (15 CHF) + 16/1 (25 CHF)
     const retours = JANVIER_2026.filter(r =>
-      r.subCategory === 'Restaurant Travail' && r.type === 'credit'
+      r.subCategory === 'Repas Travail' && r.type === 'credit'
     )
     expect(retours).toHaveLength(2)
   })
@@ -393,12 +393,12 @@ describe('Données Juin 2024', () => {
     expect(row!.amount).toBe(93.1)
   })
 
-  it('Airbnb Italie 315 EUR loisirs/Location Logement (Revolut)', () => {
-    const row = JUIN_2024.find(r => r.bank === 'Revolut' && r.subCategory === 'Location Logement')
+  it('Airbnb Italie 315 EUR loisirs/Voyage (Revolut)', () => {
+    const row = JUIN_2024.find(r => r.bank === 'Revolut' && r.title === 'Airbnb' && r.amount === 315)
     expect(row).toBeDefined()
-    expect(row!.amount).toBe(315)
     expect(row!.currency).toBe('EUR')
     expect(row!.category).toBe('loisirs')
+    expect(row!.subCategory).toBe('Voyage')
   })
 
   it('remboursements Quentin Liardeaux : 125 EUR + 310 EUR (crédits)', () => {
