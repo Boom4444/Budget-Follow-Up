@@ -1,13 +1,19 @@
 import { useState, useMemo, useRef } from 'react'
 import { useStore } from '../store/useStore'
-import { CATEGORY_MAP, getCategoryMeta, CATEGORIES } from '../data/categories'
-import { CURRENCY_MAP } from '../data/currencies'
+import { getCategoryMeta, CATEGORIES } from '../data/categories'
 import { formatAmount } from '../utils/formatters'
-import { currentYear, currentMonth, shortMonth, dateYear, dateMonth, formatDisplayDate } from '../utils/dates'
+import { currentYear, currentMonth, shortMonth, dateYear, dateMonth } from '../utils/dates'
 import type { Expense, HouseholdMember } from '../models/types'
 import AddExpenseModal from '../components/AddExpenseModal'
+import TransactionRow from '../components/TransactionRow'
 import { importFromCSV, importFromXLSX } from '../utils/bankImport'
 import type { BankImportResult, ImportedTransaction } from '../utils/bankImport'
+
+function dayLabel(d: string): string {
+  const months = ['janvier','février','mars','avril','mai','juin','juillet','août','septembre','octobre','novembre','décembre']
+  const [y, m, day] = d.split('-')
+  return `${parseInt(day)} ${months[parseInt(m)-1]} ${y}`
+}
 
 export default function ExpensesScreen() {
   const { expenses, settings, deleteExpense, addExpense } = useStore()
@@ -49,24 +55,11 @@ export default function ExpensesScreen() {
   const groups = useMemo(() => {
     const map: Record<string, Expense[]> = {}
     filtered.forEach(e => {
-      const key = e.date.slice(0, 7)
-      if (!map[key]) map[key] = []
-      map[key].push(e)
+      if (!map[e.date]) map[e.date] = []
+      map[e.date].push(e)
     })
     return Object.entries(map).sort(([a], [b]) => b.localeCompare(a))
   }, [filtered])
-
-  function groupLabel(key: string): string {
-    const [y, m] = key.split('-')
-    const months = ['Janvier','Février','Mars','Avril','Mai','Juin','Juillet','Août','Septembre','Octobre','Novembre','Décembre']
-    return `${months[parseInt(m) - 1]} ${y}`
-  }
-
-  function personLabel(p: string): string {
-    if (p === 'person1') return settings.person1Name
-    if (p === 'person2') return settings.person2Name
-    return 'Commun'
-  }
 
   // ── Bank import handlers ──────────────────────────────────────────────────
 
@@ -171,10 +164,6 @@ export default function ExpensesScreen() {
               )}
               Relevé
             </button>
-            <button onClick={() => setShowAdd(true)}
-              className="w-9 h-9 bg-blue-600 rounded-full flex items-center justify-center text-white text-xl font-light">
-              +
-            </button>
           </div>
         </div>
 
@@ -231,7 +220,7 @@ export default function ExpensesScreen() {
       )}
 
       {/* List */}
-      <div className="flex-1 overflow-y-auto scroll-ios">
+      <div className="flex-1 overflow-y-auto scroll-ios pb-24">
         {groups.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-16 text-center px-8">
             <span className="text-4xl mb-3">💸</span>
@@ -248,91 +237,43 @@ export default function ExpensesScreen() {
           </div>
         ) : (
           <>
-            {groups.map(([key, items]) => {
-              const groupDebits  = items.filter(e => e.type === 'debit').reduce((s, e) => s + e.amountInBase, 0)
-              const groupCredits = items.filter(e => e.type === 'credit').reduce((s, e) => s + e.amountInBase, 0)
+            {groups.map(([dateKey, items]) => {
+              const dayDebits  = items.filter(e => e.type === 'debit').reduce((s, e) => s + e.amountInBase, 0)
+              const dayCredits = items.filter(e => e.type === 'credit').reduce((s, e) => s + e.amountInBase, 0)
               return (
-                <div key={key}>
+                <div key={dateKey}>
+                  {/* Day header */}
                   <div className="flex items-center justify-between px-4 pt-5 pb-1.5">
-                    <span className="text-[12px] font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wide">
-                      {groupLabel(key)}
+                    <span className="text-[12px] font-semibold text-gray-400 dark:text-gray-500">
+                      {dayLabel(dateKey)}
                     </span>
                     <div className="flex items-center gap-2">
-                      {groupCredits > 0 && (
-                        <span className="text-[12px] font-semibold text-green-500">+{formatAmount(groupCredits, base)}</span>
+                      {dayCredits > 0 && (
+                        <span className="text-[12px] font-semibold text-green-500">+{formatAmount(dayCredits, base)}</span>
                       )}
-                      <span className="text-[12px] font-semibold text-gray-500 dark:text-gray-400">-{formatAmount(groupDebits, base)}</span>
+                      {dayDebits > 0 && (
+                        <span className="text-[12px] font-semibold text-gray-500 dark:text-gray-400">-{formatAmount(dayDebits, base)}</span>
+                      )}
                     </div>
                   </div>
-                  <div className="card mx-4 overflow-hidden">
+
+                  {/* Day transactions */}
+                  <div className="mx-4 rounded-2xl overflow-hidden bg-white dark:bg-gray-800 shadow-sm">
                     {items.map((expense, i) => {
-                      const cat = getCategoryMeta(expense.category, customCategories)
-                      const isSwipe = swipeId === expense.id
-                      const isCredit = expense.type === 'credit'
+                      const cat = getCategoryMeta(expense.category, customCategories) ?? null
                       return (
-                        <div key={expense.id}
-                          className={`relative overflow-hidden ${i < items.length - 1 ? 'border-b border-gray-100 dark:border-gray-700' : ''}`}>
-                          {/* Delete button */}
-                          <div className="absolute inset-y-0 right-0 flex items-center justify-center w-20 bg-red-500">
-                            <button onClick={() => { deleteExpense(expense.id); setSwipeId(null) }}
-                              className="text-white text-[12px] font-semibold w-full h-full flex items-center justify-center">
-                              🗑 Suppr.
-                            </button>
-                          </div>
-                          {/* Swipeable row */}
-                          <div
-                            className={`relative bg-white dark:bg-gray-800 flex items-center gap-3 px-4 py-3 transition-transform
-                              ${isSwipe ? '-translate-x-20' : 'translate-x-0'}`}>
-                            {/* Category icon */}
-                            <div className="w-10 h-10 rounded-xl flex items-center justify-center text-xl flex-shrink-0"
-                              style={{ backgroundColor: isCredit ? '#dcfce7' : (cat?.bgColor ?? '#f3f4f6') }}>
-                              {isCredit ? '💚' : (cat?.emoji ?? '📦')}
-                            </div>
-
-                            <div className="flex-1 min-w-0">
-                              <div className="flex items-center gap-1.5">
-                                <p className="text-[15px] font-medium truncate dark:text-white">{expense.title}</p>
-                                {expense.isFixed && <span className="text-[10px]">🔒</span>}
-                              </div>
-                              <div className="flex items-center gap-1.5 mt-0.5">
-                                <span className="text-[11px] font-medium" style={{ color: isCredit ? '#16a34a' : (cat?.color ?? '#666') }}>
-                                  {cat?.label ?? expense.category}
-                                </span>
-                                {expense.subCategory && (
-                                  <>
-                                    <span className="text-[11px] text-gray-300 dark:text-gray-600">›</span>
-                                    <span className="text-[11px] text-gray-400 dark:text-gray-500 truncate">{expense.subCategory}</span>
-                                  </>
-                                )}
-                                <span className="text-[11px] text-gray-300 dark:text-gray-600">·</span>
-                                <span className="text-[11px] text-gray-400 dark:text-gray-500">{personLabel(expense.person)}</span>
-                                {expense.bank && <>
-                                  <span className="text-[11px] text-gray-300 dark:text-gray-600">·</span>
-                                  <span className="text-[11px] text-gray-400 dark:text-gray-500 truncate">{expense.bank}</span>
-                                </>}
-                              </div>
-                            </div>
-
-                            <div className="text-right flex-shrink-0">
-                              <p className={`text-[15px] font-semibold ${isCredit ? 'text-green-600' : 'dark:text-white'}`}>
-                                {isCredit ? '+' : '-'}{expense.amount.toFixed(2).replace('.', ',')} {CURRENCY_MAP[expense.currency]?.symbol ?? expense.currency}
-                              </p>
-                              {expense.currency !== base && (
-                                <p className="text-[11px] text-gray-400 dark:text-gray-500">
-                                  {formatAmount(expense.amountInBase, base)}
-                                </p>
-                              )}
-                              <p className="text-[11px] text-gray-300 dark:text-gray-600">{formatDisplayDate(expense.date)}</p>
-                            </div>
-
-                            {/* Swipe hint */}
-                            <button
-                              className="ml-1 text-gray-200 dark:text-gray-600 text-lg flex-shrink-0 z-10"
-                              onClick={e => { e.stopPropagation(); setSwipeId(isSwipe ? null : expense.id) }}>
-                              ‹
-                            </button>
-                          </div>
-                        </div>
+                        <TransactionRow
+                          key={expense.id}
+                          expense={expense}
+                          cat={cat}
+                          baseCurrency={base}
+                          person1Name={settings.person1Name}
+                          person2Name={settings.person2Name}
+                          swipeOpen={swipeId === expense.id}
+                          onSwipeToggle={() => setSwipeId(swipeId === expense.id ? null : expense.id)}
+                          onDelete={() => { deleteExpense(expense.id); setSwipeId(null) }}
+                          isLast={i === items.length - 1}
+                        />
                       )
                     })}
                   </div>
@@ -343,6 +284,14 @@ export default function ExpensesScreen() {
           </>
         )}
       </div>
+
+      {/* Floating + FAB */}
+      <button
+        onClick={() => setShowAdd(true)}
+        className="fixed bottom-6 right-4 z-20 w-14 h-14 bg-blue-600 rounded-full flex items-center justify-center text-white text-3xl font-light shadow-lg"
+        style={{ paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}>
+        +
+      </button>
 
       {showAdd && <AddExpenseModal onClose={() => setShowAdd(false)} />}
 

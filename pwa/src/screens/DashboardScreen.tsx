@@ -7,6 +7,8 @@ import { formatAmount, formatPercent } from '../utils/formatters'
 import { currentYear, shortMonth, longMonth } from '../utils/dates'
 import type { Expense, CurrencyCode } from '../models/types'
 import AddExpenseModal from '../components/AddExpenseModal'
+import SummaryStrip from '../components/SummaryStrip'
+import type { StripFilter } from '../components/SummaryStrip'
 
 export default function DashboardScreen() {
   const { expenses, settings } = useStore()
@@ -19,6 +21,7 @@ export default function DashboardScreen() {
   const [chartRange, setChartRange] = useState<6 | 12 | 24>(12)
   const [showAdd, setShowAdd] = useState(false)
   const [selectedCat, setSelectedCat] = useState<string | null>(null)
+  const [stripFilter, setStripFilter] = useState<StripFilter>('all')
 
   const NOW = currentYear()
   const isDark = document.documentElement.classList.contains('dark')
@@ -85,6 +88,26 @@ export default function DashboardScreen() {
   const sharedP1      = debits.filter(e => e.person === 'shared').reduce((s, e) => s + personShareAmt(e, 'person1'), 0)
   const sharedP2      = debits.filter(e => e.person === 'shared').reduce((s, e) => s + personShareAmt(e, 'person2'), 0)
 
+  // Strip-filtered subsets
+  const stripDebits = filteredCurr.filter(e => {
+    if (e.type !== 'debit') return false
+    if (stripFilter === 'fixed') return e.isFixed
+    return stripFilter !== 'credit'
+  })
+  const stripCredits = filteredCurr.filter(e => {
+    if (e.type !== 'credit') return false
+    return stripFilter !== 'debit' && stripFilter !== 'fixed'
+  })
+
+  const relevantTotal = stripFilter === 'credit'
+    ? stripCredits.reduce((s, e) => s + getAmt(e), 0)
+    : stripDebits.reduce((s, e) => s + getAmt(e), 0)
+
+  const stripLabel = stripFilter === 'credit' ? 'Entrées'
+    : stripFilter === 'fixed' ? 'Récurrents'
+    : stripFilter === 'debit' ? 'Sorties'
+    : 'Total dépenses'
+
   // Rolling window chart: last chartRange months from today
   const monthlyData = useMemo(() => {
     const result: { name: string; fixed: number; variable: number; revenus: number }[] = []
@@ -114,9 +137,13 @@ export default function DashboardScreen() {
     return result
   }, [expenses, chartRange, filterPerson, viewCurrency])
 
+  // Category data based on strip filter
+  const catSourceData = stripFilter === 'credit' ? stripCredits : stripDebits
+  const catTotal = stripFilter === 'credit' ? relevantTotal : relevantTotal
+
   const catData = useMemo(() => {
     const map: Record<string, number> = {}
-    debits.forEach(e => { map[e.category] = (map[e.category] ?? 0) + getAmt(e) })
+    catSourceData.forEach(e => { map[e.category] = (map[e.category] ?? 0) + getAmt(e) })
     return Object.entries(map)
       .map(([id, val]) => ({
         id,
@@ -126,7 +153,7 @@ export default function DashboardScreen() {
       }))
       .sort((a, b) => b.value - a.value)
       .slice(0, 8)
-  }, [debits, viewCurrency]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [catSourceData, viewCurrency]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const fmt = (v: number) => v === 0 ? '' : v >= 1000 ? `${(v / 1000).toFixed(0)}k` : String(v)
 
@@ -164,6 +191,16 @@ export default function DashboardScreen() {
           ))}
         </div>
       </div>
+
+      {/* Summary Strip — sticky below nav */}
+      <SummaryStrip
+        entries={totalRevenus}
+        sorties={totalDepenses}
+        recurrents={totalFixed}
+        active={stripFilter}
+        onSelect={setStripFilter}
+        currency={displayCurr}
+      />
 
       <div className="flex-1 overflow-y-auto scroll-ios pb-6">
 
@@ -209,7 +246,7 @@ export default function DashboardScreen() {
           </div>
         )}
 
-        {/* Solde card */}
+        {/* Solde card — simplified */}
         <div className="mx-4 mt-3 card p-4">
           <p className="text-sm text-gray-400 dark:text-gray-500 mb-1">
             {month !== null ? `${longMonth(month)} ${year}` : `Solde ${year}`}
@@ -268,6 +305,53 @@ export default function DashboardScreen() {
           </div>
         </div>
 
+        {/* Category donut chart with centered label */}
+        {catData.length > 0 && (
+          <div className="card mx-4 mt-4 p-4">
+            <p className="text-[15px] font-semibold mb-3 dark:text-white">
+              {stripFilter === 'credit' ? 'Revenus par catégorie' : 'Dépenses par catégorie'}
+            </p>
+            <div className="relative">
+              <ResponsiveContainer width="100%" height={180}>
+                <PieChart>
+                  <Pie data={catData} dataKey="value" nameKey="label" cx="50%" cy="50%"
+                    innerRadius="58%" outerRadius="82%"
+                    onClick={d => setSelectedCat(selectedCat === d.id ? null : d.id)}>
+                    {catData.map(entry => (
+                      <Cell key={entry.id} fill={entry.color}
+                        opacity={selectedCat === null || selectedCat === entry.id ? 1 : 0.3} />
+                    ))}
+                  </Pie>
+                  <Tooltip contentStyle={tooltipStyle}
+                    formatter={(v: number) => [`${v.toFixed(0)} ${sym}`, '']}
+                  />
+                </PieChart>
+              </ResponsiveContainer>
+              {/* Centered label */}
+              <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                <div className="text-center">
+                  <p className="text-[24px] font-bold dark:text-white">
+                    {relevantTotal.toFixed(0).replace(/\B(?=(\d{3})+(?!\d))/g, ' ')} {sym}
+                  </p>
+                  <p className="text-[11px] text-gray-400 dark:text-gray-500">{stripLabel}</p>
+                </div>
+              </div>
+            </div>
+
+            <div className="space-y-2 mt-1">
+              {catData.map(c => (
+                <button key={c.id} className="w-full flex items-center gap-2 text-left"
+                  onClick={() => setSelectedCat(selectedCat === c.id ? null : c.id)}>
+                  <span className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ background: c.color }} />
+                  <span className="text-[13px] text-gray-700 dark:text-gray-200 flex-1 truncate">{c.label}</span>
+                  <span className="text-[12px] text-gray-400 dark:text-gray-500">{formatPercent(c.value, catTotal)}</span>
+                  <span className="text-[13px] font-semibold dark:text-white">{c.value.toFixed(0)} {sym}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
         {/* Monthly bar chart with range selector */}
         {monthlyData.some(d => d.fixed + d.variable + d.revenus > 0) && (
           <div className="card mx-4 mt-4 p-4">
@@ -305,40 +389,6 @@ export default function DashboardScreen() {
               <span className="flex items-center gap-1 text-[11px] text-gray-500 dark:text-gray-400"><span className="w-3 h-2 rounded-sm bg-red-400 inline-block" /> Incompressible</span>
               <span className="flex items-center gap-1 text-[11px] text-gray-500 dark:text-gray-400"><span className="w-3 h-2 rounded-sm bg-blue-400 inline-block" /> Variable</span>
               <span className="flex items-center gap-1 text-[11px] text-gray-500 dark:text-gray-400"><span className="w-3 h-2 rounded-sm bg-green-400 inline-block" /> Revenus</span>
-            </div>
-          </div>
-        )}
-
-        {/* Category breakdown (debits only) */}
-        {catData.length > 0 && (
-          <div className="card mx-4 mt-4 p-4">
-            <p className="text-[15px] font-semibold mb-3 dark:text-white">Dépenses par catégorie</p>
-            <ResponsiveContainer width="100%" height={180}>
-              <PieChart>
-                <Pie data={catData} dataKey="value" nameKey="label" cx="50%" cy="50%"
-                  innerRadius="55%" outerRadius="80%"
-                  onClick={d => setSelectedCat(selectedCat === d.id ? null : d.id)}>
-                  {catData.map(entry => (
-                    <Cell key={entry.id} fill={entry.color}
-                      opacity={selectedCat === null || selectedCat === entry.id ? 1 : 0.3} />
-                  ))}
-                </Pie>
-                <Tooltip contentStyle={tooltipStyle}
-                  formatter={(v: number) => [`${v.toFixed(0)} ${sym}`, '']}
-                />
-              </PieChart>
-            </ResponsiveContainer>
-
-            <div className="space-y-2 mt-1">
-              {catData.map(c => (
-                <button key={c.id} className="w-full flex items-center gap-2 text-left"
-                  onClick={() => setSelectedCat(selectedCat === c.id ? null : c.id)}>
-                  <span className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ background: c.color }} />
-                  <span className="text-[13px] text-gray-700 dark:text-gray-200 flex-1 truncate">{c.label}</span>
-                  <span className="text-[12px] text-gray-400 dark:text-gray-500">{formatPercent(c.value, totalDepenses)}</span>
-                  <span className="text-[13px] font-semibold dark:text-white">{c.value.toFixed(0)} {sym}</span>
-                </button>
-              ))}
             </div>
           </div>
         )}
