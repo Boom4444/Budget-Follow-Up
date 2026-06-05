@@ -9,6 +9,7 @@ import type { Expense, CurrencyCode } from '../models/types'
 import AddExpenseModal from '../components/AddExpenseModal'
 import SummaryStrip from '../components/SummaryStrip'
 import type { StripFilter } from '../components/SummaryStrip'
+import CategoryDrillDown from '../components/CategoryDrillDown'
 
 export default function DashboardScreen() {
   const { expenses, settings } = useStore()
@@ -22,6 +23,7 @@ export default function DashboardScreen() {
   const [showAdd, setShowAdd] = useState(false)
   const [selectedCat, setSelectedCat] = useState<string | null>(null)
   const [stripFilter, setStripFilter] = useState<StripFilter>('all')
+  const [drillCatId, setDrillCatId] = useState<string | null>(null)
 
   const NOW = currentYear()
   const isDark = document.documentElement.classList.contains('dark')
@@ -338,14 +340,16 @@ export default function DashboardScreen() {
               </div>
             </div>
 
-            <div className="space-y-2 mt-1">
+            <div className="space-y-1 mt-1">
               {catData.map(c => (
-                <button key={c.id} className="w-full flex items-center gap-2 text-left"
-                  onClick={() => setSelectedCat(selectedCat === c.id ? null : c.id)}>
+                <button key={c.id}
+                  className="w-full flex items-center gap-2 text-left py-1 rounded-xl transition-colors active:bg-gray-50 dark:active:bg-gray-700"
+                  onClick={() => setDrillCatId(c.id)}>
                   <span className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ background: c.color }} />
                   <span className="text-[13px] text-gray-700 dark:text-gray-200 flex-1 truncate">{c.label}</span>
                   <span className="text-[12px] text-gray-400 dark:text-gray-500">{formatPercent(c.value, catTotal)}</span>
                   <span className="text-[13px] font-semibold dark:text-white">{c.value.toFixed(0)} {sym}</span>
+                  <span className="text-gray-300 dark:text-gray-600 text-[16px]">›</span>
                 </button>
               ))}
             </div>
@@ -408,6 +412,17 @@ export default function DashboardScreen() {
       </div>
 
       {showAdd && <AddExpenseModal onClose={() => setShowAdd(false)} />}
+
+      {drillCatId && (
+        <CategoryDrillDown
+          catId={drillCatId}
+          year={year}
+          month={month}
+          filterPerson={filterPerson}
+          baseCurrency={displayCurr}
+          onClose={() => setDrillCatId(null)}
+        />
+      )}
     </div>
   )
 }
