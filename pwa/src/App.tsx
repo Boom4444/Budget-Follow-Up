@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useStore } from './store/useStore'
+import { refreshExchangeRates } from './data/currencies'
 import DashboardScreen from './screens/DashboardScreen'
 import ExpensesScreen from './screens/ExpensesScreen'
 import RecurringScreen from './screens/RecurringScreen'
@@ -7,15 +8,17 @@ import SettingsScreen from './screens/SettingsScreen'
 import BudgetScreen from './screens/BudgetScreen'
 import HelpScreen from './screens/HelpScreen'
 import AIChatScreen from './screens/AIChatScreen'
+import OutilsScreen from './screens/OutilsScreen'
 import UpdatePrompt from './components/UpdatePrompt'
 
-type Tab = 'dashboard' | 'expenses' | 'budget' | 'recurring' | 'ai' | 'settings'
+type Tab = 'dashboard' | 'expenses' | 'budget' | 'recurring' | 'outils' | 'ai' | 'settings'
 
 const TABS: { id: Tab; label: string; icon: string }[] = [
   { id: 'dashboard', label: 'Tableau',  icon: '📊' },
   { id: 'expenses',  label: 'Dépenses', icon: '💸' },
   { id: 'budget',    label: 'Budget',   icon: '🎯' },
   { id: 'recurring', label: 'Récur.',   icon: '🔄' },
+  { id: 'outils',    label: 'Outils',   icon: '📐' },
   { id: 'ai',        label: 'IA',       icon: '🤖' },
   { id: 'settings',  label: 'Réglages', icon: '⚙️' },
 ]
@@ -24,6 +27,10 @@ export default function App() {
   const [tab, setTab] = useState<Tab>('dashboard')
   const [showHelp, setShowHelp] = useState(false)
   const { settings } = useStore()
+
+  useEffect(() => {
+    refreshExchangeRates()
+  }, [])
 
   useEffect(() => {
     const html = document.documentElement
@@ -52,6 +59,7 @@ export default function App() {
         {tab === 'expenses'   && <ExpensesScreen />}
         {tab === 'budget'     && <BudgetScreen />}
         {tab === 'recurring'  && <RecurringScreen />}
+        {tab === 'outils'     && <OutilsScreen />}
         {tab === 'ai'         && <AIChatScreen />}
         {tab === 'settings'   && <SettingsScreen onShowHelp={() => setShowHelp(true)} />}
       </div>

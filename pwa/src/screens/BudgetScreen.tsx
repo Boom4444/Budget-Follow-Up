@@ -30,6 +30,7 @@ export default function BudgetScreen() {
   const [editingIncome, setEditingIncome] = useState(false)
   const [incomeInput, setIncomeInput]     = useState('')
   const [activeTab, setActiveTab]         = useState<ActiveTab>('planifier')
+  const [chartRange, setChartRange]       = useState<3 | 6 | 12>(6)
 
   const isDark = document.documentElement.classList.contains('dark')
 
@@ -130,11 +131,11 @@ export default function BudgetScreen() {
     return null
   }, [budgets, year, month, person])
 
-  // Chart: last 6 months for this person
+  // Chart: last N months for this person
   const chartData = useMemo(() => {
     const months: { year: number; month: number }[] = []
     let { year: y, month: m } = { year, month }
-    for (let i = 0; i < 6; i++) {
+    for (let i = 0; i < chartRange; i++) {
       months.unshift({ year: y, month: m })
       const p = prevMonth(y, m); y = p.year; m = p.month
     }
@@ -144,9 +145,13 @@ export default function BudgetScreen() {
       const actual = expenses
         .filter(e => parseInt(e.date.slice(0, 4)) === y && parseInt(e.date.slice(5, 7)) === m && e.type === 'debit' && e.person === person)
         .reduce((s, e) => s + e.amountInBase, 0)
-      return { name: longMonth(m).slice(0, 4), budgeted: Math.round(budgeted), actual: Math.round(actual) }
+      return {
+        name: chartRange > 6 ? `${longMonth(m).slice(0, 3)} ${String(y).slice(2)}` : longMonth(m).slice(0, 4),
+        budgeted: Math.round(budgeted),
+        actual: Math.round(actual),
+      }
     })
-  }, [budgets, expenses, year, month, person])
+  }, [budgets, expenses, year, month, person, chartRange])
 
   // ── Planifier helpers ────────────────────────────────────────────────────
   function prefillFromFixed() {
@@ -314,37 +319,50 @@ export default function BudgetScreen() {
           <>
             {/* Income section */}
             <p className="section-header">💰 Revenus prévus</p>
-            <div className="card mx-4 overflow-hidden">
+            {estimatedIncome === 0 ? (
               <button
-                onClick={() => { setIncomeInput(estimatedIncome > 0 ? String(estimatedIncome) : ''); setEditingIncome(true) }}
-                className="w-full flex items-center justify-between px-4 py-3 text-left">
-                <div>
-                  <p className="text-[14px] font-medium dark:text-white">
-                    {personTabs.find(p2 => p2.id === person)?.label}
+                onClick={() => { setIncomeInput(''); setEditingIncome(true) }}
+                className="mx-4 w-[calc(100%-2rem)] bg-amber-50 dark:bg-amber-900/25 border-2 border-amber-300 dark:border-amber-600/70 rounded-2xl p-4 flex items-center gap-3 text-left">
+                <div className="w-10 h-10 rounded-xl bg-amber-100 dark:bg-amber-800/60 flex items-center justify-center flex-shrink-0">
+                  <span className="text-xl">💰</span>
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-[15px] font-semibold text-amber-800 dark:text-amber-200">Renseigner mon salaire</p>
+                  <p className="text-[12px] text-amber-600 dark:text-amber-400 mt-0.5">
+                    Requis pour calculer votre solde prévisionnel
                   </p>
-                  {actualIncome > 0 && (
-                    <p className="text-[11px] text-gray-400 dark:text-gray-500">
-                      Réel ce mois : {formatAmount(actualIncome, base)}
-                    </p>
-                  )}
                 </div>
-                <div className="text-right">
-                  {estimatedIncome > 0 ? (
-                    <p className="text-[16px] font-bold text-green-600">{formatAmount(estimatedIncome, base)}</p>
-                  ) : (
-                    <p className="text-[13px] text-gray-300 dark:text-gray-600">Saisir ›</p>
-                  )}
-                </div>
+                <span className="text-amber-400 text-[22px] font-light flex-shrink-0">›</span>
               </button>
-              {estimatedIncome > 0 && totalBudgeted > 0 && (
-                <div className="px-4 py-2 bg-gray-50 dark:bg-gray-700/50 border-t border-gray-100 dark:border-gray-700 flex justify-between items-center">
-                  <span className="text-[12px] text-gray-500 dark:text-gray-400">Balance prévisionnelle</span>
-                  <span className={`text-[13px] font-bold ${plannedBalance >= 0 ? 'text-green-600' : 'text-red-500'}`}>
-                    {plannedBalance >= 0 ? '+' : ''}{formatAmount(plannedBalance, base)}
-                  </span>
-                </div>
-              )}
-            </div>
+            ) : (
+              <div className="card mx-4 overflow-hidden">
+                <button
+                  onClick={() => { setIncomeInput(String(estimatedIncome)); setEditingIncome(true) }}
+                  className="w-full flex items-center justify-between px-4 py-3 text-left">
+                  <div>
+                    <p className="text-[14px] font-medium dark:text-white">
+                      {personTabs.find(p2 => p2.id === person)?.label}
+                    </p>
+                    {actualIncome > 0 && (
+                      <p className="text-[11px] text-gray-400 dark:text-gray-500">
+                        Réel ce mois : {formatAmount(actualIncome, base)}
+                      </p>
+                    )}
+                  </div>
+                  <div className="text-right">
+                    <p className="text-[16px] font-bold text-green-600">{formatAmount(estimatedIncome, base)}</p>
+                  </div>
+                </button>
+                {totalBudgeted > 0 && (
+                  <div className="px-4 py-2 bg-gray-50 dark:bg-gray-700/50 border-t border-gray-100 dark:border-gray-700 flex justify-between items-center">
+                    <span className="text-[12px] text-gray-500 dark:text-gray-400">Balance prévisionnelle</span>
+                    <span className={`text-[13px] font-bold ${plannedBalance >= 0 ? 'text-green-600' : 'text-red-500'}`}>
+                      {plannedBalance >= 0 ? '+' : ''}{formatAmount(plannedBalance, base)}
+                    </span>
+                  </div>
+                )}
+              </div>
+            )}
 
             {/* Pre-fill banner */}
             {fixedCatIds.length > 0 && !fixedPreFilled && (
@@ -734,7 +752,8 @@ export default function BudgetScreen() {
                       margin={{ top: 0, right: 10, left: 10, bottom: 0 }} barSize={8} barGap={2}>
                       <XAxis type="number" tick={{ fontSize: 9, fill: isDark ? '#6b7280' : '#9ca3af' }} axisLine={false} tickLine={false} />
                       <YAxis type="category" dataKey="name" tick={{ fontSize: 10, fill: isDark ? '#d1d5db' : '#374151' }} axisLine={false} tickLine={false} width={80} />
-                      <Tooltip contentStyle={tooltipStyle} formatter={(v: number) => [`${v} ${base}`, '']} />
+                      <Tooltip contentStyle={tooltipStyle} formatter={(v: number) => [`${v} ${base}`, '']}
+                        cursor={{ fill: isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.04)' }} />
                       <Legend wrapperStyle={{ fontSize: 11 }} />
                       <Bar dataKey="Budget" fill="#93c5fd" radius={[0, 3, 3, 0]} />
                       <Bar dataKey="Réel" radius={[0, 3, 3, 0]}>
@@ -762,14 +781,29 @@ export default function BudgetScreen() {
 
             {chartData.some(d => d.budgeted > 0 || d.actual > 0) && (
               <>
-                <p className="section-header">Évolution sur 6 mois</p>
+                <div className="flex items-center justify-between mx-4 mt-4 mb-1">
+                  <p className="section-header !mt-0 !mb-0">Évolution budget</p>
+                  <div className="flex gap-1">
+                    {([3, 6, 12] as const).map(r => (
+                      <button key={r} onClick={() => setChartRange(r)}
+                        className={`px-2.5 py-1 rounded-lg text-[11px] font-semibold transition-colors
+                          ${chartRange === r
+                            ? 'bg-blue-600 text-white'
+                            : 'bg-gray-100 dark:bg-gray-800 text-gray-500 dark:text-gray-400'}`}>
+                        {r}M
+                      </button>
+                    ))}
+                  </div>
+                </div>
                 <div className="card mx-4 p-4">
                   <ResponsiveContainer width="100%" height={180}>
                     <BarChart data={chartData} margin={{ top: 0, right: 0, bottom: 0, left: -20 }} barSize={8} barGap={2}>
                       <XAxis dataKey="name" tick={{ fontSize: 10, fill: isDark ? '#6b7280' : '#9ca3af' }} axisLine={false} tickLine={false} />
                       <YAxis tick={{ fontSize: 10, fill: isDark ? '#6b7280' : '#9ca3af' }} axisLine={false} tickLine={false}
                         tickFormatter={v => v >= 1000 ? `${(v/1000).toFixed(0)}k` : String(v)} />
-                      <Tooltip contentStyle={tooltipStyle} formatter={(v: number, n: string) => [`${v} ${base}`, n]} />
+                      <Tooltip contentStyle={tooltipStyle}
+                        cursor={{ fill: isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.04)' }}
+                        formatter={(v: number, n: string) => [`${v} ${base}`, n]} />
                       <Legend wrapperStyle={{ fontSize: 11 }} />
                       <Bar dataKey="budgeted" name="Budget" fill="#93c5fd" radius={[2, 2, 0, 0]} />
                       <Bar dataKey="actual"   name="Réel"   fill="#f87171" radius={[2, 2, 0, 0]} />
