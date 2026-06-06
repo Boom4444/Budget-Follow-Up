@@ -9,6 +9,11 @@ export interface DriveFile {
   createdTime: string
 }
 
+export interface DriveFolder {
+  id: string
+  name: string
+}
+
 // ── Script loader ─────────────────────────────────────────────────────────────
 
 let scriptLoaded = false
@@ -128,12 +133,26 @@ async function getOrCreateFolder(token: string): Promise<string> {
 // ── Public API ────────────────────────────────────────────────────────────────
 
 /**
- * Upload a backup JSON file to the "Budget Foyer Backups" folder.
- * Creates the folder if it doesn't exist.
+ * List all Google Drive folders accessible to the user (not trashed).
+ */
+export async function listDriveFolders(token: string): Promise<DriveFolder[]> {
+  try {
+    const query = encodeURIComponent(`mimeType='application/vnd.google-apps.folder' and trashed=false`)
+    const url = `https://www.googleapis.com/drive/v3/files?q=${query}&fields=files(id,name)&orderBy=name&pageSize=100`
+    const res = await driveGet<{ files: DriveFolder[] }>(token, url)
+    return res.files ?? []
+  } catch {
+    return []
+  }
+}
+
+/**
+ * Upload a backup JSON file to the specified folder (or "Budget Foyer Backups" if none given).
+ * Creates the default folder if it doesn't exist.
  * Returns the Drive file ID.
  */
-export async function uploadToDrive(token: string, data: BackupData): Promise<string> {
-  const folderId = await getOrCreateFolder(token)
+export async function uploadToDrive(token: string, data: BackupData, folderId?: string): Promise<string> {
+  const resolvedFolderId = folderId ?? await getOrCreateFolder(token)
 
   const today = new Date().toISOString().slice(0, 10) // YYYY-MM-DD
   const filename = `budget-backup-${today}.json`
@@ -146,7 +165,7 @@ export async function uploadToDrive(token: string, data: BackupData): Promise<st
   const metadata = JSON.stringify({
     name: filename,
     mimeType: 'application/json',
-    parents: [folderId],
+    parents: [resolvedFolderId],
   })
 
   const multipartBody =
@@ -185,15 +204,15 @@ export async function uploadToDrive(token: string, data: BackupData): Promise<st
 }
 
 /**
- * List JSON backup files in the "Budget Foyer Backups" folder, newest first.
+ * List JSON backup files in the given (or default) folder, newest first.
  * Returns an empty array on any error rather than throwing.
  */
-export async function listDriveBackups(token: string): Promise<DriveFile[]> {
+export async function listDriveBackups(token: string, folderId?: string): Promise<DriveFile[]> {
   try {
-    const folderId = await getOrCreateFolder(token)
+    const resolvedFolderId = folderId ?? await getOrCreateFolder(token)
 
     const query = encodeURIComponent(
-      `'${folderId}' in parents and mimeType='application/json' and trashed=false`
+      `'${resolvedFolderId}' in parents and mimeType='application/json' and trashed=false`
     )
     const url =
       `https://www.googleapis.com/drive/v3/files` +
@@ -204,6 +223,14 @@ export async function listDriveBackups(token: string): Promise<DriveFile[]> {
   } catch {
     return []
   }
+}
+
+/**
+ * Find/list backup files in ANY folder that matches the saved folder name.
+ * Used when re-connecting to restore context.
+ */
+export async function findBackupsInFolder(token: string, folderId: string): Promise<DriveFile[]> {
+  return listDriveBackups(token, folderId)
 }
 
 /**

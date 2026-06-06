@@ -1,4 +1,5 @@
 import { v4 as uuid } from 'uuid'
+import * as XLSX from 'xlsx'
 import { convertToBase } from '../data/currencies'
 import { CATEGORY_MAP } from '../data/categories'
 import type { Expense, RecurringExpense, AppSettings, CategoryId, CurrencyCode, HouseholdMember, MonthlyBudget } from '../models/types'
@@ -120,6 +121,69 @@ export function exportCSV(expenses: Expense[]): void {
   const csv = [CSV_HEADER, ...rows].join('\n')
   const blob = new Blob(['﻿' + csv], { type: 'text/tab-separated-values;charset=utf-8' })
   downloadBlob(blob, `budget-export-${isoDate()}.tsv`)
+}
+
+export function exportXLSX(expenses: Expense[]): void {
+  const rows = expenses
+    .slice()
+    .sort((a, b) => a.date.localeCompare(b.date))
+    .map(e => ({
+      Date: e.date,
+      Boutique: e.title,
+      Banque: e.bank,
+      Catégorie: CATEGORY_MAP[e.category as CategoryId]?.label ?? e.category,
+      'Sous-catégorie': e.subCategory,
+      Type: e.type === 'debit' ? 'Débit' : 'Crédit',
+      Montant: e.type === 'debit' ? -e.amount : e.amount,
+      Devise: e.currency,
+      Personne: e.person,
+      Notes: e.notes,
+    }))
+  const ws = XLSX.utils.json_to_sheet(rows)
+  const wb = XLSX.utils.book_new()
+  XLSX.utils.book_append_sheet(wb, ws, 'Dépenses')
+  XLSX.writeFile(wb, `budget-export-${isoDate()}.xlsx`)
+}
+
+export function exportPDF(expenses: Expense[], baseCurrency: string): void {
+  const sorted = expenses.slice().sort((a, b) => b.date.localeCompare(a.date))
+  const rows = sorted.map(e => {
+    const sign = e.type === 'credit' ? '+' : '-'
+    const catLabel = CATEGORY_MAP[e.category as CategoryId]?.label ?? e.category
+    return `<tr>
+      <td>${e.date}</td>
+      <td>${e.title}</td>
+      <td>${catLabel}</td>
+      <td>${e.subCategory}</td>
+      <td style="text-align:right;color:${e.type === 'credit' ? 'green' : 'inherit'}">${sign}${e.amount.toFixed(2)} ${e.currency}</td>
+      <td>${e.bank}</td>
+    </tr>`
+  }).join('')
+  const html = `<!DOCTYPE html><html><head><meta charset="utf-8">
+    <title>Budget Export ${isoDate()}</title>
+    <style>
+      body{font-family:system-ui,sans-serif;font-size:12px;color:#111}
+      h1{font-size:16px;margin-bottom:4px}
+      p{color:#666;margin-bottom:16px}
+      table{width:100%;border-collapse:collapse}
+      th{background:#f3f4f6;font-weight:600;text-align:left;padding:6px 8px;border-bottom:2px solid #e5e7eb}
+      td{padding:5px 8px;border-bottom:1px solid #f3f4f6}
+      tr:last-child td{border-bottom:none}
+    </style>
+  </head><body>
+    <h1>Budget — Export ${isoDate()}</h1>
+    <p>${expenses.length} transactions · devise base : ${baseCurrency}</p>
+    <table>
+      <thead><tr><th>Date</th><th>Boutique</th><th>Catégorie</th><th>Sous-cat.</th><th>Montant</th><th>Banque</th></tr></thead>
+      <tbody>${rows}</tbody>
+    </table>
+  </body></html>`
+  const w = window.open('', '_blank')
+  if (!w) return
+  w.document.write(html)
+  w.document.close()
+  w.focus()
+  w.print()
 }
 
 // ── Import ────────────────────────────────────────────────────────────────────

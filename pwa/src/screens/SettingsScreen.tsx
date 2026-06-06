@@ -5,15 +5,15 @@ import type { CurrencyCode, AppTheme, MonthlyBudget, CustomCategoryDef } from '.
 import type { Expense, RecurringExpense } from '../models/types'
 import { v4 as uuid } from 'uuid'
 import {
-  exportJSON, exportCSV,
+  exportJSON, exportCSV, exportXLSX, exportPDF,
   parseJSONBackup, parseCSV,
   getAutoBackupSlots, downloadAutoBackup, formatRelativeTime,
 } from '../utils/backup'
 import type { AutoBackupSlot } from '../utils/backup'
 import {
-  requestDriveToken, uploadToDrive, listDriveBackups, downloadFromDrive,
+  requestDriveToken, uploadToDrive, listDriveBackups, listDriveFolders, downloadFromDrive,
 } from '../utils/googleDrive'
-import type { DriveFile } from '../utils/googleDrive'
+import type { DriveFile, DriveFolder } from '../utils/googleDrive'
 import { useRegisterSW } from 'virtual:pwa-register/react'
 
 interface PendingImport {
@@ -67,9 +67,17 @@ export default function SettingsScreen({ onShowHelp }: Props) {
   const [showClearConfirm, setShowClearConfirm] = useState(false)
   const [importError, setImportError] = useState('')
 
+  // Export format sheet
+  const [showExportSheet, setShowExportSheet] = useState(false)
+
+  // Update check status
+  const [updateStatus, setUpdateStatus] = useState<'idle' | 'checking' | 'none'>('idle')
+
   // Google Drive state (ephemeral — not persisted)
   const [driveToken, setDriveToken] = useState<string | null>(null)
   const [driveFiles, setDriveFiles] = useState<DriveFile[]>([])
+  const [driveFolders, setDriveFolders] = useState<DriveFolder[]>([])
+  const [showFolderPicker, setShowFolderPicker] = useState(false)
   const [driveLoading, setDriveLoading] = useState(false)
   const [driveError, setDriveError] = useState('')
   const [driveClientIdInput, setDriveClientIdInput] = useState(settings.googleDriveClientId)
@@ -141,6 +149,24 @@ export default function SettingsScreen({ onShowHelp }: Props) {
     setPending(null)
   }
 
+  // ── Export helpers ────────────────────────────────────────────────────────
+
+  function handleExport(format: 'json' | 'csv' | 'xlsx' | 'pdf') {
+    setShowExportSheet(false)
+    if (format === 'json') exportJSON(expenses, recurring, settings, budgets)
+    else if (format === 'csv') exportCSV(expenses)
+    else if (format === 'xlsx') exportXLSX(expenses)
+    else if (format === 'pdf') exportPDF(expenses, settings.baseCurrency)
+  }
+
+  // ── Update check ──────────────────────────────────────────────────────────
+
+  function checkUpdates() {
+    if (needRefresh) { updateServiceWorker(true); return }
+    setUpdateStatus('checking')
+    setTimeout(() => setUpdateStatus('none'), 3000)
+  }
+
   // ── Google Drive helpers ──────────────────────────────────────────────────
 
   async function connectDrive() {
@@ -151,11 +177,40 @@ export default function SettingsScreen({ onShowHelp }: Props) {
     try {
       const token = await requestDriveToken(clientId)
       setDriveToken(token)
-      const files = await listDriveBackups(token)
+      const folderId = settings.driveBackupFolder?.id
+      const files = await listDriveBackups(token, folderId)
       setDriveFiles(files)
     } catch (err: any) {
       setDriveError(err?.message ?? 'Connexion échouée')
     } finally {
+      setDriveLoading(false)
+    }
+  }
+
+  async function openFolderPicker() {
+    if (!driveToken) return
+    setDriveLoading(true)
+    setDriveError('')
+    try {
+      const folders = await listDriveFolders(driveToken)
+      setDriveFolders(folders)
+      setShowFolderPicker(true)
+    } catch (err: any) {
+      setDriveError(err?.message ?? 'Impossible de lister les dossiers')
+    } finally {
+      setDriveLoading(false)
+    }
+  }
+
+  async function selectFolder(folder: DriveFolder) {
+    setShowFolderPicker(false)
+    updateSettings({ driveBackupFolder: { id: folder.id, name: folder.name } })
+    if (!driveToken) return
+    setDriveLoading(true)
+    try {
+      const files = await listDriveBackups(driveToken, folder.id)
+      setDriveFiles(files)
+    } catch { /* ignore */ } finally {
       setDriveLoading(false)
     }
   }
@@ -165,6 +220,7 @@ export default function SettingsScreen({ onShowHelp }: Props) {
     setDriveLoading(true)
     setDriveError('')
     try {
+      const folderId = settings.driveBackupFolder?.id
       await uploadToDrive(driveToken, {
         version: 3,
         exportedAt: new Date().toISOString(),
@@ -172,8 +228,8 @@ export default function SettingsScreen({ onShowHelp }: Props) {
         expenses,
         recurring,
         budgets,
-      })
-      const files = await listDriveBackups(driveToken)
+      }, folderId)
+      const files = await listDriveBackups(driveToken, folderId)
       setDriveFiles(files)
     } catch (err: any) {
       setDriveError(err?.message ?? 'Échec de l\'envoi')
@@ -372,22 +428,17 @@ export default function SettingsScreen({ onShowHelp }: Props) {
         {/* Backup & Data */}
         <p className="section-header">Sauvegarde & Données</p>
         <div className="card mx-4 overflow-hidden">
-          <button onClick={() => exportJSON(expenses, recurring, settings, budgets)}
+          <button onClick={() => setShowExportSheet(true)}
             className="w-full flex items-center justify-between px-4 py-3 border-b border-gray-100 dark:border-gray-700 text-left">
-            <span className="text-[15px] text-blue-600">Exporter JSON</span>
-            <span className="text-gray-400 dark:text-gray-500 text-[13px]">↑ Sauvegarde complète</span>
-          </button>
-          <button onClick={() => exportCSV(expenses)}
-            className="w-full flex items-center justify-between px-4 py-3 border-b border-gray-100 dark:border-gray-700 text-left">
-            <span className="text-[15px] text-blue-600">Exporter TSV (tableur)</span>
-            <span className="text-gray-400 dark:text-gray-500 text-[13px]">↑ Format tableur</span>
+            <span className="text-[15px] text-blue-600">Exporter…</span>
+            <span className="text-gray-400 dark:text-gray-500 text-[13px]">JSON · CSV · Excel · PDF</span>
           </button>
           <button onClick={() => fileRef.current?.click()}
             className="w-full flex items-center justify-between px-4 py-3 text-left">
             <span className="text-[15px] text-blue-600">Importer un fichier…</span>
-            <span className="text-gray-400 dark:text-gray-500 text-[13px]">↓ JSON ou TSV/CSV</span>
+            <span className="text-gray-400 dark:text-gray-500 text-[13px]">↓ JSON, CSV, Excel ou TXT</span>
           </button>
-          <input ref={fileRef} type="file" accept=".json,.tsv,.csv,.txt" className="hidden" onChange={handleFileChange} />
+          <input ref={fileRef} type="file" accept=".json,.tsv,.csv,.txt,.xls,.xlsx" className="hidden" onChange={handleFileChange} />
           {importError && (
             <p className="px-4 py-2 text-[13px] text-red-500 border-t border-gray-100 dark:border-gray-700">{importError}</p>
           )}
@@ -418,6 +469,13 @@ export default function SettingsScreen({ onShowHelp }: Props) {
                   {driveLoading ? 'En cours…' : '↑ Sauvegarder sur Drive'}
                 </span>
                 <span className="text-[13px] text-gray-400 dark:text-gray-500">{expenses.length} dépenses</span>
+              </button>
+              <button onClick={openFolderPicker} disabled={driveLoading}
+                className="w-full flex items-center justify-between px-4 py-3 border-b border-gray-100 dark:border-gray-700 text-left">
+                <span className="text-[15px] text-blue-600">Dossier de sauvegarde</span>
+                <span className="text-[13px] text-gray-400 dark:text-gray-500 truncate max-w-[140px] text-right">
+                  {settings.driveBackupFolder?.name ?? 'Budget Foyer Backups'}
+                </span>
               </button>
               {driveFiles.length > 0 && driveFiles.slice(0, 5).map((f, i) => (
                 <div key={f.id} className={`flex items-center justify-between px-4 py-3 ${i < Math.min(driveFiles.length, 5) - 1 ? 'border-b border-gray-100 dark:border-gray-700' : ''}`}>
@@ -501,12 +559,14 @@ export default function SettingsScreen({ onShowHelp }: Props) {
             <span className="text-[15px] text-gray-400 dark:text-gray-500">{__APP_VERSION__}</span>
           </div>
           <button
-            onClick={() => updateServiceWorker(true)}
+            onClick={checkUpdates}
+            disabled={updateStatus === 'checking'}
             className="w-full flex items-center justify-between px-4 py-3 border-b border-gray-100 dark:border-gray-700 text-left">
             <span className={`text-[15px] ${needRefresh ? 'text-orange-500 font-semibold' : 'text-blue-600'}`}>
-              {needRefresh ? '🔄 Mise à jour disponible !' : 'Vérifier les mises à jour'}
+              {needRefresh ? '🔄 Mise à jour disponible !' : updateStatus === 'checking' ? 'Vérification…' : 'Vérifier les mises à jour'}
             </span>
             {needRefresh && <span className="text-orange-500 text-[12px] font-medium">Mettre à jour</span>}
+            {updateStatus === 'none' && !needRefresh && <span className="text-green-600 text-[12px] font-medium">✓ À jour</span>}
           </button>
           <div className="px-4 py-3 flex justify-between">
             <span className="text-[15px] text-gray-600 dark:text-gray-300">Données</span>
@@ -613,6 +673,66 @@ export default function SettingsScreen({ onShowHelp }: Props) {
               className="w-full py-3.5 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 rounded-xl font-medium text-[16px]">
               Annuler
             </button>
+          </div>
+        </div>
+      )}
+
+      {/* Export format sheet */}
+      {showExportSheet && (
+        <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/40">
+          <div className="bg-white dark:bg-gray-800 rounded-t-3xl w-full p-6"
+               style={{ paddingBottom: 'calc(1.5rem + env(safe-area-inset-bottom, 0px))' }}>
+            <p className="text-[17px] font-bold text-center mb-1 dark:text-white">Exporter les données</p>
+            <p className="text-[13px] text-gray-400 dark:text-gray-500 text-center mb-5">{expenses.length} transactions</p>
+            <div className="space-y-2.5 mb-4">
+              {[
+                { fmt: 'json' as const, label: '📄 JSON', desc: 'Sauvegarde complète · restaurable' },
+                { fmt: 'csv'  as const, label: '📊 CSV',  desc: 'Compatible Excel, Numbers, LibreOffice' },
+                { fmt: 'xlsx' as const, label: '🗂 Excel (.xlsx)', desc: 'Fichier tableur natif' },
+                { fmt: 'pdf'  as const, label: '🖨 PDF',  desc: 'Aperçu imprimable' },
+              ].map(({ fmt, label, desc }) => (
+                <button key={fmt} onClick={() => handleExport(fmt)}
+                  className="w-full flex items-center justify-between px-4 py-3.5 bg-gray-50 dark:bg-gray-700 rounded-xl text-left">
+                  <span className="text-[15px] font-semibold text-blue-600">{label}</span>
+                  <span className="text-[12px] text-gray-400 dark:text-gray-500">{desc}</span>
+                </button>
+              ))}
+            </div>
+            <button onClick={() => setShowExportSheet(false)}
+              className="w-full py-3.5 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 rounded-xl font-medium text-[16px]">
+              Annuler
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Drive folder picker */}
+      {showFolderPicker && (
+        <div className="fixed inset-0 z-50 flex flex-col bg-[#f2f2f7] dark:bg-[#1c1c1e]"
+             style={{ paddingTop: 'env(safe-area-inset-top, 0px)' }}>
+          <div className="bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-700 px-4 py-3 flex items-center gap-3 flex-shrink-0">
+            <button onClick={() => setShowFolderPicker(false)}
+              className="text-blue-600 font-medium text-[15px]">Annuler</button>
+            <p className="flex-1 text-center font-semibold text-[16px] dark:text-white">Dossier Drive</p>
+            <div className="w-16" />
+          </div>
+          <div className="flex-1 overflow-y-auto scroll-ios">
+            <p className="section-header">Choisir un dossier</p>
+            <div className="card mx-4 overflow-hidden">
+              {driveFolders.length === 0 ? (
+                <p className="px-4 py-3 text-[14px] text-gray-400 dark:text-gray-500">Aucun dossier trouvé</p>
+              ) : driveFolders.map((f, i) => (
+                <button key={f.id} onClick={() => selectFolder(f)}
+                  className={`w-full flex items-center justify-between px-4 py-3 text-left
+                    ${i < driveFolders.length - 1 ? 'border-b border-gray-100 dark:border-gray-700' : ''}
+                    ${settings.driveBackupFolder?.id === f.id ? 'bg-blue-50 dark:bg-blue-950/30' : ''}`}>
+                  <span className="text-[15px] dark:text-white">📁 {f.name}</span>
+                  {settings.driveBackupFolder?.id === f.id && (
+                    <span className="text-blue-600 text-[14px]">✓</span>
+                  )}
+                </button>
+              ))}
+            </div>
           </div>
         </div>
       )}

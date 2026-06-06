@@ -82,6 +82,7 @@ export interface AppSettings {
   banks: string[]
   theme: AppTheme
   googleDriveClientId: string
+  driveBackupFolder?: { id: string; name: string }
   customCategories: CustomCategoryDef[]
   claudeApiKey: string
 }
