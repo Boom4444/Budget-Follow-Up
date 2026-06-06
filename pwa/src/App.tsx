@@ -32,6 +32,13 @@ export default function App() {
     refreshExchangeRates()
   }, [])
 
+  // Dismiss keyboard on scroll (iOS)
+  useEffect(() => {
+    const dismiss = () => { (document.activeElement as HTMLElement)?.blur() }
+    document.addEventListener('touchmove', dismiss, { passive: true })
+    return () => document.removeEventListener('touchmove', dismiss)
+  }, [])
+
   useEffect(() => {
     const html = document.documentElement
     if (settings.theme === 'dark') {
