@@ -1,4 +1,7 @@
 import { useState, useMemo, useRef } from 'react'
+import { useStore } from '../store/useStore'
+import { CATEGORY_MAP } from '../data/categories'
+import type { CategoryId } from '../models/types'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -271,6 +274,7 @@ export default function PatrimoineScreen({ onClose }: Props = {}) {
   const [data, setData]   = useState<BData>(() => JSON.parse(JSON.stringify(DEFAULT_DATA)))
   const [step, setStep]   = useState<WizardStep>('revenus')
   const isDark = document.documentElement.classList.contains('dark')
+  const { expenses } = useStore()
 
   // ── Computed results ─────────────────────────────────────────────────────
 
@@ -319,8 +323,57 @@ export default function PatrimoineScreen({ onClose }: Props = {}) {
     setInvestissements([...data.investissements, { id: uid(), name: 'Nouvelle catégorie', color, items: [] }])
   }
 
-  // ── Tooltip style ────────────────────────────────────────────────────────
-  // (unused but kept for future charts)
+  // ── Import from real expenses ─────────────────────────────────────────────
+
+  function importExpenses() {
+    // Last 3 full months
+    const now   = new Date()
+    const from  = new Date(now.getFullYear(), now.getMonth() - 2, 1)
+    const fromStr = from.toISOString().slice(0, 10)
+
+    const debits = expenses.filter(e => e.type === 'debit' && e.date >= fromStr)
+    if (debits.length === 0) return
+
+    // Determine actual months spanned (1-3)
+    const monthKeys = new Set(debits.map(e => e.date.slice(0, 7)))
+    const months = Math.max(monthKeys.size, 1)
+
+    // Aggregate by category → subCategory
+    const catAgg: Record<string, Record<string, number>> = {}
+    debits.forEach(e => {
+      const cat = e.category
+      if (!catAgg[cat]) catAgg[cat] = {}
+      const sub = e.subCategory || 'Autre'
+      catAgg[cat][sub] = (catAgg[cat][sub] ?? 0) + e.amountInBase
+    })
+
+    const groups: BGroup[] = Object.entries(catAgg).map(([catId, subs], idx) => {
+      const meta = CATEGORY_MAP[catId as CategoryId]
+      const items: BItem[] = Object.entries(subs)
+        .map(([name, total]) => ({
+          id: uid(),
+          name,
+          amount: Math.round(total / months),
+        }))
+        .filter(i => i.amount > 0)
+        .sort((a, b) => b.amount - a.amount)
+
+      return {
+        id: `imp-${catId}`,
+        name: meta?.label ?? catId,
+        color: GROUP_PALETTE[idx % GROUP_PALETTE.length],
+        items,
+      }
+    }).filter(g => g.items.length > 0)
+      .sort((a, b) =>
+        b.items.reduce((s, i) => s + i.amount, 0) -
+        a.items.reduce((s, i) => s + i.amount, 0)
+      )
+
+    if (groups.length > 0) setDepenses(groups)
+  }
+
+  // ── Tooltip style ─────────────────────────────────────────────────────────
   void isDark
 
   // ── Render ───────────────────────────────────────────────────────────────
@@ -412,6 +465,15 @@ export default function PatrimoineScreen({ onClose }: Props = {}) {
         {/* ── Dépenses ─────────────────────────────────────────────────── */}
         {step === 'depenses' && (
           <div className="pt-4 space-y-3">
+            {/* Import from real data */}
+            {expenses.filter(e => e.type === 'debit').length > 0 && (
+              <button onClick={importExpenses}
+                className="mx-4 w-[calc(100%-2rem)] bg-indigo-50 dark:bg-indigo-950/40 border border-indigo-200 dark:border-indigo-700 rounded-2xl py-3 flex items-center justify-center gap-2 text-[13px] font-medium text-indigo-600 dark:text-indigo-400">
+                <span className="text-[16px]">📊</span>
+                Importer mes dépenses réelles
+                <span className="text-[11px] text-indigo-400 dark:text-indigo-500">(moy. 3 mois)</span>
+              </button>
+            )}
             {data.depenses.map(g => (
               <GroupCard key={g.id} group={g} addLabel="Ajouter une dépense"
                 onUpdate={patch => setDepenses(data.depenses.map(x => x.id === g.id ? { ...x, ...patch } : x))}

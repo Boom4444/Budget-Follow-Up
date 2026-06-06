@@ -69,7 +69,9 @@ function fmt(v: number): string {
 }
 
 function fmtK(v: number): string {
-  if (Math.abs(v) >= 1000) return `${Math.round(v / 1000)} k€`
+  const abs = Math.abs(v)
+  if (abs >= 1_000_000) return `${(v / 1_000_000).toFixed(1).replace(/\.0$/, '')} M€`
+  if (abs >= 1000) return `${Math.round(v / 1000)} k€`
   return `${Math.round(v)} €`
 }
 
@@ -406,25 +408,55 @@ export default function SimulateurScreen({ onClose }: Props = {}) {
                   ))}
                 </div>
               ))}
+              {/* Diff vs S1 row */}
+              <div className="flex border-t-2 border-gray-100 dark:border-gray-700 bg-gray-50/60 dark:bg-gray-800/40">
+                <div className="w-28 flex-shrink-0 px-4 py-3">
+                  <p className="text-[11px] font-semibold text-gray-400 dark:text-gray-500 leading-snug">
+                    Écart vs{' '}{scenarios[0].label}
+                  </p>
+                </div>
+                {results.map((r, i) => {
+                  const diff = r.capitalFinal - results[0].capitalFinal
+                  return (
+                    <div key={r.id} className="flex-1 px-2 py-3 text-center">
+                      {i === 0 ? (
+                        <p className="text-[11px] text-gray-400 dark:text-gray-500">référence</p>
+                      ) : (
+                        <p className={`text-[13px] font-bold ${diff >= 0 ? 'text-green-600' : 'text-red-500'}`}>
+                          {diff >= 0 ? '+' : ''}{fmtK(diff)}
+                        </p>
+                      )}
+                    </div>
+                  )
+                })}
+              </div>
             </div>
 
             {/* Per-scenario mini summaries */}
-            {results.map((r, i) => (
-              <div key={r.id} className="card mx-4 mt-3 px-4 py-3">
-                <div className="flex items-center gap-2 mb-2">
-                  <span className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: COLORS[i] }} />
-                  <span className="text-[13px] font-semibold dark:text-white">{scenarios[i].label}</span>
-                  <span className="text-[12px] text-gray-400 dark:text-gray-500 ml-auto">
-                    {scenarios[i].horizonAnnees} ans · {scenarios[i].tauxAnnuel}%
-                  </span>
+            {results.map((r, i) => {
+              const diff = i === 0 ? null : r.capitalFinal - results[0].capitalFinal
+              return (
+                <div key={r.id} className="card mx-4 mt-3 px-4 py-3">
+                  <div className="flex items-center gap-2 mb-2">
+                    <span className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: COLORS[i] }} />
+                    <span className="text-[13px] font-semibold dark:text-white">{scenarios[i].label}</span>
+                    <span className="text-[12px] text-gray-400 dark:text-gray-500 ml-auto">
+                      {scenarios[i].horizonAnnees} ans · {scenarios[i].tauxAnnuel}%
+                    </span>
+                  </div>
+                  <p className="text-[13px] text-gray-500 dark:text-gray-400 leading-relaxed">
+                    {fmt(scenarios[i].capitalInitial)} + {fmt(scenarios[i].epargneMensuelle)}/mois →{' '}
+                    <strong style={{ color: COLORS[i] }}>{fmt(r.capitalFinal)}</strong>
+                    {' '}({fmt(r.totalInterets)} d'intérêts)
+                  </p>
+                  {diff !== null && (
+                    <p className={`text-[12px] font-semibold mt-1.5 ${diff >= 0 ? 'text-green-600' : 'text-red-500'}`}>
+                      {diff >= 0 ? '▲' : '▼'} {diff >= 0 ? '+' : ''}{fmt(diff)} vs {scenarios[0].label}
+                    </p>
+                  )}
                 </div>
-                <p className="text-[13px] text-gray-500 dark:text-gray-400 leading-relaxed">
-                  {fmt(scenarios[i].capitalInitial)} + {fmt(scenarios[i].epargneMensuelle)}/mois →{' '}
-                  <strong style={{ color: COLORS[i] }}>{fmt(r.capitalFinal)}</strong>
-                  {' '}({fmt(r.totalInterets)} d'intérêts)
-                </p>
-              </div>
-            ))}
+              )
+            })}
           </>
         )}
 
