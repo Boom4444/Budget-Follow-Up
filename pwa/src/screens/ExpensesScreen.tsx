@@ -164,6 +164,11 @@ export default function ExpensesScreen() {
               )}
               Relevé
             </button>
+            <button
+              onClick={() => setShowAdd(true)}
+              className="w-9 h-9 bg-blue-600 rounded-full flex items-center justify-center text-white text-[22px] font-light leading-none shadow-sm">
+              +
+            </button>
           </div>
         </div>
 
@@ -284,14 +289,6 @@ export default function ExpensesScreen() {
           </>
         )}
       </div>
-
-      {/* Floating + FAB */}
-      <button
-        onClick={() => setShowAdd(true)}
-        className="fixed bottom-6 right-4 z-20 w-14 h-14 bg-blue-600 rounded-full flex items-center justify-center text-white text-3xl font-light shadow-lg"
-        style={{ paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}>
-        +
-      </button>
 
       {showAdd && <AddExpenseModal onClose={() => setShowAdd(false)} />}
 
