@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useRef } from 'react'
 import {
   AreaChart, Area, LineChart, Line,
   XAxis, YAxis, Tooltip, ResponsiveContainer,
@@ -87,6 +87,12 @@ interface InputRowProps {
 }
 
 function InputRow({ label, value, onChange, unit, min = 0, max, step = 1, isLast = false }: InputRowProps) {
+  const [display, setDisplay] = useState(String(value))
+  const focused = useRef(false)
+
+  // Sync display when parent value changes (e.g. scenario switch) while not editing
+  if (!focused.current && display !== String(value)) setDisplay(String(value))
+
   return (
     <div className={`flex items-center gap-3 px-4 py-3${isLast ? '' : ' border-b border-gray-100 dark:border-gray-700'}`}>
       <div className="flex-1 min-w-0">
@@ -94,13 +100,17 @@ function InputRow({ label, value, onChange, unit, min = 0, max, step = 1, isLast
         <input
           type="number"
           inputMode="decimal"
-          value={value}
+          value={display}
           min={min}
           max={max}
           step={step}
-          onChange={e => {
-            const v = parseFloat(e.target.value)
-            if (!isNaN(v)) onChange(v)
+          onFocus={() => { focused.current = true }}
+          onChange={e => setDisplay(e.target.value)}
+          onBlur={() => {
+            focused.current = false
+            const v = parseFloat(display)
+            if (!isNaN(v)) { onChange(v); setDisplay(String(v)) }
+            else setDisplay(String(value))
           }}
           className="text-[17px] font-medium bg-transparent dark:text-white focus:outline-none w-full"
           style={{ WebkitAppearance: 'none' } as React.CSSProperties}

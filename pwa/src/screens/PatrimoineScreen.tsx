@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useRef } from 'react'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -146,6 +146,11 @@ interface ItemRowProps {
 }
 
 function ItemRow({ item, onChange, onDelete, isLast }: ItemRowProps) {
+  const [amtStr, setAmtStr] = useState(String(item.amount))
+  const amtFocused = useRef(false)
+
+  if (!amtFocused.current && amtStr !== String(item.amount)) setAmtStr(String(item.amount))
+
   return (
     <div className={`flex items-center gap-2 px-4 py-2.5${isLast ? '' : ' border-b border-gray-100 dark:border-gray-700/60'}`}>
       <span className="text-gray-200 dark:text-gray-600 text-xs select-none">⠿</span>
@@ -165,8 +170,15 @@ function ItemRow({ item, onChange, onDelete, isLast }: ItemRowProps) {
             <input
               type="number"
               inputMode="decimal"
-              value={item.amount}
-              onChange={e => { const v = parseFloat(e.target.value); if (!isNaN(v)) onChange({ amount: v }) }}
+              value={amtStr}
+              onFocus={() => { amtFocused.current = true }}
+              onChange={e => setAmtStr(e.target.value)}
+              onBlur={() => {
+                amtFocused.current = false
+                const v = parseFloat(amtStr)
+                if (!isNaN(v)) { onChange({ amount: v }); setAmtStr(String(v)) }
+                else setAmtStr(String(item.amount))
+              }}
               className="text-[14px] font-medium bg-transparent dark:text-white focus:outline-none flex-1 min-w-0"
               style={{ WebkitAppearance: 'none' } as React.CSSProperties}
             />
