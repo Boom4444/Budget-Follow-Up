@@ -165,13 +165,17 @@ function parseDate(raw: string, yearHint?: number): string {
 }
 
 function parseAmount(raw: string): number {
-  return parseFloat(
-    raw
-      .replace(/−/g, '-')  // Unicode minus → ASCII minus (Revolut)
-      .replace(/['"]/g, '')
-      .replace(',', '.')
-      .replace(/\s/g, '')
-  ) || 0
+  let s = raw
+    .replace(/−/g, '-')   // Unicode minus → ASCII minus (Revolut)
+    .replace(/['"]/g, '') // apostrophes (Swiss 1'234) and stray quotes
+    .replace(/\s/g, '')   // spaces
+    .trim()
+  // European format: comma is decimal separator, dots are thousands separators.
+  // Detect by comma appearing before the last 1-3 digits at end of string.
+  if (/,\d+$/.test(s)) {
+    s = s.replace(/\./g, '').replace(',', '.')
+  }
+  return parseFloat(s) || 0
 }
 
 function detectSep(line: string): string {
@@ -485,14 +489,21 @@ export async function importFromPDF(buffer: ArrayBuffer, fileName: string): Prom
   return parsePDFTransactions(fullText, bankName)
 }
 
-// Detect a date at the start of a line — year is optional (CIC uses DD/MM only)
-// Accepts: DD/MM, DD/MM/YYYY, DD.MM.YYYY, DD-MM-YYYY, YYYY-MM-DD
-const DATE_RE = /^\s*(\d{1,2}[\/.\-]\d{1,2}(?:[\/.\-]\d{2,4})?|\d{4}-\d{2}-\d{2})/
+// A line is a candidate transaction if it starts with (optional tiny prefix then) a date.
+// The optional \S{0,2}\s* handles footnote markers like "2 " or "X " before the date.
+const DATE_RE = /^\s*\S{0,2}\s*(\d{1,2}[\/.\-]\d{1,2}(?:[\/.\-]\d{2,4})?|\d{4}-\d{2}-\d{2})/
 
-// Detect a monetary amount at end of line — requires exactly 2 decimal digits to
-// avoid false positives; supports ' as thousands separator (Swiss/UBS format).
-// Optional trailing currency code: CHF, EUR, USD, GBP, €
+// Amount anywhere in a string: requires exactly 2 decimal digits (reduces false positives).
+// Supports: 1'234.56 (Swiss), 1 234,56 (French), 1.234,56 (German), 45.60, -2.30, etc.
+// Optional trailing currency code (CHF, EUR …) before end-of-string.
 const AMOUNT_RE = /([+-]?\s*\d{1,3}(?:['\s,.]\d{3})*[,.]\d{2})\s*(?:CHF|EUR|USD|GBP|€)?$/i
+
+// Trailing value date found in UBS statements: "Description   -amount   DD.MM.YYYY"
+// We strip this so AMOUNT_RE can find the real amount just before it.
+const TRAILING_DATE_RE = /\s+\d{2}[\/.\-]\d{2}[\/.\-]\d{4}\s*$/
+
+// Matches any date-like token — used without anchor to locate dates inside a line.
+const DATE_TOKEN_RE = /\d{1,2}[\/.\-]\d{1,2}(?:[\/.\-]\d{2,4})?|\d{4}-\d{2}-\d{2}/
 
 function parsePDFTransactions(text: string, bankName: string): BankImportResult {
   const lines = text.split('\n').map(l => l.trim()).filter(Boolean)
@@ -505,23 +516,29 @@ function parsePDFTransactions(text: string, bankName: string): BankImportResult 
   // UBS → CHF, all others default to EUR
   const currency: CurrencyCode = bankName === 'UBS' ? 'CHF' : 'EUR'
 
-  // Inner regex mirrors DATE_RE but without the start-of-string anchor
-  const DATE_INNER = /(\d{1,2}[\/.\-]\d{1,2}(?:[\/.\-]\d{2,4})?|\d{4}-\d{2}-\d{2})/
-
   for (const line of lines) {
     if (!DATE_RE.test(line)) continue
-    const dateMatch = line.match(DATE_INNER)
+    const dateMatch = line.match(DATE_TOKEN_RE)
     if (!dateMatch) continue
-    const date = parseDate(dateMatch[1], documentYear)
+    const date = parseDate(dateMatch[0], documentYear)
 
-    const amountMatch = line.match(AMOUNT_RE)
+    // UBS lines end with a second "value date" — strip it before looking for the amount
+    const lineForAmount = TRAILING_DATE_RE.test(line)
+      ? line.replace(TRAILING_DATE_RE, '')
+      : line
+
+    const amountMatch = lineForAmount.match(AMOUNT_RE)
     if (!amountMatch) continue
     const amount = parseAmount(amountMatch[1])
     if (amount === 0) continue
 
-    // Description: everything between date and amount
-    const afterDate = line.slice(dateMatch.index! + dateMatch[0].length)
-    const descRaw = afterDate.replace(AMOUNT_RE, '').trim()
+    // Description: text after the first date, before the amount, minus any leading value date
+    const afterDate = lineForAmount.slice(dateMatch.index! + dateMatch[0].length)
+    const descRaw = afterDate
+      .replace(AMOUNT_RE, '')
+      // strip leading value date (CIC format: "op_date  val_date  Description  amount")
+      .replace(/^\s*\d{1,2}[\/.\-]\d{1,2}(?:[\/.\-]\d{2,4})?\s*/, '')
+      .trim()
     const description = descRaw || bankName
 
     if (isCurrencyExchange(description)) continue
