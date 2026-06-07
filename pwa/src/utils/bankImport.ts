@@ -143,15 +143,21 @@ function classify(description: string): { category: string; subCategory: string;
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
-function parseDate(raw: string): string {
+function parseDate(raw: string, yearHint?: number): string {
   raw = raw.trim().replace(/^["']|["']$/g, '')
   if (/^\d{4}-\d{2}-\d{2}/.test(raw)) return raw.slice(0, 10)
-  const dmy = raw.match(/^(\d{1,2})[\/.](\d{1,2})[\/.](\d{2,4})/)
+  // Year is optional — CIC bank statements use DD/MM without year
+  const dmy = raw.match(/^(\d{1,2})[\/.\-](\d{1,2})(?:[\/.\-](\d{2,4}))?/)
   if (dmy) {
     const d = dmy[1].padStart(2, '0')
     const m = dmy[2].padStart(2, '0')
-    let y = parseInt(dmy[3])
-    if (y < 100) y += 2000
+    let y: number
+    if (dmy[3]) {
+      y = parseInt(dmy[3])
+      if (y < 100) y += 2000
+    } else {
+      y = yearHint ?? new Date().getFullYear()
+    }
     return `${y}-${m}-${d}`
   }
   return new Date().toISOString().slice(0, 10)
@@ -444,8 +450,8 @@ export async function importFromPDF(buffer: ArrayBuffer, fileName: string): Prom
     }))
     const byY = new Map<number, Item[]>()
     for (const it of items) {
-      // Snap y to a 4px grid to merge items on the same visual row
-      const yKey = Math.round(it.y / 4) * 4
+      // Snap y to an 8-unit grid to merge items on the same visual row
+      const yKey = Math.round(it.y / 8) * 8
       if (!byY.has(yKey)) byY.set(yKey, [])
       byY.get(yKey)!.push(it)
     }
@@ -473,47 +479,59 @@ export async function importFromPDF(buffer: ArrayBuffer, fileName: string): Prom
   return parsePDFTransactions(fullText, bankName)
 }
 
-// Detect a date at the start of a string (DD/MM/YYYY, DD.MM.YY, YYYY-MM-DD)
-const DATE_RE = /^\s*(\d{1,2}[\/.\-]\d{1,2}[\/.\-]\d{2,4}|\d{4}-\d{2}-\d{2})/
+// Detect a date at the start of a line — year is optional (CIC uses DD/MM only)
+// Accepts: DD/MM, DD/MM/YYYY, DD.MM.YYYY, DD-MM-YYYY, YYYY-MM-DD
+const DATE_RE = /^\s*(\d{1,2}[\/.\-]\d{1,2}(?:[\/.\-]\d{2,4})?|\d{4}-\d{2}-\d{2})/
 
-// Detect an amount anywhere in a string (optional sign, digits with space/dot/comma separators)
-const AMOUNT_RE = /([+-]?\s*\d{1,3}(?:[\s.]\d{3})*(?:[,.\s]\d{2})?)\s*€?$/
+// Detect a monetary amount at end of line — requires exactly 2 decimal digits to
+// avoid false positives; supports ' as thousands separator (Swiss/UBS format).
+// Optional trailing currency code: CHF, EUR, USD, GBP, €
+const AMOUNT_RE = /([+-]?\s*\d{1,3}(?:['\s,.]\d{3})*[,.]\d{2})\s*(?:CHF|EUR|USD|GBP|€)?$/i
 
 function parsePDFTransactions(text: string, bankName: string): BankImportResult {
   const lines = text.split('\n').map(l => l.trim()).filter(Boolean)
   const transactions: ImportedTransaction[] = []
 
+  // Extract year from document text (e.g. "2026" appearing in headers/dates)
+  const yearMatch = text.match(/\b(20\d{2})\b/)
+  const documentYear = yearMatch ? parseInt(yearMatch[1]) : new Date().getFullYear()
+
+  // UBS → CHF, all others default to EUR
+  const currency: CurrencyCode = bankName === 'UBS' ? 'CHF' : 'EUR'
+
+  // Inner regex mirrors DATE_RE but without the start-of-string anchor
+  const DATE_INNER = /(\d{1,2}[\/.\-]\d{1,2}(?:[\/.\-]\d{2,4})?|\d{4}-\d{2}-\d{2})/
+
   for (const line of lines) {
     if (!DATE_RE.test(line)) continue
-    const dateMatch = line.match(/(\d{1,2}[\/.\-]\d{1,2}[\/.\-]\d{2,4}|\d{4}-\d{2}-\d{2})/)
+    const dateMatch = line.match(DATE_INNER)
     if (!dateMatch) continue
-    const date = parseDate(dateMatch[1])
+    const date = parseDate(dateMatch[1], documentYear)
 
     const amountMatch = line.match(AMOUNT_RE)
     if (!amountMatch) continue
-    const rawAmount = amountMatch[1].replace(/\s/g, '')
-    const amount = parseAmount(rawAmount)
+    const amount = parseAmount(amountMatch[1])
     if (amount === 0) continue
 
     // Description: everything between date and amount
     const afterDate = line.slice(dateMatch.index! + dateMatch[0].length)
     const descRaw = afterDate.replace(AMOUNT_RE, '').trim()
-    const description = descRaw || line
+    const description = descRaw || bankName
 
     if (isCurrencyExchange(description)) continue
-    const { category, subCategory, needsReview } = classify(description)
+    const { category, subCategory } = classify(description)
 
     transactions.push({
       id: uuid(),
       date,
-      title: description || bankName,
+      title: description,
       amount: Math.abs(amount),
-      currency: 'EUR',
+      currency,
       type: amount < 0 ? 'debit' : 'credit',
       bank: bankName,
       suggestedCategory: category,
       suggestedSubCategory: subCategory,
-      needsReview,
+      needsReview: true,
     })
   }
 
