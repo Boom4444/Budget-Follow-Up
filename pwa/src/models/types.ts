@@ -84,6 +84,8 @@ export interface AppSettings {
   googleDriveClientId: string
   driveBackupFolder?: { id: string; name: string }
   autoBackupToDrive?: boolean
+  autoBackupFileId?: string   // Drive file ID for the single auto-backup file (update-in-place)
   customCategories: CustomCategoryDef[]
-  claudeApiKey: string
+  /** @deprecated moved to secure storage (IndexedDB) — kept for one-time migration only */
+  claudeApiKey?: string
 }

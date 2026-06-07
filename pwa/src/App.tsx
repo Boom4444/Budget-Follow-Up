@@ -11,6 +11,7 @@ import AIChatScreen from './screens/AIChatScreen'
 import OutilsScreen from './screens/OutilsScreen'
 import UpdatePrompt from './components/UpdatePrompt'
 import { useAutoBackupToDrive } from './hooks/useAutoBackupToDrive'
+import { loadApiKey, storeApiKey } from './utils/secureStorage'
 
 type Tab = 'dashboard' | 'expenses' | 'budget' | 'recurring' | 'outils' | 'ai' | 'settings'
 
@@ -27,8 +28,24 @@ const TABS: { id: Tab; label: string; icon: string }[] = [
 export default function App() {
   const [tab, setTab] = useState<Tab>('dashboard')
   const [showHelp, setShowHelp] = useState(false)
-  const { settings } = useStore()
+  const { settings, updateSettings, setClaudeApiKey } = useStore()
   useAutoBackupToDrive()
+
+  // Load Claude API key from secure storage; migrate old plaintext key if present
+  useEffect(() => {
+    loadApiKey().then(stored => {
+      if (stored) {
+        setClaudeApiKey(stored)
+      } else if (settings.claudeApiKey) {
+        // One-time migration from localStorage → IndexedDB encrypted storage
+        storeApiKey(settings.claudeApiKey).then(() => {
+          setClaudeApiKey(settings.claudeApiKey!)
+          updateSettings({ claudeApiKey: undefined })
+        })
+      }
+    })
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   useEffect(() => {
     refreshExchangeRates()

@@ -11,9 +11,10 @@ import {
 } from '../utils/backup'
 import type { AutoBackupSlot } from '../utils/backup'
 import {
-  requestDriveToken, uploadToDrive, listDriveBackups, listDriveFolders, downloadFromDrive,
+  requestDriveToken, uploadToDrive, listDriveBackups, listDriveFolders, downloadFromDrive, createDriveFolder,
 } from '../utils/googleDrive'
 import type { DriveFile, DriveFolder } from '../utils/googleDrive'
+import { storeApiKey, clearApiKey } from '../utils/secureStorage'
 import { useRegisterSW } from 'virtual:pwa-register/react'
 
 interface PendingImport {
@@ -50,7 +51,7 @@ const EMOJI_GROUPS = [
 ]
 
 export default function SettingsScreen({ onShowHelp }: Props) {
-  const { settings, updateSettings, loadDemoData, expenses, recurring, budgets, importData, clearData, driveToken, setDriveToken, lastAutoBackup } = useStore()
+  const { settings, updateSettings, loadDemoData, expenses, recurring, budgets, importData, clearData, driveToken, setDriveToken, lastAutoBackup, claudeApiKey, setClaudeApiKey } = useStore()
   const {
     needRefresh: [needRefresh],
     updateServiceWorker,
@@ -78,6 +79,8 @@ export default function SettingsScreen({ onShowHelp }: Props) {
   const [driveFiles, setDriveFiles] = useState<DriveFile[]>([])
   const [driveFolders, setDriveFolders] = useState<DriveFolder[]>([])
   const [showFolderPicker, setShowFolderPicker] = useState(false)
+  const [newFolderName, setNewFolderName] = useState('')
+  const [creatingFolder, setCreatingFolder] = useState(false)
   const [driveLoading, setDriveLoading] = useState(false)
   const [driveError, setDriveError] = useState('')
   const [driveClientIdInput, setDriveClientIdInput] = useState(settings.googleDriveClientId)
@@ -233,7 +236,9 @@ export default function SettingsScreen({ onShowHelp }: Props) {
 
   async function selectFolder(folder: DriveFolder) {
     setShowFolderPicker(false)
-    updateSettings({ driveBackupFolder: { id: folder.id, name: folder.name } })
+    setNewFolderName('')
+    // Reset auto-backup file ID when switching folders (new file will be created)
+    updateSettings({ driveBackupFolder: { id: folder.id, name: folder.name }, autoBackupFileId: undefined })
     if (!driveToken) return
     setDriveLoading(true)
     try {
@@ -411,24 +416,35 @@ export default function SettingsScreen({ onShowHelp }: Props) {
         <p className="section-header">Assistant IA</p>
         <div className="card mx-4 overflow-hidden">
           <div className="px-4 py-3 border-b border-gray-100 dark:border-gray-700">
-            <p className="text-[15px] font-medium dark:text-white mb-0.5">Clé API Claude</p>
-            <p className="text-[12px] text-gray-400 dark:text-gray-500">Obtenez une clé sur console.anthropic.com</p>
+            <div className="flex items-center justify-between">
+              <p className="text-[15px] font-medium dark:text-white">Clé API Claude</p>
+              <span className="text-[11px] text-gray-400 dark:text-gray-500 flex items-center gap-1">🔒 Chiffrée localement</span>
+            </div>
+            <p className="text-[12px] text-gray-400 dark:text-gray-500 mt-0.5">Obtenez une clé sur console.anthropic.com</p>
           </div>
           <div className="px-4 py-3">
             <input
               type="password"
               placeholder="sk-ant-…"
-              value={settings.claudeApiKey ?? ''}
-              onChange={e => updateSettings({ claudeApiKey: e.target.value })}
+              value={claudeApiKey}
+              onChange={async e => {
+                const key = e.target.value
+                setClaudeApiKey(key)
+                if (key.length > 10) {
+                  await storeApiKey(key)
+                } else if (key.length === 0) {
+                  await clearApiKey()
+                }
+              }}
               className="w-full text-[14px] outline-none bg-transparent dark:text-white dark:placeholder-gray-500 font-mono"
               autoComplete="off"
               autoCorrect="off"
               spellCheck={false}
             />
           </div>
-          {(settings.claudeApiKey ?? '').length > 10 && (
-            <div className="px-4 pb-3">
-              <p className="text-[12px] text-green-600 dark:text-green-400">✓ Clé configurée — accédez à l'onglet IA</p>
+          {claudeApiKey.startsWith('sk-') && (
+            <div className="px-4 pb-3 flex items-center gap-2">
+              <p className="text-[12px] text-green-600 dark:text-green-400">✓ Clé configurée — stockée de façon sécurisée</p>
             </div>
           )}
         </div>
@@ -539,7 +555,11 @@ export default function SettingsScreen({ onShowHelp }: Props) {
                     className="text-blue-600 text-[13px] font-medium">↓ Restaurer</button>
                 </div>
               ))}
-              <button onClick={() => { setDriveToken(null); setDriveFiles([]) }}
+              <button onClick={() => {
+                  setDriveToken(null)
+                  setDriveFiles([])
+                  updateSettings({ autoBackupFileId: undefined })
+                }}
                 className="w-full px-4 py-3 text-left text-red-400 dark:text-red-500 text-[14px] border-t border-gray-100 dark:border-gray-700">
                 Déconnecter
               </button>
@@ -785,13 +805,47 @@ export default function SettingsScreen({ onShowHelp }: Props) {
         <div className="fixed inset-0 z-50 flex flex-col bg-[#f2f2f7] dark:bg-[#1c1c1e]"
              style={{ paddingTop: 'env(safe-area-inset-top, 0px)' }}>
           <div className="bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-700 px-4 py-3 flex items-center gap-3 flex-shrink-0">
-            <button onClick={() => setShowFolderPicker(false)}
+            <button onClick={() => { setShowFolderPicker(false); setNewFolderName('') }}
               className="text-blue-600 font-medium text-[15px]">Annuler</button>
-            <p className="flex-1 text-center font-semibold text-[16px] dark:text-white">Dossier Drive</p>
+            <p className="flex-1 text-center font-semibold text-[16px] dark:text-white">Choisir un dossier</p>
             <div className="w-16" />
           </div>
           <div className="flex-1 overflow-y-auto scroll-ios">
-            <p className="section-header">Choisir un dossier</p>
+            {/* Create new folder */}
+            <p className="section-header">Nouveau dossier</p>
+            <div className="card mx-4 overflow-hidden">
+              <div className="flex items-center gap-2 px-4 py-3">
+                <input
+                  type="text"
+                  placeholder="Nom du dossier…"
+                  value={newFolderName}
+                  onChange={e => setNewFolderName(e.target.value)}
+                  className="flex-1 text-[14px] outline-none bg-transparent dark:text-white dark:placeholder-gray-500"
+                />
+                <button
+                  disabled={!newFolderName.trim() || creatingFolder || !driveToken}
+                  onClick={async () => {
+                    if (!driveToken || !newFolderName.trim()) return
+                    setCreatingFolder(true)
+                    try {
+                      const folder = await createDriveFolder(driveToken, newFolderName.trim())
+                      setDriveFolders(prev => [folder, ...prev])
+                      setNewFolderName('')
+                      await selectFolder(folder)
+                    } catch (err: any) {
+                      setDriveError(err?.message ?? 'Création échouée')
+                    } finally {
+                      setCreatingFolder(false)
+                    }
+                  }}
+                  className="px-3 py-1.5 bg-blue-600 text-white text-[13px] font-semibold rounded-lg disabled:bg-gray-300 dark:disabled:bg-gray-600">
+                  {creatingFolder ? '…' : 'Créer'}
+                </button>
+              </div>
+            </div>
+
+            {/* Existing folders */}
+            <p className="section-header">Dossiers existants</p>
             <div className="card mx-4 overflow-hidden">
               {driveFolders.length === 0 ? (
                 <p className="px-4 py-3 text-[14px] text-gray-400 dark:text-gray-500">Aucun dossier trouvé</p>

@@ -234,6 +234,64 @@ export async function findBackupsInFolder(token: string, folderId: string): Prom
 }
 
 /**
+ * Update the content of an existing Drive file in-place (PATCH).
+ * Throws if the file no longer exists (404) so callers can create a new one.
+ */
+export async function updateDriveFile(token: string, fileId: string, data: BackupData): Promise<void> {
+  const json = JSON.stringify(data, null, 2)
+  const boundary = '-------BackupBoundary314159265358979'
+  const delimiter = `\r\n--${boundary}\r\n`
+  const closeDelimiter = `\r\n--${boundary}--`
+  const multipartBody =
+    delimiter +
+    'Content-Type: application/json; charset=UTF-8\r\n\r\n' +
+    JSON.stringify({ name: 'budget-auto-backup.json', mimeType: 'application/json' }) +
+    delimiter +
+    'Content-Type: application/json; charset=UTF-8\r\n\r\n' +
+    json +
+    closeDelimiter
+
+  const res = await fetch(
+    `https://www.googleapis.com/upload/drive/v3/files/${encodeURIComponent(fileId)}?uploadType=multipart`,
+    {
+      method: 'PATCH',
+      headers: {
+        Authorization: `Bearer ${token}`,
+        'Content-Type': `multipart/related; boundary="${boundary}"`,
+      },
+      body: multipartBody,
+    }
+  )
+  if (!res.ok) {
+    const text = await res.text()
+    throw new Error(`Drive update failed ${res.status}: ${text}`)
+  }
+}
+
+/**
+ * Create a new folder in Drive. Returns the new DriveFolder.
+ */
+export async function createDriveFolder(token: string, name: string): Promise<DriveFolder> {
+  const res = await fetch('https://www.googleapis.com/drive/v3/files', {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${token}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      name,
+      mimeType: 'application/vnd.google-apps.folder',
+    }),
+  })
+  if (!res.ok) {
+    const text = await res.text()
+    throw new Error(`Drive folder creation failed ${res.status}: ${text}`)
+  }
+  const json: { id: string; name: string } = await res.json()
+  return { id: json.id, name: json.name }
+}
+
+/**
  * Download the raw JSON string content of a Drive file by ID.
  */
 export async function downloadFromDrive(token: string, fileId: string): Promise<string> {

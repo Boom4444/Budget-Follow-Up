@@ -39,6 +39,8 @@ interface AppState {
   setDriveToken: (token: string | null) => void
   lastAutoBackup: AutoBackupStatus | null
   setLastAutoBackup: (b: AutoBackupStatus | null) => void
+  claudeApiKey: string
+  setClaudeApiKey: (key: string) => void
 }
 
 export const useStore = create<AppState>()(
@@ -321,16 +323,22 @@ export const useStore = create<AppState>()(
       setDriveToken: (token) => set({ driveToken: token }),
       lastAutoBackup: null,
       setLastAutoBackup: (b) => set({ lastAutoBackup: b }),
+      claudeApiKey: '',
+      setClaudeApiKey: (key) => set({ claudeApiKey: key }),
     }),
     {
       name: 'budget-app-store',
       version: 5,
-      partialize: (state) => ({
-        expenses: state.expenses,
-        recurring: state.recurring,
-        budgets: state.budgets,
-        settings: state.settings,
-      }),
+      partialize: (state) => {
+        // eslint-disable-next-line @typescript-eslint/no-unused-vars
+        const { claudeApiKey: _dep, ...cleanSettings } = state.settings as AppSettings & { claudeApiKey?: string }
+        return {
+          expenses: state.expenses,
+          recurring: state.recurring,
+          budgets: state.budgets,
+          settings: cleanSettings,
+        }
+      },
       migrate(persistedState, version) {
         const s = persistedState as any
         let state = { ...s }

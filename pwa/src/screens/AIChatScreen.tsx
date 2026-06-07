@@ -83,7 +83,7 @@ const SUGGESTIONS = [
 ]
 
 export default function AIChatScreen() {
-  const { expenses, settings } = useStore()
+  const { expenses, settings, claudeApiKey } = useStore()
   const [messages, setMessages] = useState<Message[]>([])
   const [input, setInput] = useState('')
   const [loading, setLoading] = useState(false)
@@ -91,7 +91,7 @@ export default function AIChatScreen() {
   const bottomRef = useRef<HTMLDivElement>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
 
-  const apiKey = settings.claudeApiKey ?? ''
+  const apiKey = claudeApiKey
   const hasKey = apiKey.startsWith('sk-')
 
   useEffect(() => {
