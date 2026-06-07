@@ -7,20 +7,15 @@ export default function UpdatePrompt() {
     offlineReady: [offlineReady, setOfflineReady],
     updateServiceWorker,
   } = useRegisterSW({
-    // Start checking immediately, don't wait for the load event
     immediate: true,
   })
 
-  // Auto-dismiss "offline ready" banner after 3 seconds
   useEffect(() => {
     if (!offlineReady) return
     const timer = setTimeout(() => setOfflineReady(false), 3000)
     return () => clearTimeout(timer)
   }, [offlineReady, setOfflineReady])
 
-  // On iOS standalone PWA, WebKit suspends SW update checks when the app is
-  // in the background. Calling registration.update() on each foreground
-  // transition ensures the new SW is detected without needing to reinstall.
   useEffect(() => {
     const onVisible = () => {
       if (document.visibilityState === 'visible') {
@@ -31,11 +26,31 @@ export default function UpdatePrompt() {
     return () => document.removeEventListener('visibilitychange', onVisible)
   }, [])
 
+  // Robustly activate the waiting service worker and reload.
+  // updateServiceWorker(true) posts SKIP_WAITING then waits for the
+  // 'controllerchange' event — which iOS WebKit sometimes never fires.
+  // We post SKIP_WAITING ourselves and reload after a short grace period.
+  async function applyUpdate() {
+    setNeedRefresh(false)
+    try {
+      const reg = await navigator.serviceWorker.getRegistration()
+      if (reg?.waiting) {
+        reg.waiting.postMessage({ type: 'SKIP_WAITING' })
+      } else {
+        // Fallback: let vite-plugin-pwa try its own mechanism
+        await updateServiceWorker(false)
+      }
+    } catch {
+      // ignore
+    }
+    // Small delay lets the SW activate before the reload
+    setTimeout(() => window.location.reload(), 300)
+  }
+
   if (!needRefresh && !offlineReady) return null
 
   return (
     <>
-      {/* Update available — fixed banner at TOP */}
       {needRefresh && (
         <div
           role="alert"
@@ -56,7 +71,7 @@ export default function UpdatePrompt() {
           <div className="flex items-center gap-2 flex-shrink-0">
             <button
               type="button"
-              onClick={() => updateServiceWorker(true)}
+              onClick={applyUpdate}
               className={[
                 'px-3 py-1 rounded-lg text-sm font-semibold',
                 'bg-white text-blue-700',
@@ -84,7 +99,6 @@ export default function UpdatePrompt() {
         </div>
       )}
 
-      {/* Offline ready — small green banner at BOTTOM */}
       {offlineReady && !needRefresh && (
         <div
           role="status"

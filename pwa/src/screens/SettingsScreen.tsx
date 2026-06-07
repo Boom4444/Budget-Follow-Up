@@ -160,11 +160,23 @@ export default function SettingsScreen({ onShowHelp }: Props) {
     else if (format === 'pdf') exportPDF(expenses, settings.baseCurrency)
   }
 
-  // ── Update check ──────────────────────────────────────────────────────────
+  // ── Update helpers ────────────────────────────────────────────────────────
+
+  async function applyUpdate() {
+    try {
+      const reg = await navigator.serviceWorker.getRegistration()
+      if (reg?.waiting) {
+        reg.waiting.postMessage({ type: 'SKIP_WAITING' })
+      } else {
+        await updateServiceWorker(false)
+      }
+    } catch { /* ignore */ }
+    setTimeout(() => window.location.reload(), 300)
+  }
 
   async function checkUpdates() {
     if (needRefresh || updateStatus === 'available') {
-      updateServiceWorker(true)
+      applyUpdate()
       return
     }
     setUpdateStatus('checking')
@@ -587,7 +599,7 @@ export default function SettingsScreen({ onShowHelp }: Props) {
                   )}
                 </div>
                 <button
-                  onClick={() => updateServiceWorker(true)}
+                  onClick={applyUpdate}
                   className="px-3 py-1 bg-orange-500 text-white text-[12px] font-bold rounded-lg">
                   Installer
                 </button>
