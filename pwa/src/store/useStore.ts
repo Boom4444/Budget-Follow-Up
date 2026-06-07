@@ -92,6 +92,8 @@ export const useStore = create<AppState>()(
             return merged
           }),
         }))
+        const { expenses, recurring, settings } = get()
+        autoSave(expenses, recurring, settings)
       },
 
       deleteExpense(id) {

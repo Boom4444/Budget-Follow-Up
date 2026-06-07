@@ -12,6 +12,7 @@ interface Props {
   swipeOpen?: boolean
   onSwipeToggle?: () => void
   onDelete?: () => void
+  onEdit?: () => void
   isLast?: boolean
 }
 
@@ -30,6 +31,7 @@ export default function TransactionRow({
   swipeOpen = false,
   onSwipeToggle,
   onDelete,
+  onEdit,
   isLast = false,
 }: Props) {
   const isCredit = expense.type === 'credit'
@@ -37,6 +39,15 @@ export default function TransactionRow({
   const avatarBgColor = isCredit ? '#d1fae5' : (cat?.bgColor ?? '#f3f4f6')
   const sym = CURRENCY_MAP[expense.currency]?.symbol ?? expense.currency
   const bankBadge = expense.bank ? expense.bank.charAt(0).toUpperCase() : undefined
+
+  function handleRowClick(e: React.MouseEvent) {
+    e.stopPropagation()
+    if (swipeOpen) {
+      onSwipeToggle?.()
+    } else {
+      onEdit?.()
+    }
+  }
 
   return (
     <div className={`relative overflow-hidden${!isLast ? ' border-b border-gray-100 dark:border-gray-700/60' : ''}`}>
@@ -52,7 +63,8 @@ export default function TransactionRow({
       {/* Swipeable row */}
       <div
         className={`relative bg-white dark:bg-gray-800 flex items-center gap-3 px-4 py-3 transition-transform
-          ${swipeOpen ? '-translate-x-20' : 'translate-x-0'}`}>
+          ${swipeOpen ? '-translate-x-20' : 'translate-x-0'}`}
+        onClick={handleRowClick}>
         {/* Avatar with bank badge */}
         <CategoryAvatar emoji={avatarEmoji} bgColor={avatarBgColor} size="md" badgeText={bankBadge} />
 
@@ -77,6 +89,9 @@ export default function TransactionRow({
               </>
             )}
           </div>
+          {expense.notes && (
+            <p className="text-[11px] text-gray-400 dark:text-gray-500 mt-0.5 truncate italic">{expense.notes}</p>
+          )}
         </div>
 
         {/* Right amount */}
@@ -91,11 +106,11 @@ export default function TransactionRow({
           )}
         </div>
 
-        {/* Swipe chevron */}
+        {/* Swipe chevron — › when open (closes), ‹ when closed (opens) */}
         <button
           className="ml-1 text-gray-200 dark:text-gray-600 text-lg flex-shrink-0 z-10"
           onClick={e => { e.stopPropagation(); onSwipeToggle?.() }}>
-          ‹
+          {swipeOpen ? '›' : '‹'}
         </button>
       </div>
     </div>

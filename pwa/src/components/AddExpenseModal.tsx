@@ -7,6 +7,7 @@ import type { CurrencyCode, HouseholdMember } from '../models/types'
 
 interface Props {
   onClose: () => void
+  editId?: string   // when set: edit mode — updates existing expense instead of adding
   prefill?: {
     title?: string
     amount?: number
@@ -15,14 +16,16 @@ interface Props {
     category?: string
     subCategory?: string
     type?: 'debit' | 'credit'
+    isFixed?: boolean
     bank?: string
     person?: HouseholdMember
     notes?: string
+    splitRatio?: { person1: number; person2: number }
   }
 }
 
-export default function AddExpenseModal({ onClose, prefill }: Props) {
-  const { expenses, recurring, settings, addExpense } = useStore()
+export default function AddExpenseModal({ onClose, editId, prefill }: Props) {
+  const { expenses, recurring, settings, addExpense, updateExpense } = useStore()
   const customCategories = settings.customCategories ?? []
   const deletedBuiltins = new Set(settings.deletedBuiltinCategories ?? [])
 
@@ -33,12 +36,12 @@ export default function AddExpenseModal({ onClose, prefill }: Props) {
   const [category, setCategory]       = useState<string>(prefill?.category ?? 'nourriture')
   const [subCategory, setSubCategory] = useState(prefill?.subCategory ?? '')
   const [type, setType]               = useState<'debit' | 'credit'>(prefill?.type ?? 'debit')
-  const [isFixed, setIsFixed]         = useState(false)
+  const [isFixed, setIsFixed]         = useState(prefill?.isFixed ?? false)
   const [bank, setBank]               = useState(prefill?.bank ?? '')
   const [person, setPerson]           = useState<HouseholdMember>(prefill?.person ?? 'person1')
   const [notes, setNotes]             = useState(prefill?.notes ?? '')
   const [showCatPicker, setShowCatPicker] = useState(false)
-  const [splitPct, setSplitPct] = useState(50)   // person1's share when person='shared'
+  const [splitPct, setSplitPct] = useState(prefill?.splitRatio?.person1 ?? 50)
 
   const suggestions = title.length === 0
     ? recurring.slice(0, 5)
@@ -48,13 +51,16 @@ export default function AddExpenseModal({ onClose, prefill }: Props) {
     ? []
     : [...new Set(expenses.filter(e => e.title.toLowerCase().includes(title.toLowerCase())).map(e => e.title))].slice(0, 3)
 
+  const [mounted, setMounted] = useState(false)
+  useEffect(() => { setMounted(true) }, [])
   useEffect(() => {
+    if (!mounted) return   // don't override prefill values on first render
     const cat = getCategoryMeta(category, customCategories)
     if (cat) {
       setIsFixed(cat.isFixed)
       setSubCategory(cat.subCategories[0] ?? '')
     }
-  }, [category])
+  }, [category, mounted])
 
   function applyRecurring(r: typeof recurring[number]) {
     setTitle(r.title)
@@ -72,7 +78,11 @@ export default function AddExpenseModal({ onClose, prefill }: Props) {
     const num = parseFloat(amount.replace(',', '.'))
     if (!title.trim() || isNaN(num)) return
     const splitRatio = person === 'shared' ? { person1: splitPct, person2: 100 - splitPct } : undefined
-    addExpense({ title: title.trim(), amount: num, currency, date, category, subCategory, type, isFixed, bank, person, notes, splitRatio })
+    if (editId) {
+      updateExpense(editId, { title: title.trim(), amount: num, currency, date, category, subCategory, type, isFixed, bank, person, notes, splitRatio })
+    } else {
+      addExpense({ title: title.trim(), amount: num, currency, date, category, subCategory, type, isFixed, bank, person, notes, splitRatio })
+    }
     onClose()
   }
 
@@ -86,11 +96,11 @@ export default function AddExpenseModal({ onClose, prefill }: Props) {
       {/* Header */}
       <div className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-4 py-3 flex items-center justify-between flex-shrink-0">
         <button onClick={onClose} className="text-blue-600 font-medium text-[15px]">Annuler</button>
-        <span className="font-semibold text-[17px] dark:text-white">Nouvelle dépense</span>
+        <span className="font-semibold text-[17px] dark:text-white">{editId ? 'Modifier la dépense' : 'Nouvelle dépense'}</span>
         <button form="expense-form" type="submit"
           className="text-blue-600 font-semibold text-[15px] disabled:text-gray-300"
           disabled={!title.trim() || !amount}>
-          Ajouter
+          {editId ? 'Enregistrer' : 'Ajouter'}
         </button>
       </div>
 

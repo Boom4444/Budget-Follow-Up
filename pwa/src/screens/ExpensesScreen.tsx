@@ -3,7 +3,7 @@ import { useStore } from '../store/useStore'
 import { getCategoryMeta, getActiveCategories } from '../data/categories'
 import { formatAmount } from '../utils/formatters'
 import { currentYear, currentMonth, shortMonth, dateYear, dateMonth } from '../utils/dates'
-import type { Expense, HouseholdMember } from '../models/types'
+import type { Expense, HouseholdMember, CurrencyCode } from '../models/types'
 import AddExpenseModal from '../components/AddExpenseModal'
 import TransactionRow from '../components/TransactionRow'
 import { importFromCSV, importFromXLSX, importFromPDF } from '../utils/bankImport'
@@ -29,8 +29,9 @@ export default function ExpensesScreen() {
   const [year, setYear]       = useState(currentYear())
   const [month, setMonth]     = useState<number | null>(currentMonth())
   const [search, setSearch]   = useState('')
-  const [showAdd, setShowAdd] = useState(false)
-  const [swipeId, setSwipeId] = useState<string | null>(null)
+  const [showAdd, setShowAdd]           = useState(false)
+  const [swipeId, setSwipeId]           = useState<string | null>(null)
+  const [editingExpense, setEditingExpense] = useState<Expense | null>(null)
 
   // Bank import state
   const importRef = useRef<HTMLInputElement>(null)
@@ -234,8 +235,9 @@ export default function ExpensesScreen() {
         </div>
       )}
 
-      {/* List */}
-      <div className="flex-1 overflow-y-auto scroll-ios pb-24">
+      {/* List — clicking outside a row closes any open swipe */}
+      <div className="flex-1 overflow-y-auto scroll-ios pb-24"
+           onClick={() => swipeId && setSwipeId(null)}>
         {groups.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-16 text-center px-8">
             <span className="text-4xl mb-3">💸</span>
@@ -287,6 +289,7 @@ export default function ExpensesScreen() {
                           swipeOpen={swipeId === expense.id}
                           onSwipeToggle={() => setSwipeId(swipeId === expense.id ? null : expense.id)}
                           onDelete={() => { deleteExpense(expense.id); setSwipeId(null) }}
+                          onEdit={() => { setEditingExpense(expense); setSwipeId(null) }}
                           isLast={i === items.length - 1}
                         />
                       )
@@ -301,6 +304,27 @@ export default function ExpensesScreen() {
       </div>
 
       {showAdd && <AddExpenseModal onClose={() => setShowAdd(false)} />}
+
+      {editingExpense && (
+        <AddExpenseModal
+          onClose={() => setEditingExpense(null)}
+          editId={editingExpense.id}
+          prefill={{
+            title:       editingExpense.title,
+            amount:      editingExpense.amount,
+            currency:    editingExpense.currency as CurrencyCode,
+            date:        editingExpense.date,
+            category:    editingExpense.category,
+            subCategory: editingExpense.subCategory,
+            type:        editingExpense.type,
+            isFixed:     editingExpense.isFixed,
+            bank:        editingExpense.bank,
+            person:      editingExpense.person,
+            notes:       editingExpense.notes,
+            splitRatio:  editingExpense.splitRatio,
+          }}
+        />
+      )}
 
       {/* ── Bank import review sheet ── */}
       {importResult && (
