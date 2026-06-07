@@ -1,7 +1,7 @@
 import { useState, useMemo } from 'react'
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell, PieChart, Pie } from 'recharts'
 import { useStore } from '../store/useStore'
-import { CATEGORY_MAP } from '../data/categories'
+import { CATEGORY_MAP, getCategoryMeta, getActiveCategories } from '../data/categories'
 import { CURRENCIES, CURRENCY_MAP } from '../data/currencies'
 import { formatAmount, formatPercent } from '../utils/formatters'
 import { currentYear, shortMonth, longMonth } from '../utils/dates'
@@ -12,7 +12,12 @@ import type { StripFilter } from '../components/SummaryStrip'
 import CategoryDrillDown from '../components/CategoryDrillDown'
 
 export default function DashboardScreen() {
-  const { expenses, settings } = useStore()
+  const { expenses, settings, updateExpense } = useStore()
+  const customCategories = settings.customCategories ?? []
+  const sortedCategories = useMemo(
+    () => getActiveCategories(customCategories, settings.deletedBuiltinCategories),
+    [customCategories, settings.deletedBuiltinCategories]  // eslint-disable-line react-hooks/exhaustive-deps
+  )
   const base = settings.baseCurrency
 
   const [year, setYear] = useState(currentYear())
@@ -76,6 +81,12 @@ export default function DashboardScreen() {
   const filteredCurr = useMemo(() =>
     viewCurrency === 'all' ? filtered : filtered.filter(e => e.currency === viewCurrency)
   , [filtered, viewCurrency])
+
+  // Unclassified expenses (À classer) — shown in dedicated section, excluded from charts
+  const unclassified = useMemo(
+    () => filtered.filter(e => e.category === 'a_classer'),
+    [filtered]
+  )
 
   const debits  = filteredCurr.filter(e => e.type === 'debit')
   const credits = filteredCurr.filter(e => e.type === 'credit')
@@ -145,7 +156,10 @@ export default function DashboardScreen() {
 
   const catData = useMemo(() => {
     const map: Record<string, number> = {}
-    catSourceData.forEach(e => { map[e.category] = (map[e.category] ?? 0) + getAmt(e) })
+    // exclude 'a_classer' — shown in its own section
+    catSourceData
+      .filter(e => e.category !== 'a_classer')
+      .forEach(e => { map[e.category] = (map[e.category] ?? 0) + getAmt(e) })
     return Object.entries(map)
       .map(([id, val]) => ({
         id,
@@ -245,6 +259,63 @@ export default function DashboardScreen() {
                 {c.flag} {c.code}
               </button>
             ))}
+          </div>
+        )}
+
+        {/* À classer — alert section */}
+        {unclassified.length > 0 && (
+          <div className="mx-4 mt-4 rounded-2xl overflow-hidden border border-amber-200 dark:border-amber-800">
+            {/* Header */}
+            <div className="flex items-center justify-between px-4 py-2.5 bg-amber-50 dark:bg-amber-950/40">
+              <div>
+                <p className="text-[14px] font-semibold text-amber-700 dark:text-amber-400">
+                  🏷️ {unclassified.length} transaction{unclassified.length > 1 ? 's' : ''} à classer
+                </p>
+                <p className="text-[11px] text-amber-600 dark:text-amber-500">
+                  {formatAmount(
+                    unclassified.filter(e => e.type === 'debit').reduce((s, e) => s + getAmt(e), 0),
+                    displayCurr
+                  )} non catégorisés — sélectionner une catégorie pour classer
+                </p>
+              </div>
+            </div>
+            {/* Transaction rows */}
+            <div className="bg-white dark:bg-gray-800 divide-y divide-gray-100 dark:divide-gray-700">
+              {unclassified.map(e => {
+                const isCredit = e.type === 'credit'
+                return (
+                  <div key={e.id} className="flex items-center gap-2 px-4 py-2.5">
+                    <div className="flex-1 min-w-0">
+                      <p className="text-[13px] font-medium truncate dark:text-white">{e.title}</p>
+                      <p className="text-[11px] text-gray-400 dark:text-gray-500">{e.date}{e.bank ? ` · ${e.bank}` : ''}</p>
+                    </div>
+                    <span className={`text-[13px] font-semibold shrink-0 ${isCredit ? 'text-green-600' : 'text-red-500'}`}>
+                      {isCredit ? '+' : '-'}{e.amount.toFixed(2).replace('.', ',')} {e.currency}
+                    </span>
+                    <select
+                      value=""
+                      onChange={ev => {
+                        const newCat = ev.target.value
+                        if (!newCat) return
+                        const meta = getCategoryMeta(newCat, customCategories)
+                        updateExpense(e.id, {
+                          category: newCat,
+                          subCategory: meta?.subCategories[0] ?? '',
+                        })
+                      }}
+                      className="text-[12px] text-blue-600 font-medium outline-none bg-transparent shrink-0 max-w-[100px]"
+                    >
+                      <option value="">Classer…</option>
+                      {sortedCategories
+                        .filter(c => c.id !== 'a_classer')
+                        .map(c => (
+                          <option key={c.id} value={c.id}>{c.emoji} {c.label}</option>
+                        ))}
+                    </select>
+                  </div>
+                )
+              })}
+            </div>
           </div>
         )}
 
