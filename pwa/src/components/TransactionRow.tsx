@@ -97,7 +97,7 @@ export default function TransactionRow({
         {/* Right amount */}
         <div className="text-right flex-shrink-0">
           <p className={`text-[15px] font-semibold ${isCredit ? 'text-green-600' : 'text-red-500 dark:text-red-400'}`}>
-            {isCredit ? '+' : '-'}{expense.amount.toFixed(2).replace('.', ',')} {sym}
+            {isCredit ? '+' : '-'}{formatAmount(expense.amount, expense.currency as CurrencyCode)}
           </p>
           {expense.currency !== baseCurrency && (
             <p className="text-[11px] text-gray-400 dark:text-gray-500">

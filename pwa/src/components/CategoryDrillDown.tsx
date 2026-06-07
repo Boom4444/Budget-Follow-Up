@@ -235,7 +235,7 @@ export default function CategoryDrillDown({ catId, year, month, filterPerson, ba
                         style={{ backgroundColor: PIE_COLORS[i % PIE_COLORS.length] }} />
                       <span className="text-[14px] text-gray-700 dark:text-gray-200 flex-1 truncate">{d.label}</span>
                       <span className="text-[12px] text-gray-400 dark:text-gray-500 mr-1">{formatPercent(d.value, displayTotal)}</span>
-                      <span className="text-[14px] font-semibold dark:text-white">{d.value.toFixed(0)} {sym}</span>
+                      <span className="text-[14px] font-semibold dark:text-white">{formatAmount(d.value, baseCurrency)}</span>
                     </div>
                   ))}
                 </div>

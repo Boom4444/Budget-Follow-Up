@@ -290,7 +290,7 @@ export default function DashboardScreen() {
                       <p className="text-[11px] text-gray-400 dark:text-gray-500">{e.date}{e.bank ? ` · ${e.bank}` : ''}</p>
                     </div>
                     <span className={`text-[13px] font-semibold shrink-0 ${isCredit ? 'text-green-600' : 'text-red-500'}`}>
-                      {isCredit ? '+' : '-'}{e.amount.toFixed(2).replace('.', ',')} {e.currency}
+                      {isCredit ? '+' : '-'}{formatAmount(e.amount, e.currency as CurrencyCode)}
                     </span>
                     <select
                       value=""
@@ -419,7 +419,7 @@ export default function DashboardScreen() {
                   <span className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ background: c.color }} />
                   <span className="text-[13px] text-gray-700 dark:text-gray-200 flex-1 truncate">{c.label}</span>
                   <span className="text-[12px] text-gray-400 dark:text-gray-500">{formatPercent(c.value, catTotal)}</span>
-                  <span className="text-[13px] font-semibold dark:text-white">{c.value.toFixed(0)} {sym}</span>
+                  <span className="text-[13px] font-semibold dark:text-white">{formatAmount(c.value, displayCurr)}</span>
                   <span className="text-gray-300 dark:text-gray-600 text-[16px]">›</span>
                 </button>
               ))}
