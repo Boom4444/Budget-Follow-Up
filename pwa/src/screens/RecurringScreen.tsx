@@ -186,10 +186,16 @@ function RecurringFormModal({ editItem, settings, onClose, onSave }: {
             value={amount} onChange={e => setAmount(e.target.value)}
             className="flex-1 py-3 text-[22px] font-semibold outline-none bg-transparent dark:text-white dark:placeholder-gray-500" />
           <div className="h-8 w-px bg-gray-200 dark:bg-gray-600" />
-          <select value={currency} onChange={e => setCurrency(e.target.value as CurrencyCode)}
-            className="text-[15px] text-blue-600 font-medium outline-none bg-transparent py-3">
-            {CURRENCIES.map(c => <option key={c.code} value={c.code}>{c.flag} {c.code}</option>)}
-          </select>
+          {/* Custom currency picker — hidden select overlaid for native iOS wheel */}
+          <div className="relative flex items-center gap-1 py-3 cursor-pointer">
+            <select value={currency} onChange={e => setCurrency(e.target.value as CurrencyCode)}
+              className="absolute inset-0 opacity-0 w-full h-full cursor-pointer" aria-label="Devise">
+              {CURRENCIES.map(c => <option key={c.code} value={c.code}>{c.flag} {c.code}</option>)}
+            </select>
+            <span className="text-[18px] leading-none">{CURRENCIES.find(c => c.code === currency)?.flag}</span>
+            <span className="text-[15px] text-blue-600 font-semibold">{currency}</span>
+            <span className="text-blue-400 text-[11px] leading-none">▾</span>
+          </div>
         </div>
 
         <p className="section-header">Catégorie</p>
