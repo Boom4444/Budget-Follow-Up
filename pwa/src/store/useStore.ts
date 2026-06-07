@@ -64,7 +64,9 @@ export const useStore = create<AppState>()(
 
       addExpense(e) {
         const base = get().settings.baseCurrency
-        const amountInBase = convertToBase(e.amount, e.currency, base)
+        const amountInBase = e.exchangeRate != null
+          ? e.amount * e.exchangeRate
+          : convertToBase(e.amount, e.currency, base)
         set(s => ({ expenses: [...s.expenses, { ...e, id: uuid(), amountInBase }] }))
         const { expenses, recurring, settings } = get()
         autoSave(expenses, recurring, settings)
@@ -75,7 +77,9 @@ export const useStore = create<AppState>()(
         const newExpenses = items.map(e => ({
           ...e,
           id: uuid(),
-          amountInBase: convertToBase(e.amount, e.currency, base),
+          amountInBase: e.exchangeRate != null
+            ? e.amount * e.exchangeRate
+            : convertToBase(e.amount, e.currency, base),
         }))
         set(s => ({ expenses: [...s.expenses, ...newExpenses] }))
         const { expenses, recurring, settings } = get()
@@ -88,7 +92,10 @@ export const useStore = create<AppState>()(
             if (e.id !== id) return e
             const merged = { ...e, ...patch }
             const base = s.settings.baseCurrency
-            merged.amountInBase = convertToBase(merged.amount, merged.currency, base)
+            // Use stored historical rate if available; fall back to live cross-rate
+            merged.amountInBase = merged.exchangeRate != null
+              ? merged.amount * merged.exchangeRate
+              : convertToBase(merged.amount, merged.currency, base)
             return merged
           }),
         }))

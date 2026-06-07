@@ -79,3 +79,75 @@ export function convertToBase(amount: number, from: CurrencyCode, base: Currency
   const baseRate = liveRates[base]
   return (amount / fromRate) * baseRate
 }
+
+// ── Historical rate cache (EUR-based, per weekday) ───────────────────────────
+// { 'YYYY-MM-DD': { 'CHF': 0.96, 'EUR': 1, 'USD': 1.08, ... } }
+const HIST_CACHE_KEY = 'budget-hist-rates'
+let histRateCache: Record<string, Record<string, number>> = {}
+
+try {
+  histRateCache = JSON.parse(localStorage.getItem(HIST_CACHE_KEY) ?? '{}')
+} catch { /* ignore */ }
+
+function persistHistCache(): void {
+  try { localStorage.setItem(HIST_CACHE_KEY, JSON.stringify(histRateCache)) } catch { /* storage full */ }
+}
+
+// Fetch EUR-based rates for an entire date range in one API call and cache them.
+// fromDate / toDate: 'YYYY-MM-DD'
+export async function prefetchHistoricalRates(fromDate: string, toDate: string): Promise<void> {
+  const today = new Date().toISOString().slice(0, 10)
+  const to = toDate > today ? today : toDate
+  if (fromDate > to) return
+  try {
+    const res = await fetch(`https://api.frankfurter.app/${fromDate}..${to}?from=EUR`)
+    if (!res.ok) return
+    const data: { rates: Record<string, Record<string, number>> } = await res.json()
+    for (const [date, rates] of Object.entries(data.rates)) {
+      histRateCache[date] = { EUR: 1, ...rates }
+    }
+    persistHistCache()
+  } catch { /* keep fallback */ }
+}
+
+// Fetch and cache the rate for a single date.
+export async function prefetchRateForDate(date: string): Promise<void> {
+  const today = new Date().toISOString().slice(0, 10)
+  if (date > today) return
+  try {
+    const res = await fetch(`https://api.frankfurter.app/${date}?from=EUR`)
+    if (!res.ok) return
+    const data: { date: string; rates: Record<string, number> } = await res.json()
+    // Frankfurter returns the nearest weekday date (e.g., Friday for a Saturday)
+    const effectiveDate = data.date ?? date
+    const entry = { EUR: 1, ...data.rates }
+    histRateCache[effectiveDate] = entry
+    if (effectiveDate !== date) histRateCache[date] = entry  // alias original date
+    persistHistCache()
+  } catch { /* keep fallback */ }
+}
+
+// Find the nearest cached rates for a date (walks back up to 7 days for weekends/holidays).
+function nearestCachedRates(date: string): Record<string, number> | null {
+  for (let i = 0; i < 7; i++) {
+    const d = new Date(date)
+    d.setDate(d.getDate() - i)
+    const key = d.toISOString().slice(0, 10)
+    if (histRateCache[key]) return histRateCache[key]
+  }
+  return null
+}
+
+// Returns: 1 unit of `from` = X units of `base`, at the given historical date.
+// Falls back to current live rates if no historical data is cached for that date.
+export function getHistoricalConversionRate(date: string, from: CurrencyCode, base: CurrencyCode): number {
+  if (from === base) return 1
+  const rates = nearestCachedRates(date)
+  if (rates) {
+    const fromRate = rates[from] ?? liveRates[from]
+    const baseRate = rates[base] ?? liveRates[base]
+    return baseRate / fromRate
+  }
+  // Fallback: current live cross-rate
+  return liveRates[base] / liveRates[from]
+}

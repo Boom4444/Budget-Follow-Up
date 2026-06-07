@@ -8,6 +8,7 @@ import AddExpenseModal from '../components/AddExpenseModal'
 import TransactionRow from '../components/TransactionRow'
 import { importFromCSV, importFromXLSX, importFromPDF } from '../utils/bankImport'
 import type { BankImportResult, ImportedTransaction } from '../utils/bankImport'
+import { prefetchHistoricalRates, getHistoricalConversionRate } from '../data/currencies'
 
 function dayLabel(d: string): string {
   const months = ['janvier','février','mars','avril','mai','juin','juillet','août','septembre','octobre','novembre','décembre']
@@ -113,7 +114,15 @@ export default function ExpensesScreen() {
     setImportTxns(ts => ts.filter(t => t.id !== id))
   }
 
-  function confirmImport() {
+  async function confirmImport() {
+    setImportLoading(true)
+    const base = settings.baseCurrency
+    // Fetch historical rates for the entire date range in one API call
+    const needsConversion = importTxns.some(t => t.currency !== base)
+    if (needsConversion && importTxns.length > 0) {
+      const dates = importTxns.map(t => t.date).sort()
+      await prefetchHistoricalRates(dates[0], dates[dates.length - 1])
+    }
     addBatchExpenses(importTxns.map(t => ({
       title: t.title,
       amount: t.amount,
@@ -126,9 +135,13 @@ export default function ExpensesScreen() {
       bank: t.bank,
       person: importPerson,
       notes: t.notes,
+      exchangeRate: t.currency !== base
+        ? getHistoricalConversionRate(t.date, t.currency, base)
+        : undefined,
     })))
     setImportResult(null)
     setImportTxns([])
+    setImportLoading(false)
   }
 
   const reviewCount = importTxns.filter(t => t.needsReview).length
@@ -343,9 +356,9 @@ export default function ExpensesScreen() {
                 {reviewCount > 0 && ` · ${reviewCount} à classifier`}
               </p>
             </div>
-            <button onClick={confirmImport}
-              className="text-blue-600 font-semibold text-[15px]">
-              Importer
+            <button onClick={confirmImport} disabled={importLoading}
+              className="text-blue-600 font-semibold text-[15px] disabled:opacity-40">
+              {importLoading ? '…' : 'Importer'}
             </button>
           </div>
 
@@ -470,9 +483,9 @@ export default function ExpensesScreen() {
                 {reviewCount} transaction{reviewCount > 1 ? 's' : ''} non classée{reviewCount > 1 ? 's' : ''} — enregistrées dans "À classer" 🏷️
               </p>
             )}
-            <button onClick={confirmImport}
-              className="w-full py-3.5 bg-blue-600 text-white rounded-xl font-semibold text-[16px]">
-              Importer {importTxns.length} transaction{importTxns.length > 1 ? 's' : ''}
+            <button onClick={confirmImport} disabled={importLoading}
+              className="w-full py-3.5 bg-blue-600 text-white rounded-xl font-semibold text-[16px] disabled:opacity-60">
+              {importLoading ? 'Récupération des taux…' : `Importer ${importTxns.length} transaction${importTxns.length > 1 ? 's' : ''}`}
             </button>
           </div>
         </div>

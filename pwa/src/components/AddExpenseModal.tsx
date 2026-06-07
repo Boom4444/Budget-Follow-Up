@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useStore } from '../store/useStore'
 import { FIXED_CATEGORIES, VARIABLE_CATEGORIES, getCategoryMeta } from '../data/categories'
-import { CURRENCIES } from '../data/currencies'
+import { CURRENCIES, prefetchRateForDate, getHistoricalConversionRate } from '../data/currencies'
 import { today } from '../utils/dates'
 import type { CurrencyCode, HouseholdMember } from '../models/types'
 
@@ -42,6 +42,7 @@ export default function AddExpenseModal({ onClose, editId, prefill }: Props) {
   const [notes, setNotes]             = useState(prefill?.notes ?? '')
   const [showCatPicker, setShowCatPicker] = useState(false)
   const [splitPct, setSplitPct] = useState(prefill?.splitRatio?.person1 ?? 50)
+  const [submitting, setSubmitting] = useState(false)
 
   const suggestions = title.length === 0
     ? recurring.slice(0, 5)
@@ -62,6 +63,13 @@ export default function AddExpenseModal({ onClose, editId, prefill }: Props) {
     }
   }, [category, mounted])
 
+  // Pre-fetch historical rate in the background whenever date or currency changes
+  useEffect(() => {
+    if (currency !== settings.baseCurrency) {
+      prefetchRateForDate(date)
+    }
+  }, [date, currency, settings.baseCurrency])
+
   function applyRecurring(r: typeof recurring[number]) {
     setTitle(r.title)
     setAmount(String(r.amount))
@@ -73,15 +81,23 @@ export default function AddExpenseModal({ onClose, editId, prefill }: Props) {
     setPerson(r.person)
   }
 
-  function handleSubmit(e: React.FormEvent) {
+  async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     const num = parseFloat(amount.replace(',', '.'))
-    if (!title.trim() || isNaN(num)) return
+    if (!title.trim() || isNaN(num) || submitting) return
+    setSubmitting(true)
+    const base = settings.baseCurrency
     const splitRatio = person === 'shared' ? { person1: splitPct, person2: 100 - splitPct } : undefined
+    // Fetch historical rate for the transaction date (uses cache if already prefetched)
+    let exchangeRate: number | undefined
+    if (currency !== base) {
+      await prefetchRateForDate(date)
+      exchangeRate = getHistoricalConversionRate(date, currency, base)
+    }
     if (editId) {
-      updateExpense(editId, { title: title.trim(), amount: num, currency, date, category, subCategory, type, isFixed, bank, person, notes, splitRatio })
+      updateExpense(editId, { title: title.trim(), amount: num, currency, date, category, subCategory, type, isFixed, bank, person, notes, splitRatio, exchangeRate })
     } else {
-      addExpense({ title: title.trim(), amount: num, currency, date, category, subCategory, type, isFixed, bank, person, notes, splitRatio })
+      addExpense({ title: title.trim(), amount: num, currency, date, category, subCategory, type, isFixed, bank, person, notes, splitRatio, exchangeRate })
     }
     onClose()
   }
@@ -99,8 +115,8 @@ export default function AddExpenseModal({ onClose, editId, prefill }: Props) {
         <span className="font-semibold text-[17px] dark:text-white">{editId ? 'Modifier la dépense' : 'Nouvelle dépense'}</span>
         <button form="expense-form" type="submit"
           className="text-blue-600 font-semibold text-[15px] disabled:text-gray-300"
-          disabled={!title.trim() || !amount}>
-          {editId ? 'Enregistrer' : 'Ajouter'}
+          disabled={!title.trim() || !amount || submitting}>
+          {submitting ? '…' : editId ? 'Enregistrer' : 'Ajouter'}
         </button>
       </div>
 

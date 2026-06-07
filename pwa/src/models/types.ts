@@ -45,6 +45,7 @@ export interface Expense {
   person: HouseholdMember
   notes: string
   splitRatio?: { person1: number; person2: number }  // percentages summing to 100, only for person='shared'
+  exchangeRate?: number  // 1 unit of `currency` = exchangeRate units of baseCurrency, at transaction date
 }
 
 export interface RecurringExpense {
