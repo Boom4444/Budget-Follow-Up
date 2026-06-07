@@ -1,5 +1,7 @@
 import { v4 as uuid } from 'uuid'
 import type { CurrencyCode } from '../models/types'
+// Vite resolves this at build time, copies the worker to dist/, and returns its public URL
+import pdfWorkerUrl from 'pdfjs-dist/build/pdf.worker.min.mjs?url'
 
 export type BankFormat = 'revolut' | 'cic' | 'caisse_epargne' | 'ubs' | 'generic'
 
@@ -439,10 +441,7 @@ export function importFromCSV(text: string, fileName: string): BankImportResult 
  */
 export async function importFromPDF(buffer: ArrayBuffer, fileName: string): Promise<BankImportResult> {
   const pdfjsLib = await import('pdfjs-dist')
-  pdfjsLib.GlobalWorkerOptions.workerSrc = new URL(
-    'pdfjs-dist/build/pdf.worker.min.mjs',
-    import.meta.url,
-  ).href
+  pdfjsLib.GlobalWorkerOptions.workerSrc = pdfWorkerUrl
 
   const pdf = await pdfjsLib.getDocument({ data: buffer }).promise
   const pageTexts: string[] = []

@@ -77,10 +77,11 @@ export default function ExpensesScreen() {
     setImportLoading(true)
     try {
       let result: BankImportResult
+      const isPDF = file.name.toLowerCase().endsWith('.pdf') || file.type === 'application/pdf'
       if (file.name.toLowerCase().match(/\.xlsx?$/)) {
         const buf = await file.arrayBuffer()
         result = await importFromXLSX(buf, file.name)
-      } else if (file.name.toLowerCase().endsWith('.pdf')) {
+      } else if (isPDF) {
         const buf = await file.arrayBuffer()
         result = await importFromPDF(buf, file.name)
       } else {
@@ -179,7 +180,7 @@ export default function ExpensesScreen() {
           </div>
         </div>
 
-        <input ref={importRef} type="file" accept=".csv,.tsv,.txt,.xls,.xlsx,.pdf" className="hidden"
+        <input ref={importRef} type="file" accept=".csv,.tsv,.txt,.xls,.xlsx,.pdf,application/pdf" className="hidden"
           onChange={handleImportFile} />
 
         {importError && (
