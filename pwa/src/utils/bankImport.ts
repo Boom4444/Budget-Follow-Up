@@ -14,6 +14,7 @@ export interface ImportedTransaction {
   suggestedCategory: string
   suggestedSubCategory: string
   needsReview: boolean
+  notes: string
 }
 
 export interface BankImportResult {
@@ -245,6 +246,7 @@ function parseRevolutCSV(lines: string[]): ImportedTransaction[] {
       suggestedCategory: category,
       suggestedSubCategory: subCategory,
       needsReview,
+      notes: '',
     })
   }
   return out
@@ -282,6 +284,7 @@ function parseCICCSV(lines: string[]): ImportedTransaction[] {
       suggestedCategory: category,
       suggestedSubCategory: subCategory,
       needsReview,
+      notes: '',
     })
   }
   return out
@@ -319,6 +322,7 @@ function parseCaisseEpargneCSV(lines: string[]): ImportedTransaction[] {
       suggestedCategory: category,
       suggestedSubCategory: subCategory,
       needsReview,
+      notes: '',
     })
   }
   return out
@@ -358,6 +362,7 @@ function parseUBSLines(lines: string[]): ImportedTransaction[] {
       suggestedCategory: category,
       suggestedSubCategory: subCategory,
       needsReview,
+      notes: '',
     })
   }
   return out
@@ -397,6 +402,7 @@ function parseGenericLines(lines: string[], bankName: string): ImportedTransacti
       suggestedCategory: category,
       suggestedSubCategory: subCategory,
       needsReview,
+      notes: '',
     })
   }
   return out
@@ -532,6 +538,7 @@ function parsePDFTransactions(text: string, bankName: string): BankImportResult 
       suggestedCategory: category,
       suggestedSubCategory: subCategory,
       needsReview: true,
+      notes: '',
     })
   }
 

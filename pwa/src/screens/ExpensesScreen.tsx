@@ -1,6 +1,6 @@
 import { useState, useMemo, useRef } from 'react'
 import { useStore } from '../store/useStore'
-import { getCategoryMeta, CATEGORIES } from '../data/categories'
+import { getCategoryMeta, CATEGORIES, CATEGORY_MAP } from '../data/categories'
 import { formatAmount } from '../utils/formatters'
 import { currentYear, currentMonth, shortMonth, dateYear, dateMonth } from '../utils/dates'
 import type { Expense, HouseholdMember } from '../models/types'
@@ -19,6 +19,18 @@ export default function ExpensesScreen() {
   const { expenses, settings, deleteExpense, addExpense } = useStore()
   const base = settings.baseCurrency
   const customCategories = settings.customCategories ?? []
+
+  // All categories for the import select, sorted alphabetically (built-ins with overrides + new custom)
+  const sortedCategoriesForSelect = useMemo(() => {
+    const builtinWithOverrides = CATEGORIES.map(c => {
+      const ov = customCategories.find(o => o.id === c.id)
+      return ov ? { id: c.id, label: ov.label, emoji: ov.emoji } : { id: c.id, label: c.label, emoji: c.emoji }
+    })
+    const newCustom = customCategories
+      .filter(c => !CATEGORY_MAP[c.id])
+      .map(c => ({ id: c.id, label: c.label, emoji: c.emoji }))
+    return [...builtinWithOverrides, ...newCustom].sort((a, b) => a.label.localeCompare(b.label, 'fr'))
+  }, [customCategories])
 
   const [year, setYear]       = useState(currentYear())
   const [month, setMonth]     = useState<number | null>(currentMonth())
@@ -110,13 +122,13 @@ export default function ExpensesScreen() {
         amount: t.amount,
         currency: t.currency,
         date: t.date,
-        category: t.suggestedCategory,
-        subCategory: t.suggestedSubCategory,
+        category: t.needsReview ? 'a_classer' : t.suggestedCategory,
+        subCategory: t.needsReview ? 'Non classé' : t.suggestedSubCategory,
         type: t.type,
         isFixed: false,
         bank: t.bank,
         person: importPerson,
-        notes: '',
+        notes: t.notes,
       })
     })
     setImportResult(null)
@@ -407,14 +419,19 @@ export default function ExpensesScreen() {
                                 }}
                                 className="text-[13px] font-medium outline-none bg-transparent dark:text-white"
                                 style={{ color: catMeta?.color ?? '#6b7280' }}>
-                                {CATEGORIES.map(c => (
-                                  <option key={c.id} value={c.id}>{c.emoji} {c.label}</option>
-                                ))}
-                                {customCategories.map(c => (
+                                {sortedCategoriesForSelect.map(c => (
                                   <option key={c.id} value={c.id}>{c.emoji} {c.label}</option>
                                 ))}
                               </select>
                             </div>
+                            {/* Notes input */}
+                            <input
+                              type="text"
+                              value={t.notes}
+                              onChange={e => updateTxnField(t.id, { notes: e.target.value })}
+                              placeholder="✏️ Ajouter un commentaire…"
+                              className="mt-1 w-full text-[12px] text-gray-500 dark:text-gray-400 placeholder-gray-300 dark:placeholder-gray-600 outline-none bg-transparent"
+                            />
                           </div>
                         </div>
                       </div>
@@ -431,7 +448,7 @@ export default function ExpensesScreen() {
                style={{ paddingBottom: 'calc(1rem + env(safe-area-inset-bottom, 0px))' }}>
             {reviewCount > 0 && (
               <p className="text-[12px] text-orange-500 text-center mb-2">
-                {reviewCount} transaction{reviewCount > 1 ? 's' : ''} sans catégorie — elles seront importées en "Autre"
+                {reviewCount} transaction{reviewCount > 1 ? 's' : ''} non classée{reviewCount > 1 ? 's' : ''} — enregistrées dans "À classer" 🏷️
               </p>
             )}
             <button onClick={confirmImport}

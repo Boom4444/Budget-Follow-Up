@@ -166,6 +166,15 @@ export const CATEGORIES: CategoryMeta[] = [
     isFixed: false,
     subCategories: ['Divers'],
   },
+  {
+    id: 'a_classer',
+    label: 'À classer',
+    emoji: '🏷️',
+    color: '#b45309',
+    bgColor: '#fef3c7',
+    isFixed: false,
+    subCategories: ['Non classé'],
+  },
 ]
 
 export const CATEGORY_MAP = Object.fromEntries(
