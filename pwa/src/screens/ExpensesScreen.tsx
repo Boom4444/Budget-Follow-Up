@@ -6,7 +6,7 @@ import { currentYear, currentMonth, shortMonth, dateYear, dateMonth } from '../u
 import type { Expense, HouseholdMember } from '../models/types'
 import AddExpenseModal from '../components/AddExpenseModal'
 import TransactionRow from '../components/TransactionRow'
-import { importFromCSV, importFromXLSX } from '../utils/bankImport'
+import { importFromCSV, importFromXLSX, importFromPDF } from '../utils/bankImport'
 import type { BankImportResult, ImportedTransaction } from '../utils/bankImport'
 
 function dayLabel(d: string): string {
@@ -74,6 +74,9 @@ export default function ExpensesScreen() {
       if (file.name.toLowerCase().match(/\.xlsx?$/)) {
         const buf = await file.arrayBuffer()
         result = await importFromXLSX(buf, file.name)
+      } else if (file.name.toLowerCase().endsWith('.pdf')) {
+        const buf = await file.arrayBuffer()
+        result = await importFromPDF(buf, file.name)
       } else {
         const text = await file.text()
         result = importFromCSV(text, file.name)
@@ -172,7 +175,7 @@ export default function ExpensesScreen() {
           </div>
         </div>
 
-        <input ref={importRef} type="file" accept=".csv,.tsv,.txt,.xls,.xlsx" className="hidden"
+        <input ref={importRef} type="file" accept=".csv,.tsv,.txt,.xls,.xlsx,.pdf" className="hidden"
           onChange={handleImportFile} />
 
         {importError && (

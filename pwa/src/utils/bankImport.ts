@@ -415,6 +415,111 @@ export function importFromCSV(text: string, fileName: string): BankImportResult 
   }
 }
 
+/**
+ * Extract text from a PDF bank statement and attempt to parse transactions.
+ * Uses pdf.js (dynamic import) to keep the initial bundle lean.
+ * Each page's text items are sorted top-to-bottom, left-to-right so that
+ * amounts and dates on the same visual row end up on the same text line.
+ */
+export async function importFromPDF(buffer: ArrayBuffer, fileName: string): Promise<BankImportResult> {
+  const pdfjsLib = await import('pdfjs-dist')
+  pdfjsLib.GlobalWorkerOptions.workerSrc = new URL(
+    'pdfjs-dist/build/pdf.worker.min.mjs',
+    import.meta.url,
+  ).href
+
+  const pdf = await pdfjsLib.getDocument({ data: buffer }).promise
+  const pageTexts: string[] = []
+
+  for (let i = 1; i <= pdf.numPages; i++) {
+    const page = await pdf.getPage(i)
+    const content = await page.getTextContent()
+
+    // Group items by their vertical position (round to nearest 3px) then sort by x
+    type Item = { str: string; x: number; y: number }
+    const items: Item[] = (content.items as any[]).map((it: any) => ({
+      str: it.str as string,
+      x: Math.round(it.transform[4]),
+      y: Math.round(it.transform[5]),
+    }))
+    const byY = new Map<number, Item[]>()
+    for (const it of items) {
+      // Snap y to a 4px grid to merge items on the same visual row
+      const yKey = Math.round(it.y / 4) * 4
+      if (!byY.has(yKey)) byY.set(yKey, [])
+      byY.get(yKey)!.push(it)
+    }
+    // Sort rows top-to-bottom (higher y = higher on page in PDF coords)
+    const rows = [...byY.entries()]
+      .sort(([a], [b]) => b - a)
+      .map(([, row]) => row.sort((a, b) => a.x - b.x).map(it => it.str).join(' ').trim())
+      .filter(Boolean)
+    pageTexts.push(rows.join('\n'))
+  }
+
+  const fullText = pageTexts.join('\n')
+  const bankName = fileName.replace(/\.pdf$/i, '')
+
+  // Try to detect bank from text content
+  const lower = fullText.toLowerCase()
+  if (lower.includes('revolut')) return parsePDFTransactions(fullText, 'Revolut')
+  if (lower.includes('cic') || lower.includes('crédit industriel')) return parsePDFTransactions(fullText, 'CIC')
+  if (lower.includes('caisse d\'épargne') || lower.includes('caisse d epargne')) return parsePDFTransactions(fullText, "Caisse d'Épargne")
+  if (lower.includes('ubs')) return parsePDFTransactions(fullText, 'UBS')
+  if (lower.includes('lcl') || lower.includes('le crédit lyonnais')) return parsePDFTransactions(fullText, 'LCL')
+  if (lower.includes('bnp') || lower.includes('banque nationale de paris')) return parsePDFTransactions(fullText, 'BNP')
+  if (lower.includes('société générale') || lower.includes('societe generale')) return parsePDFTransactions(fullText, 'Société Générale')
+
+  return parsePDFTransactions(fullText, bankName)
+}
+
+// Detect a date at the start of a string (DD/MM/YYYY, DD.MM.YY, YYYY-MM-DD)
+const DATE_RE = /^\s*(\d{1,2}[\/.\-]\d{1,2}[\/.\-]\d{2,4}|\d{4}-\d{2}-\d{2})/
+
+// Detect an amount anywhere in a string (optional sign, digits with space/dot/comma separators)
+const AMOUNT_RE = /([+-]?\s*\d{1,3}(?:[\s.]\d{3})*(?:[,.\s]\d{2})?)\s*€?$/
+
+function parsePDFTransactions(text: string, bankName: string): BankImportResult {
+  const lines = text.split('\n').map(l => l.trim()).filter(Boolean)
+  const transactions: ImportedTransaction[] = []
+
+  for (const line of lines) {
+    if (!DATE_RE.test(line)) continue
+    const dateMatch = line.match(/(\d{1,2}[\/.\-]\d{1,2}[\/.\-]\d{2,4}|\d{4}-\d{2}-\d{2})/)
+    if (!dateMatch) continue
+    const date = parseDate(dateMatch[1])
+
+    const amountMatch = line.match(AMOUNT_RE)
+    if (!amountMatch) continue
+    const rawAmount = amountMatch[1].replace(/\s/g, '')
+    const amount = parseAmount(rawAmount)
+    if (amount === 0) continue
+
+    // Description: everything between date and amount
+    const afterDate = line.slice(dateMatch.index! + dateMatch[0].length)
+    const descRaw = afterDate.replace(AMOUNT_RE, '').trim()
+    const description = descRaw || line
+
+    if (isCurrencyExchange(description)) continue
+    const { category, subCategory, needsReview } = classify(description)
+
+    transactions.push({
+      id: uuid(),
+      date,
+      title: description || bankName,
+      amount: Math.abs(amount),
+      currency: 'EUR',
+      type: amount < 0 ? 'debit' : 'credit',
+      bank: bankName,
+      suggestedCategory: category,
+      suggestedSubCategory: subCategory,
+      needsReview,
+    })
+  }
+
+  return { bank: 'generic', bankName, transactions }
+}
+
 export async function importFromXLSX(buffer: ArrayBuffer, fileName: string): Promise<BankImportResult> {
   const XLSX = await import('xlsx')
   const wb = XLSX.read(buffer, { type: 'array' })

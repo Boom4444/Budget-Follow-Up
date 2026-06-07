@@ -51,8 +51,8 @@ export const CATEGORIES: CategoryMeta[] = [
   // ── Charges courantes ──────────────────────────────────────────────────────
   {
     id: 'nourriture',
-    label: 'Alimentation',
-    emoji: '🍽️',
+    label: 'Courses',
+    emoji: '🛒',
     color: '#16a34a',
     bgColor: '#dcfce7',
     isFixed: false,
@@ -179,16 +179,24 @@ export function getCategoryMeta(
   id: string,
   customCategories: CustomCategoryDef[] = [],
 ): CategoryMeta | undefined {
-  if (CATEGORY_MAP[id]) return CATEGORY_MAP[id]
-  const custom = customCategories.find(c => c.id === id)
-  if (!custom) return undefined
-  return {
-    id: custom.id,
-    label: custom.label,
-    emoji: custom.emoji,
-    color: '#6b7280',
-    bgColor: '#f3f4f6',
-    isFixed: custom.isFixed,
-    subCategories: [],
+  const override = customCategories.find(c => c.id === id)
+  const builtin = CATEGORY_MAP[id]
+
+  if (builtin && override) {
+    // User renamed/re-emojied a built-in category — keep sub-categories and colors
+    return { ...builtin, label: override.label, emoji: override.emoji }
   }
+  if (builtin) return builtin
+  if (override) {
+    return {
+      id: override.id,
+      label: override.label,
+      emoji: override.emoji,
+      color: '#6b7280',
+      bgColor: '#f3f4f6',
+      isFixed: override.isFixed,
+      subCategories: [],
+    }
+  }
+  return undefined
 }

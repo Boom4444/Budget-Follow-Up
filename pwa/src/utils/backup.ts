@@ -102,8 +102,8 @@ export function exportJSON(
   downloadBlob(blob, `budget-backup-${isoDate()}.json`)
 }
 
-export function exportCSV(expenses: Expense[]): void {
-  const rows = expenses
+export function exportCSV(expenses: Expense[], budgets: MonthlyBudget[] = []): void {
+  const expenseRows = expenses
     .slice()
     .sort((a, b) => a.date.localeCompare(b.date))
     .map(e => {
@@ -118,13 +118,43 @@ export function exportCSV(expenses: Expense[]): void {
               debitCHF, creditCHF, debitEUR, creditEUR,
               e.title, e.notes].join('\t')
     })
-  const csv = [CSV_HEADER, ...rows].join('\n')
-  const blob = new Blob(['﻿' + csv], { type: 'text/tab-separated-values;charset=utf-8' })
+
+  const MONTHS = ['Jan','Fév','Mar','Avr','Mai','Jun','Jul','Aoû','Sep','Oct','Nov','Déc']
+  const budgetHeader = ['Année', 'Mois', 'Personne', 'Catégorie', 'Montant budgété', 'Revenu prévu'].join('\t')
+  const budgetRows = budgets
+    .slice()
+    .sort((a, b) => a.year !== b.year ? a.year - b.year : a.month !== b.month ? a.month - b.month : a.person.localeCompare(b.person))
+    .flatMap(b => {
+      const monthLabel = `${MONTHS[b.month - 1]} ${b.year}`
+      const personLabel = b.person === 'person1' ? 'Personne 1' : b.person === 'person2' ? 'Personne 2' : 'Commun'
+      const itemRows = b.items.map(it => [
+        b.year, monthLabel, personLabel,
+        CATEGORY_MAP[it.categoryId]?.label ?? it.categoryId,
+        it.amount, '',
+      ].join('\t'))
+      if (b.estimatedIncome != null) {
+        itemRows.push([b.year, monthLabel, personLabel, 'REVENU', '', b.estimatedIncome].join('\t'))
+      }
+      return itemRows
+    })
+
+  const lines = [
+    '=== DÉPENSES ===',
+    CSV_HEADER,
+    ...expenseRows,
+    '',
+    '=== BUDGETS MENSUELS ===',
+    budgetHeader,
+    ...budgetRows,
+  ]
+  const blob = new Blob(['﻿' + lines.join('\n')], { type: 'text/tab-separated-values;charset=utf-8' })
   downloadBlob(blob, `budget-export-${isoDate()}.tsv`)
 }
 
-export function exportXLSX(expenses: Expense[]): void {
-  const rows = expenses
+export function exportXLSX(expenses: Expense[], budgets: MonthlyBudget[] = []): void {
+  const MONTHS = ['Jan','Fév','Mar','Avr','Mai','Jun','Jul','Aoû','Sep','Oct','Nov','Déc']
+
+  const expenseRows = expenses
     .slice()
     .sort((a, b) => a.date.localeCompare(b.date))
     .map(e => ({
@@ -139,15 +169,39 @@ export function exportXLSX(expenses: Expense[]): void {
       Personne: e.person,
       Notes: e.notes,
     }))
-  const ws = XLSX.utils.json_to_sheet(rows)
+
+  const budgetRows = budgets
+    .slice()
+    .sort((a, b) => a.year !== b.year ? a.year - b.year : a.month !== b.month ? a.month - b.month : a.person.localeCompare(b.person))
+    .flatMap(b => {
+      const monthLabel = `${MONTHS[b.month - 1]} ${b.year}`
+      const personLabel = b.person === 'person1' ? 'Personne 1' : b.person === 'person2' ? 'Personne 2' : 'Commun'
+      const rows = b.items.map(it => ({
+        Année: b.year,
+        Mois: monthLabel,
+        Personne: personLabel,
+        Catégorie: CATEGORY_MAP[it.categoryId]?.label ?? it.categoryId,
+        'Montant budgété': it.amount,
+        'Revenu prévu': '',
+      }))
+      if (b.estimatedIncome != null) {
+        rows.push({ Année: b.year, Mois: monthLabel, Personne: personLabel, Catégorie: 'REVENU', 'Montant budgété': '', 'Revenu prévu': b.estimatedIncome } as any)
+      }
+      return rows
+    })
+
   const wb = XLSX.utils.book_new()
-  XLSX.utils.book_append_sheet(wb, ws, 'Dépenses')
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(expenseRows), 'Dépenses')
+  if (budgetRows.length > 0) {
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(budgetRows), 'Budgets')
+  }
   XLSX.writeFile(wb, `budget-export-${isoDate()}.xlsx`)
 }
 
-export function exportPDF(expenses: Expense[], baseCurrency: string): void {
+export function exportPDF(expenses: Expense[], baseCurrency: string, budgets: MonthlyBudget[] = []): void {
+  const MONTHS = ['Jan','Fév','Mar','Avr','Mai','Jun','Jul','Aoû','Sep','Oct','Nov','Déc']
   const sorted = expenses.slice().sort((a, b) => b.date.localeCompare(a.date))
-  const rows = sorted.map(e => {
+  const expenseRows = sorted.map(e => {
     const sign = e.type === 'credit' ? '+' : '-'
     const catLabel = CATEGORY_MAP[e.category as CategoryId]?.label ?? e.category
     return `<tr>
@@ -159,24 +213,47 @@ export function exportPDF(expenses: Expense[], baseCurrency: string): void {
       <td>${e.bank}</td>
     </tr>`
   }).join('')
+
+  const budgetSection = budgets.length > 0 ? (() => {
+    const sortedB = budgets.slice().sort((a, b) =>
+      a.year !== b.year ? a.year - b.year : a.month !== b.month ? a.month - b.month : a.person.localeCompare(b.person)
+    )
+    const bRows = sortedB.flatMap(b => {
+      const monthLabel = `${MONTHS[b.month - 1]} ${b.year}`
+      const personLabel = b.person === 'person1' ? 'P.1' : b.person === 'person2' ? 'P.2' : 'Commun'
+      const rows = b.items.map(it =>
+        `<tr><td>${monthLabel}</td><td>${personLabel}</td><td>${CATEGORY_MAP[it.categoryId]?.label ?? it.categoryId}</td><td style="text-align:right">${it.amount.toFixed(2)} ${baseCurrency}</td></tr>`
+      )
+      if (b.estimatedIncome != null) {
+        rows.push(`<tr style="color:#16a34a"><td>${monthLabel}</td><td>${personLabel}</td><td>Revenu prévu</td><td style="text-align:right">+${b.estimatedIncome.toFixed(2)} ${baseCurrency}</td></tr>`)
+      }
+      return rows
+    }).join('')
+    return `<h2 style="margin-top:24px;font-size:14px">Budgets mensuels (${budgets.length} mois)</h2>
+      <table>
+        <thead><tr><th>Mois</th><th>Personne</th><th>Catégorie</th><th>Montant</th></tr></thead>
+        <tbody>${bRows}</tbody>
+      </table>`
+  })() : ''
+
   const html = `<!DOCTYPE html><html><head><meta charset="utf-8">
     <title>Budget Export ${isoDate()}</title>
     <style>
       body{font-family:system-ui,sans-serif;font-size:12px;color:#111}
-      h1{font-size:16px;margin-bottom:4px}
+      h1{font-size:16px;margin-bottom:4px}h2{font-size:14px}
       p{color:#666;margin-bottom:16px}
-      table{width:100%;border-collapse:collapse}
+      table{width:100%;border-collapse:collapse;margin-bottom:8px}
       th{background:#f3f4f6;font-weight:600;text-align:left;padding:6px 8px;border-bottom:2px solid #e5e7eb}
       td{padding:5px 8px;border-bottom:1px solid #f3f4f6}
-      tr:last-child td{border-bottom:none}
     </style>
   </head><body>
     <h1>Budget — Export ${isoDate()}</h1>
     <p>${expenses.length} transactions · devise base : ${baseCurrency}</p>
     <table>
       <thead><tr><th>Date</th><th>Boutique</th><th>Catégorie</th><th>Sous-cat.</th><th>Montant</th><th>Banque</th></tr></thead>
-      <tbody>${rows}</tbody>
+      <tbody>${expenseRows}</tbody>
     </table>
+    ${budgetSection}
   </body></html>`
   const w = window.open('', '_blank')
   if (!w) return

@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from 'react'
 import { useStore } from '../store/useStore'
 import { CURRENCIES } from '../data/currencies'
+import { CATEGORIES, CATEGORY_MAP } from '../data/categories'
 import type { CurrencyCode, AppTheme, MonthlyBudget, CustomCategoryDef } from '../models/types'
 import type { Expense, RecurringExpense } from '../models/types'
 import { v4 as uuid } from 'uuid'
@@ -61,6 +62,12 @@ export default function SettingsScreen({ onShowHelp }: Props) {
   const [newCatLabel, setNewCatLabel] = useState('')
   const [newCatFixed, setNewCatFixed] = useState(false)
   const [showEmojiPicker, setShowEmojiPicker] = useState(false)
+  // Category edit modal
+  const [editingCat, setEditingCat] = useState<{ id: string; isBuiltin: boolean } | null>(null)
+  const [editCatLabel, setEditCatLabel] = useState('')
+  const [editCatEmoji, setEditCatEmoji] = useState('📦')
+  const [showEditEmojiPicker, setShowEditEmojiPicker] = useState(false)
+  const emojiTarget = useRef<'add' | 'edit'>('add')
   const [showConfirmDemo, setShowConfirmDemo] = useState(false)
   const [showRates, setShowRates] = useState(false)
   const [backupSlots, setBackupSlots] = useState<AutoBackupSlot[]>([])
@@ -118,6 +125,33 @@ export default function SettingsScreen({ onShowHelp }: Props) {
     updateSettings({ customCategories: (settings.customCategories ?? []).filter(c => c.id !== id) })
   }
 
+  function openEditCategory(id: string) {
+    const custom = settings.customCategories ?? []
+    const override = custom.find(c => c.id === id)
+    const builtin = CATEGORY_MAP[id]
+    const isBuiltin = !!builtin
+    const current = override ?? builtin
+    if (!current) return
+    setEditingCat({ id, isBuiltin })
+    setEditCatLabel(current.label)
+    setEditCatEmoji(current.emoji)
+  }
+
+  function saveEditCategory() {
+    if (!editingCat || !editCatLabel.trim()) return
+    const custom = settings.customCategories ?? []
+    const withoutThis = custom.filter(c => c.id !== editingCat.id)
+    const isFixed = editingCat.isBuiltin
+      ? (CATEGORY_MAP[editingCat.id]?.isFixed ?? false)
+      : (custom.find(c => c.id === editingCat.id)?.isFixed ?? false)
+    updateSettings({ customCategories: [...withoutThis, { id: editingCat.id, label: editCatLabel.trim(), emoji: editCatEmoji, isFixed }] })
+    setEditingCat(null)
+  }
+
+  function resetBuiltinCategory(id: string) {
+    updateSettings({ customCategories: (settings.customCategories ?? []).filter(c => c.id !== id) })
+  }
+
   function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]
     if (!file) return
@@ -157,9 +191,9 @@ export default function SettingsScreen({ onShowHelp }: Props) {
   function handleExport(format: 'json' | 'csv' | 'xlsx' | 'pdf') {
     setShowExportSheet(false)
     if (format === 'json') exportJSON(expenses, recurring, settings, budgets)
-    else if (format === 'csv') exportCSV(expenses)
-    else if (format === 'xlsx') exportXLSX(expenses)
-    else if (format === 'pdf') exportPDF(expenses, settings.baseCurrency)
+    else if (format === 'csv') exportCSV(expenses, budgets)
+    else if (format === 'xlsx') exportXLSX(expenses, budgets)
+    else if (format === 'pdf') exportPDF(expenses, settings.baseCurrency, budgets)
   }
 
   // ── Update helpers ────────────────────────────────────────────────────────
@@ -366,30 +400,67 @@ export default function SettingsScreen({ onShowHelp }: Props) {
           )}
         </div>
 
-        {/* Custom categories */}
-        <p className="section-header">Catégories personnalisées</p>
+        {/* All categories — built-in (editable) + custom */}
+        <p className="section-header">Catégories</p>
         <div className="card mx-4 overflow-hidden">
-          {(settings.customCategories ?? []).map((cat, i) => (
-            <div key={cat.id} className={`flex items-center gap-3 px-4 py-3 ${i < (settings.customCategories ?? []).length - 1 ? 'border-b border-gray-100 dark:border-gray-700' : ''}`}>
-              <span className="text-xl">{cat.emoji}</span>
-              <div className="flex-1 min-w-0">
-                <p className="text-[15px] dark:text-white">{cat.label}</p>
-                {cat.isFixed && <p className="text-[11px] text-red-400">Incompressible</p>}
+          {(() => {
+            const customMap = Object.fromEntries((settings.customCategories ?? []).map(c => [c.id, c]))
+            // Built-in categories, with override label/emoji if set
+            const builtinRows = CATEGORIES.map(cat => ({
+              id: cat.id,
+              emoji: customMap[cat.id]?.emoji ?? cat.emoji,
+              label: customMap[cat.id]?.label ?? cat.label,
+              isFixed: cat.isFixed,
+              isBuiltin: true,
+              isOverridden: !!customMap[cat.id],
+            }))
+            // Purely custom categories (ID not in CATEGORY_MAP)
+            const customRows = (settings.customCategories ?? [])
+              .filter(c => !CATEGORY_MAP[c.id])
+              .map(c => ({ id: c.id, emoji: c.emoji, label: c.label, isFixed: c.isFixed, isBuiltin: false, isOverridden: false }))
+            const allRows = [...builtinRows, ...customRows]
+            return allRows.map((cat, i) => (
+              <div key={cat.id}
+                className={`flex items-center gap-3 px-4 py-3 ${i < allRows.length - 1 ? 'border-b border-gray-100 dark:border-gray-700' : ''}`}>
+                <span className="text-xl w-8 text-center">{cat.emoji}</span>
+                <div className="flex-1 min-w-0">
+                  <p className="text-[15px] dark:text-white truncate">{cat.label}</p>
+                  <p className="text-[11px] text-gray-400 dark:text-gray-500">
+                    {cat.isFixed ? '🔒 Incompressible' : cat.isBuiltin ? 'Prédéfinie' : 'Personnalisée'}
+                    {cat.isOverridden && ' · modifiée'}
+                  </p>
+                </div>
+                <div className="flex items-center gap-2">
+                  {cat.isOverridden && (
+                    <button onClick={() => resetBuiltinCategory(cat.id)}
+                      className="text-[12px] text-orange-400 font-medium">
+                      Réinitialiser
+                    </button>
+                  )}
+                  <button onClick={() => openEditCategory(cat.id)}
+                    className="text-blue-500 text-[13px] font-medium px-2 py-1 rounded-lg bg-blue-50 dark:bg-blue-950/40">
+                    Modifier
+                  </button>
+                  {!cat.isBuiltin && (
+                    <button onClick={() => removeCustomCategory(cat.id)}
+                      className="text-red-400 text-xl leading-none">×</button>
+                  )}
+                </div>
               </div>
-              <button onClick={() => removeCustomCategory(cat.id)} className="text-red-400 text-xl">×</button>
-            </div>
-          ))}
-          <div className={`px-4 py-3 ${(settings.customCategories ?? []).length > 0 ? 'border-t border-gray-100 dark:border-gray-700' : ''}`}>
+            ))
+          })()}
+          {/* Add new custom category */}
+          <div className="border-t border-gray-100 dark:border-gray-700 px-4 py-3">
             <div className="flex items-center gap-2 mb-2.5">
               <button
                 type="button"
-                onClick={() => setShowEmojiPicker(true)}
+                onClick={() => { emojiTarget.current = 'add'; setShowEmojiPicker(true) }}
                 className="w-12 h-12 rounded-xl bg-gray-100 dark:bg-gray-700 flex items-center justify-center text-[26px] border-2 border-dashed border-gray-300 dark:border-gray-600 flex-shrink-0">
                 {newCatEmoji}
               </button>
               <input
                 type="text"
-                placeholder="Nom de la catégorie…"
+                placeholder="Nouvelle catégorie…"
                 value={newCatLabel}
                 onChange={e => setNewCatLabel(e.target.value)}
                 onKeyDown={e => e.key === 'Enter' && addCustomCategory()}
@@ -688,21 +759,64 @@ export default function SettingsScreen({ onShowHelp }: Props) {
                     {group.label}
                   </p>
                   <div className="grid grid-cols-6 gap-2">
-                    {group.emojis.map(emoji => (
-                      <button
-                        key={emoji}
-                        onClick={() => { setNewCatEmoji(emoji); setShowEmojiPicker(false) }}
-                        className={`h-12 rounded-xl text-[24px] flex items-center justify-center transition-colors
-                          ${newCatEmoji === emoji
-                            ? 'bg-blue-100 dark:bg-blue-900/40 ring-2 ring-blue-500'
-                            : 'bg-gray-100 dark:bg-gray-800 active:bg-gray-200 dark:active:bg-gray-700'}`}>
-                        {emoji}
-                      </button>
-                    ))}
+                    {group.emojis.map(emoji => {
+                      const activeEmoji = emojiTarget.current === 'edit' ? editCatEmoji : newCatEmoji
+                      return (
+                        <button
+                          key={emoji}
+                          onClick={() => {
+                            if (emojiTarget.current === 'edit') setEditCatEmoji(emoji)
+                            else setNewCatEmoji(emoji)
+                            setShowEmojiPicker(false)
+                          }}
+                          className={`h-12 rounded-xl text-[24px] flex items-center justify-center transition-colors
+                            ${activeEmoji === emoji
+                              ? 'bg-blue-100 dark:bg-blue-900/40 ring-2 ring-blue-500'
+                              : 'bg-gray-100 dark:bg-gray-800 active:bg-gray-200 dark:active:bg-gray-700'}`}>
+                          {emoji}
+                        </button>
+                      )
+                    })}
                   </div>
                 </div>
               ))}
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Category edit modal */}
+      {editingCat && (
+        <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/40">
+          <div className="bg-white dark:bg-gray-800 rounded-t-3xl w-full p-6"
+               style={{ paddingBottom: 'calc(1.5rem + env(safe-area-inset-bottom, 0px))' }}>
+            <p className="text-[17px] font-bold text-center mb-4 dark:text-white">
+              {editingCat.isBuiltin ? 'Modifier la catégorie' : 'Renommer'}
+            </p>
+            <div className="flex items-center gap-3 mb-5">
+              <button
+                type="button"
+                onClick={() => { emojiTarget.current = 'edit'; setShowEmojiPicker(true) }}
+                className="w-14 h-14 rounded-2xl bg-gray-100 dark:bg-gray-700 flex items-center justify-center text-[30px] border-2 border-dashed border-gray-300 dark:border-gray-600 flex-shrink-0">
+                {editCatEmoji}
+              </button>
+              <input
+                type="text"
+                placeholder="Nom de la catégorie…"
+                value={editCatLabel}
+                onChange={e => setEditCatLabel(e.target.value)}
+                className="flex-1 text-[17px] outline-none bg-gray-100 dark:bg-gray-700 rounded-xl px-4 py-3 dark:text-white dark:placeholder-gray-500"
+                autoFocus
+              />
+            </div>
+            <button onClick={saveEditCategory} disabled={!editCatLabel.trim()}
+              className="w-full py-3.5 bg-blue-600 text-white rounded-xl font-semibold text-[16px] mb-3 disabled:opacity-30">
+              Enregistrer
+            </button>
+            <button onClick={() => setEditingCat(null)}
+              className="w-full py-3.5 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 rounded-xl font-medium text-[16px]">
+              Annuler
+            </button>
           </div>
         </div>
       )}
