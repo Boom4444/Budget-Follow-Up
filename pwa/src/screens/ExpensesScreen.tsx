@@ -77,8 +77,10 @@ export default function ExpensesScreen() {
     setImportLoading(true)
     try {
       let result: BankImportResult
-      const isPDF = file.name.toLowerCase().endsWith('.pdf') || file.type === 'application/pdf'
-      if (file.name.toLowerCase().match(/\.xlsx?$/)) {
+      const nameLower = file.name.toLowerCase()
+      const hasNoExtension = !nameLower.includes('.') || nameLower.endsWith('.')
+      const isPDF = nameLower.endsWith('.pdf') || file.type === 'application/pdf' || hasNoExtension
+      if (nameLower.match(/\.xlsx?$/)) {
         const buf = await file.arrayBuffer()
         result = await importFromXLSX(buf, file.name)
       } else if (isPDF) {
