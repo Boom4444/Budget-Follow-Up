@@ -10,6 +10,7 @@ import HelpScreen from './screens/HelpScreen'
 import AIChatScreen from './screens/AIChatScreen'
 import OutilsScreen from './screens/OutilsScreen'
 import UpdatePrompt from './components/UpdatePrompt'
+import { useAutoBackupToDrive } from './hooks/useAutoBackupToDrive'
 
 type Tab = 'dashboard' | 'expenses' | 'budget' | 'recurring' | 'outils' | 'ai' | 'settings'
 
@@ -27,6 +28,7 @@ export default function App() {
   const [tab, setTab] = useState<Tab>('dashboard')
   const [showHelp, setShowHelp] = useState(false)
   const { settings } = useStore()
+  useAutoBackupToDrive()
 
   useEffect(() => {
     refreshExchangeRates()

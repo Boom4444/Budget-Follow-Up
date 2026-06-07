@@ -83,6 +83,7 @@ export interface AppSettings {
   theme: AppTheme
   googleDriveClientId: string
   driveBackupFolder?: { id: string; name: string }
+  autoBackupToDrive?: boolean
   customCategories: CustomCategoryDef[]
   claudeApiKey: string
 }

@@ -5,6 +5,11 @@ import type { Expense, RecurringExpense, AppSettings, CurrencyCode, HouseholdMem
 import { convertToBase } from '../data/currencies'
 import { autoSave } from '../utils/backup'
 
+export interface AutoBackupStatus {
+  at: string
+  status: 'ok' | 'error'
+}
+
 interface AppState {
   expenses: Expense[]
   recurring: RecurringExpense[]
@@ -28,6 +33,12 @@ interface AppState {
   setBudgetItems: (year: number, month: number, person: HouseholdMember, items: BudgetItem[]) => void
   copyBudget: (fromYear: number, fromMonth: number, fromPerson: HouseholdMember, toYear: number, toMonth: number, toPerson: HouseholdMember) => void
   setIncome: (year: number, month: number, person: HouseholdMember, amount: number) => void
+
+  // Transient (not persisted)
+  driveToken: string | null
+  setDriveToken: (token: string | null) => void
+  lastAutoBackup: AutoBackupStatus | null
+  setLastAutoBackup: (b: AutoBackupStatus | null) => void
 }
 
 export const useStore = create<AppState>()(
@@ -305,10 +316,21 @@ export const useStore = create<AppState>()(
           return { budgets: [...s.budgets, { year, month, person, estimatedIncome: amount, items: [] }] }
         })
       },
+
+      driveToken: null,
+      setDriveToken: (token) => set({ driveToken: token }),
+      lastAutoBackup: null,
+      setLastAutoBackup: (b) => set({ lastAutoBackup: b }),
     }),
     {
       name: 'budget-app-store',
       version: 5,
+      partialize: (state) => ({
+        expenses: state.expenses,
+        recurring: state.recurring,
+        budgets: state.budgets,
+        settings: state.settings,
+      }),
       migrate(persistedState, version) {
         const s = persistedState as any
         let state = { ...s }

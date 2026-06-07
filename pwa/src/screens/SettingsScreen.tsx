@@ -50,7 +50,7 @@ const EMOJI_GROUPS = [
 ]
 
 export default function SettingsScreen({ onShowHelp }: Props) {
-  const { settings, updateSettings, loadDemoData, expenses, recurring, budgets, importData, clearData } = useStore()
+  const { settings, updateSettings, loadDemoData, expenses, recurring, budgets, importData, clearData, driveToken, setDriveToken, lastAutoBackup } = useStore()
   const {
     needRefresh: [needRefresh],
     updateServiceWorker,
@@ -74,8 +74,7 @@ export default function SettingsScreen({ onShowHelp }: Props) {
   const [updateStatus, setUpdateStatus] = useState<'idle' | 'checking' | 'none' | 'available'>('idle')
   const [availableVersion, setAvailableVersion] = useState<string | null>(null)
 
-  // Google Drive state (ephemeral — not persisted)
-  const [driveToken, setDriveToken] = useState<string | null>(null)
+  // Google Drive state (driveToken lives in store — shared with auto-backup hook)
   const [driveFiles, setDriveFiles] = useState<DriveFile[]>([])
   const [driveFolders, setDriveFolders] = useState<DriveFolder[]>([])
   const [showFolderPicker, setShowFolderPicker] = useState(false)
@@ -493,10 +492,33 @@ export default function SettingsScreen({ onShowHelp }: Props) {
             </button>
           ) : (
             <>
+              {/* Auto-backup toggle */}
+              <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100 dark:border-gray-700">
+                <div>
+                  <p className="text-[15px] dark:text-white">Sauvegarde automatique</p>
+                  {settings.autoBackupToDrive && lastAutoBackup && (
+                    <p className={`text-[11px] mt-0.5 ${lastAutoBackup.status === 'ok' ? 'text-green-500' : 'text-red-400'}`}>
+                      {lastAutoBackup.status === 'ok' ? '✓ Sauvegardé' : '✗ Échec'} — {new Date(lastAutoBackup.at).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}
+                    </p>
+                  )}
+                  {settings.autoBackupToDrive && !lastAutoBackup && (
+                    <p className="text-[11px] text-gray-400 mt-0.5">Active — synchro après chaque modification</p>
+                  )}
+                </div>
+                <button
+                  role="switch"
+                  aria-checked={!!settings.autoBackupToDrive}
+                  onClick={() => updateSettings({ autoBackupToDrive: !settings.autoBackupToDrive })}
+                  className={`relative w-11 h-6 rounded-full transition-colors flex-shrink-0 ${settings.autoBackupToDrive ? 'bg-green-500' : 'bg-gray-300 dark:bg-gray-600'}`}
+                >
+                  <span className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform ${settings.autoBackupToDrive ? 'translate-x-5' : 'translate-x-0'}`} />
+                </button>
+              </div>
+
               <button onClick={uploadDrive} disabled={driveLoading}
                 className="w-full flex items-center justify-between px-4 py-3 border-b border-gray-100 dark:border-gray-700 text-left">
                 <span className="text-[15px] text-blue-600">
-                  {driveLoading ? 'En cours…' : '↑ Sauvegarder sur Drive'}
+                  {driveLoading ? 'En cours…' : '↑ Sauvegarder maintenant'}
                 </span>
                 <span className="text-[13px] text-gray-400 dark:text-gray-500">{expenses.length} dépenses</span>
               </button>
@@ -518,7 +540,7 @@ export default function SettingsScreen({ onShowHelp }: Props) {
                 </div>
               ))}
               <button onClick={() => { setDriveToken(null); setDriveFiles([]) }}
-                className="w-full px-4 py-3 text-left text-gray-400 dark:text-gray-500 text-[14px] border-t border-gray-100 dark:border-gray-700">
+                className="w-full px-4 py-3 text-left text-red-400 dark:text-red-500 text-[14px] border-t border-gray-100 dark:border-gray-700">
                 Déconnecter
               </button>
             </>
