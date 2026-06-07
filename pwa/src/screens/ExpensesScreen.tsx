@@ -16,7 +16,7 @@ function dayLabel(d: string): string {
 }
 
 export default function ExpensesScreen() {
-  const { expenses, settings, deleteExpense, addExpense } = useStore()
+  const { expenses, settings, deleteExpense, addExpense, addBatchExpenses } = useStore()
   const base = settings.baseCurrency
   const customCategories = settings.customCategories ?? []
 
@@ -116,21 +116,19 @@ export default function ExpensesScreen() {
   }
 
   function confirmImport() {
-    importTxns.forEach(t => {
-      addExpense({
-        title: t.title,
-        amount: t.amount,
-        currency: t.currency,
-        date: t.date,
-        category: t.needsReview ? 'a_classer' : t.suggestedCategory,
-        subCategory: t.needsReview ? 'Non classé' : t.suggestedSubCategory,
-        type: t.type,
-        isFixed: false,
-        bank: t.bank,
-        person: importPerson,
-        notes: t.notes,
-      })
-    })
+    addBatchExpenses(importTxns.map(t => ({
+      title: t.title,
+      amount: t.amount,
+      currency: t.currency,
+      date: t.date,
+      category: t.needsReview ? 'a_classer' : t.suggestedCategory,
+      subCategory: t.needsReview ? 'Non classé' : t.suggestedSubCategory,
+      type: t.type,
+      isFixed: false,
+      bank: t.bank,
+      person: importPerson,
+      notes: t.notes,
+    })))
     setImportResult(null)
     setImportTxns([])
   }

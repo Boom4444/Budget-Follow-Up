@@ -2,7 +2,7 @@ import { useEffect, useRef } from 'react'
 import { useStore } from '../store/useStore'
 import { uploadToDrive, updateDriveFile } from '../utils/googleDrive'
 
-const DEBOUNCE_MS = 10_000
+const DEBOUNCE_MS = 1_500
 
 export function useAutoBackupToDrive() {
   const expenses = useStore(s => s.expenses)

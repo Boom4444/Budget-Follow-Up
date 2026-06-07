@@ -16,6 +16,7 @@ interface AppState {
   settings: AppSettings
 
   addExpense: (e: Omit<Expense, 'id' | 'amountInBase'>) => void
+  addBatchExpenses: (items: Omit<Expense, 'id' | 'amountInBase'>[]) => void
   updateExpense: (id: string, patch: Partial<Expense>) => void
   deleteExpense: (id: string) => void
 
@@ -64,6 +65,18 @@ export const useStore = create<AppState>()(
         const base = get().settings.baseCurrency
         const amountInBase = convertToBase(e.amount, e.currency, base)
         set(s => ({ expenses: [...s.expenses, { ...e, id: uuid(), amountInBase }] }))
+        const { expenses, recurring, settings } = get()
+        autoSave(expenses, recurring, settings)
+      },
+
+      addBatchExpenses(items) {
+        const base = get().settings.baseCurrency
+        const newExpenses = items.map(e => ({
+          ...e,
+          id: uuid(),
+          amountInBase: convertToBase(e.amount, e.currency, base),
+        }))
+        set(s => ({ expenses: [...s.expenses, ...newExpenses] }))
         const { expenses, recurring, settings } = get()
         autoSave(expenses, recurring, settings)
       },
