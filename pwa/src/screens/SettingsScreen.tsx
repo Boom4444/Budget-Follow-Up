@@ -71,7 +71,8 @@ export default function SettingsScreen({ onShowHelp }: Props) {
   const [showExportSheet, setShowExportSheet] = useState(false)
 
   // Update check status
-  const [updateStatus, setUpdateStatus] = useState<'idle' | 'checking' | 'none'>('idle')
+  const [updateStatus, setUpdateStatus] = useState<'idle' | 'checking' | 'none' | 'available'>('idle')
+  const [availableVersion, setAvailableVersion] = useState<string | null>(null)
 
   // Google Drive state (ephemeral — not persisted)
   const [driveToken, setDriveToken] = useState<string | null>(null)
@@ -161,10 +162,27 @@ export default function SettingsScreen({ onShowHelp }: Props) {
 
   // ── Update check ──────────────────────────────────────────────────────────
 
-  function checkUpdates() {
-    if (needRefresh) { updateServiceWorker(true); return }
+  async function checkUpdates() {
+    if (needRefresh || updateStatus === 'available') {
+      updateServiceWorker(true)
+      return
+    }
     setUpdateStatus('checking')
-    setTimeout(() => setUpdateStatus('none'), 3000)
+    try {
+      // Trigger the SW to check for a new service worker
+      navigator.serviceWorker?.getRegistration().then(reg => reg?.update())
+      // Fetch version.json from the server (bypassing cache) to read the latest version number
+      const res = await fetch(import.meta.env.BASE_URL + 'version.json', { cache: 'no-store' })
+      const json: { version: string } = await res.json()
+      if (json.version !== __APP_VERSION__) {
+        setAvailableVersion(json.version)
+        setUpdateStatus('available')
+      } else {
+        setUpdateStatus('none')
+      }
+    } catch {
+      setUpdateStatus(needRefresh ? 'available' : 'none')
+    }
   }
 
   // ── Google Drive helpers ──────────────────────────────────────────────────
@@ -554,19 +572,41 @@ export default function SettingsScreen({ onShowHelp }: Props) {
               <span className="text-gray-400 dark:text-gray-500">›</span>
             </button>
           )}
-          <div className="px-4 py-3 border-b border-gray-100 dark:border-gray-700 flex justify-between items-center">
-            <span className="text-[15px] text-gray-600 dark:text-gray-300">Version</span>
-            <span className="text-[15px] text-gray-400 dark:text-gray-500">{__APP_VERSION__}</span>
+          {/* Version row */}
+          <div className="px-4 py-3 border-b border-gray-100 dark:border-gray-700">
+            <div className="flex items-center justify-between">
+              <span className="text-[15px] text-gray-600 dark:text-gray-300">Version installée</span>
+              <span className="text-[15px] font-medium text-gray-500 dark:text-gray-400">{__APP_VERSION__}</span>
+            </div>
+            {(needRefresh || updateStatus === 'available') && (
+              <div className="flex items-center justify-between mt-2">
+                <div>
+                  <span className="text-[12px] font-semibold text-orange-500">🔄 Mise à jour disponible</span>
+                  {availableVersion && (
+                    <span className="text-[12px] text-orange-400 ml-1">— v{availableVersion}</span>
+                  )}
+                </div>
+                <button
+                  onClick={() => updateServiceWorker(true)}
+                  className="px-3 py-1 bg-orange-500 text-white text-[12px] font-bold rounded-lg">
+                  Installer
+                </button>
+              </div>
+            )}
+            {updateStatus === 'none' && !needRefresh && (
+              <p className="text-[12px] text-green-600 dark:text-green-400 mt-1">✓ Vous avez la dernière version</p>
+            )}
           </div>
           <button
             onClick={checkUpdates}
             disabled={updateStatus === 'checking'}
             className="w-full flex items-center justify-between px-4 py-3 border-b border-gray-100 dark:border-gray-700 text-left">
-            <span className={`text-[15px] ${needRefresh ? 'text-orange-500 font-semibold' : 'text-blue-600'}`}>
-              {needRefresh ? '🔄 Mise à jour disponible !' : updateStatus === 'checking' ? 'Vérification…' : 'Vérifier les mises à jour'}
+            <span className="text-[15px] text-blue-600">
+              {updateStatus === 'checking' ? 'Vérification…' : 'Vérifier les mises à jour'}
             </span>
-            {needRefresh && <span className="text-orange-500 text-[12px] font-medium">Mettre à jour</span>}
-            {updateStatus === 'none' && !needRefresh && <span className="text-green-600 text-[12px] font-medium">✓ À jour</span>}
+            {updateStatus === 'checking' && (
+              <span className="text-gray-400 text-[13px]">…</span>
+            )}
           </button>
           <div className="px-4 py-3 flex justify-between">
             <span className="text-[15px] text-gray-600 dark:text-gray-300">Données</span>

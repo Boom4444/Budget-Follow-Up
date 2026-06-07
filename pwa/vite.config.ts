@@ -1,9 +1,12 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import { VitePWA } from 'vite-plugin-pwa'
-import { readFileSync } from 'node:fs'
+import { readFileSync, writeFileSync } from 'node:fs'
 
 const appVersion = JSON.parse(readFileSync('./package.json', 'utf-8')).version
+
+// Keep public/version.json in sync with package.json version
+writeFileSync('./public/version.json', JSON.stringify({ version: appVersion }) + '\n')
 
 export default defineConfig({
   define: {
