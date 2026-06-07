@@ -25,6 +25,7 @@ interface AppState {
   deleteRecurring: (id: string) => void
 
   updateSettings: (patch: Partial<AppSettings>) => void
+  recategorizeExpenses: (fromCategoryId: string, toCategoryId: string) => void
   loadDemoData: () => void
   importData: (expenses: Expense[], recurring: RecurringExpense[], budgets: MonthlyBudget[], merge?: boolean) => void
   clearData: () => void
@@ -115,6 +116,18 @@ export const useStore = create<AppState>()(
 
       updateSettings(patch) {
         set(s => ({ settings: { ...s.settings, ...patch } }))
+      },
+
+      recategorizeExpenses(fromCategoryId, toCategoryId) {
+        set(s => ({
+          expenses: s.expenses.map(e =>
+            e.category === fromCategoryId
+              ? { ...e, category: toCategoryId, subCategory: 'Non classé' }
+              : e
+          ),
+        }))
+        const { expenses, recurring, settings } = get()
+        autoSave(expenses, recurring, settings)
       },
 
       loadDemoData() {

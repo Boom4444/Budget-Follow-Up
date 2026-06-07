@@ -1,6 +1,6 @@
 import { useState, useMemo, useRef } from 'react'
 import { useStore } from '../store/useStore'
-import { getCategoryMeta, CATEGORIES, CATEGORY_MAP } from '../data/categories'
+import { getCategoryMeta, getActiveCategories } from '../data/categories'
 import { formatAmount } from '../utils/formatters'
 import { currentYear, currentMonth, shortMonth, dateYear, dateMonth } from '../utils/dates'
 import type { Expense, HouseholdMember } from '../models/types'
@@ -20,17 +20,11 @@ export default function ExpensesScreen() {
   const base = settings.baseCurrency
   const customCategories = settings.customCategories ?? []
 
-  // All categories for the import select, sorted alphabetically (built-ins with overrides + new custom)
-  const sortedCategoriesForSelect = useMemo(() => {
-    const builtinWithOverrides = CATEGORIES.map(c => {
-      const ov = customCategories.find(o => o.id === c.id)
-      return ov ? { id: c.id, label: ov.label, emoji: ov.emoji } : { id: c.id, label: c.label, emoji: c.emoji }
-    })
-    const newCustom = customCategories
-      .filter(c => !CATEGORY_MAP[c.id])
-      .map(c => ({ id: c.id, label: c.label, emoji: c.emoji }))
-    return [...builtinWithOverrides, ...newCustom].sort((a, b) => a.label.localeCompare(b.label, 'fr'))
-  }, [customCategories])
+  // All active (non-deleted) categories for the import select, sorted alphabetically
+  const sortedCategoriesForSelect = useMemo(
+    () => getActiveCategories(customCategories, settings.deletedBuiltinCategories),
+    [customCategories, settings.deletedBuiltinCategories]
+  )
 
   const [year, setYear]       = useState(currentYear())
   const [month, setMonth]     = useState<number | null>(currentMonth())

@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useStore } from '../store/useStore'
-import { CATEGORIES, FIXED_CATEGORIES, VARIABLE_CATEGORIES, getCategoryMeta } from '../data/categories'
+import { FIXED_CATEGORIES, VARIABLE_CATEGORIES, getCategoryMeta } from '../data/categories'
 import { CURRENCIES } from '../data/currencies'
 import { today } from '../utils/dates'
 import type { CurrencyCode, HouseholdMember } from '../models/types'
@@ -24,6 +24,7 @@ interface Props {
 export default function AddExpenseModal({ onClose, prefill }: Props) {
   const { expenses, recurring, settings, addExpense } = useStore()
   const customCategories = settings.customCategories ?? []
+  const deletedBuiltins = new Set(settings.deletedBuiltinCategories ?? [])
 
   const [title, setTitle]             = useState(prefill?.title ?? '')
   const [amount, setAmount]           = useState(prefill?.amount != null ? String(prefill.amount) : '')
@@ -291,10 +292,10 @@ export default function AddExpenseModal({ onClose, prefill }: Props) {
           <div className="flex-1 overflow-y-auto scroll-ios">
             <p className="section-header">Charges incompressibles</p>
             <div className="card mx-4 overflow-hidden">
-              {FIXED_CATEGORIES.map((c, i) => (
+              {FIXED_CATEGORIES.filter(c => !deletedBuiltins.has(c.id)).map((c, i, arr) => (
                 <button key={c.id} type="button" onClick={() => { setCategory(c.id); setShowCatPicker(false) }}
                   className={`w-full flex items-center gap-3 px-4 py-3 active:bg-gray-50 dark:active:bg-gray-700
-                    ${i < FIXED_CATEGORIES.length - 1 ? 'border-b border-gray-100 dark:border-gray-700' : ''}`}>
+                    ${i < arr.length - 1 ? 'border-b border-gray-100 dark:border-gray-700' : ''}`}>
                   <span className="text-2xl">{c.emoji}</span>
                   <div className="flex-1 text-left">
                     <p className="text-[15px] dark:text-white">{c.label}</p>
@@ -306,10 +307,10 @@ export default function AddExpenseModal({ onClose, prefill }: Props) {
             </div>
             <p className="section-header">Charges courantes</p>
             <div className="card mx-4 overflow-hidden">
-              {VARIABLE_CATEGORIES.map((c, i) => (
+              {VARIABLE_CATEGORIES.filter(c => !deletedBuiltins.has(c.id)).map((c, i, arr) => (
                 <button key={c.id} type="button" onClick={() => { setCategory(c.id); setShowCatPicker(false) }}
                   className={`w-full flex items-center gap-3 px-4 py-3 active:bg-gray-50 dark:active:bg-gray-700
-                    ${i < VARIABLE_CATEGORIES.length - 1 ? 'border-b border-gray-100 dark:border-gray-700' : ''}`}>
+                    ${i < arr.length - 1 ? 'border-b border-gray-100 dark:border-gray-700' : ''}`}>
                   <span className="text-2xl">{c.emoji}</span>
                   <p className="flex-1 text-[15px] text-left dark:text-white">{c.label}</p>
                   {category === c.id && <span className="text-blue-600 text-lg font-bold">✓</span>}

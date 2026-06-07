@@ -86,6 +86,7 @@ export interface AppSettings {
   autoBackupToDrive?: boolean
   autoBackupFileId?: string   // Drive file ID for the single auto-backup file (update-in-place)
   customCategories: CustomCategoryDef[]
+  deletedBuiltinCategories?: string[]   // built-in category IDs the user has removed
   /** @deprecated moved to secure storage (IndexedDB) — kept for one-time migration only */
   claudeApiKey?: string
 }

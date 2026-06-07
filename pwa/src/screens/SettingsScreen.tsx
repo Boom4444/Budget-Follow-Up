@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect } from 'react'
 import { useStore } from '../store/useStore'
 import { CURRENCIES } from '../data/currencies'
-import { CATEGORIES, CATEGORY_MAP } from '../data/categories'
+import { CATEGORIES, CATEGORY_MAP, getActiveCategories } from '../data/categories'
 import type { CurrencyCode, AppTheme, MonthlyBudget, CustomCategoryDef } from '../models/types'
 import type { Expense, RecurringExpense } from '../models/types'
 import { v4 as uuid } from 'uuid'
@@ -52,7 +52,7 @@ const EMOJI_GROUPS = [
 ]
 
 export default function SettingsScreen({ onShowHelp }: Props) {
-  const { settings, updateSettings, loadDemoData, expenses, recurring, budgets, importData, clearData, driveToken, setDriveToken, lastAutoBackup, claudeApiKey, setClaudeApiKey } = useStore()
+  const { settings, updateSettings, recategorizeExpenses, loadDemoData, expenses, recurring, budgets, importData, clearData, driveToken, setDriveToken, lastAutoBackup, claudeApiKey, setClaudeApiKey } = useStore()
   const {
     needRefresh: [needRefresh],
     updateServiceWorker,
@@ -122,7 +122,16 @@ export default function SettingsScreen({ onShowHelp }: Props) {
   }
 
   function removeCustomCategory(id: string) {
+    recategorizeExpenses(id, 'a_classer')
     updateSettings({ customCategories: (settings.customCategories ?? []).filter(c => c.id !== id) })
+  }
+
+  function deleteBuiltinCategory(id: string) {
+    recategorizeExpenses(id, 'a_classer')
+    // Remove any custom override and mark as deleted
+    const cleanedCustom = (settings.customCategories ?? []).filter(c => c.id !== id)
+    const deletedBuiltins = [...new Set([...(settings.deletedBuiltinCategories ?? []), id])]
+    updateSettings({ customCategories: cleanedCustom, deletedBuiltinCategories: deletedBuiltins })
   }
 
   function openEditCategory(id: string) {
@@ -400,25 +409,19 @@ export default function SettingsScreen({ onShowHelp }: Props) {
           )}
         </div>
 
-        {/* All categories — built-in (editable) + custom */}
+        {/* All categories — built-in (editable + deletable) + custom, sorted alphabetically */}
         <p className="section-header">Catégories</p>
         <div className="card mx-4 overflow-hidden">
           {(() => {
             const customMap = Object.fromEntries((settings.customCategories ?? []).map(c => [c.id, c]))
-            // Built-in categories, with override label/emoji if set
-            const builtinRows = CATEGORIES.map(cat => ({
-              id: cat.id,
-              emoji: customMap[cat.id]?.emoji ?? cat.emoji,
-              label: customMap[cat.id]?.label ?? cat.label,
-              isFixed: cat.isFixed,
-              isBuiltin: true,
-              isOverridden: !!customMap[cat.id],
-            }))
-            // Purely custom categories (ID not in CATEGORY_MAP)
-            const customRows = (settings.customCategories ?? [])
-              .filter(c => !CATEGORY_MAP[c.id])
-              .map(c => ({ id: c.id, emoji: c.emoji, label: c.label, isFixed: c.isFixed, isBuiltin: false, isOverridden: false }))
-            const allRows = [...builtinRows, ...customRows]
+            const deleted = new Set(settings.deletedBuiltinCategories ?? [])
+            const allRows = getActiveCategories(settings.customCategories, settings.deletedBuiltinCategories)
+              .map(cat => ({
+                ...cat,
+                isBuiltin: !!CATEGORY_MAP[cat.id],
+                isOverridden: !!CATEGORY_MAP[cat.id] && !!customMap[cat.id],
+                isDeletable: cat.id !== 'a_classer',
+              }))
             return allRows.map((cat, i) => (
               <div key={cat.id}
                 className={`flex items-center gap-3 px-4 py-3 ${i < allRows.length - 1 ? 'border-b border-gray-100 dark:border-gray-700' : ''}`}>
@@ -441,8 +444,11 @@ export default function SettingsScreen({ onShowHelp }: Props) {
                     className="text-blue-500 text-[13px] font-medium px-2 py-1 rounded-lg bg-blue-50 dark:bg-blue-950/40">
                     Modifier
                   </button>
-                  {!cat.isBuiltin && (
-                    <button onClick={() => removeCustomCategory(cat.id)}
+                  {cat.isDeletable && (
+                    <button onClick={() => {
+                      if (!window.confirm(`Supprimer "${cat.label}" ? Les transactions seront déplacées dans "À classer".`)) return
+                      cat.isBuiltin ? deleteBuiltinCategory(cat.id) : removeCustomCategory(cat.id)
+                    }}
                       className="text-red-400 text-xl leading-none">×</button>
                   )}
                 </div>

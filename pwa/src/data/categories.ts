@@ -209,3 +209,29 @@ export function getCategoryMeta(
   }
   return undefined
 }
+
+/**
+ * Returns all active (non-deleted) categories sorted alphabetically,
+ * applying custom label/emoji overrides for built-ins.
+ * The 'a_classer' system category always appears last.
+ */
+export function getActiveCategories(
+  customCategories: CustomCategoryDef[] = [],
+  deletedBuiltinCategoryIds: string[] = [],
+): { id: string; label: string; emoji: string; isFixed: boolean }[] {
+  const deletedSet = new Set(deletedBuiltinCategoryIds)
+  const builtinRows = CATEGORIES
+    .filter(c => c.id !== 'a_classer' && !deletedSet.has(c.id))
+    .map(c => {
+      const ov = customCategories.find(o => o.id === c.id)
+      return { id: c.id, label: ov?.label ?? c.label, emoji: ov?.emoji ?? c.emoji, isFixed: c.isFixed }
+    })
+  const newCustom = customCategories
+    .filter(c => !CATEGORY_MAP[c.id])
+    .map(c => ({ id: c.id, label: c.label, emoji: c.emoji, isFixed: c.isFixed }))
+  const sorted = [...builtinRows, ...newCustom]
+    .sort((a, b) => a.label.localeCompare(b.label, 'fr'))
+  // 'À classer' always at the end
+  sorted.push({ id: 'a_classer', label: 'À classer', emoji: '🏷️', isFixed: false })
+  return sorted
+}
