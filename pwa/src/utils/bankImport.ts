@@ -508,12 +508,14 @@ function parsePDFTransactions(text: string, bankName: string): BankImportResult 
   const lines = text.split('\n').map(l => l.trim()).filter(Boolean)
   const transactions: ImportedTransaction[] = []
 
-  // Extract year from document text (e.g. "2026" appearing in headers/dates)
   const yearMatch = text.match(/\b(20\d{2})\b/)
   const documentYear = yearMatch ? parseInt(yearMatch[1]) : new Date().getFullYear()
 
   // UBS → CHF, all others default to EUR
   const currency: CurrencyCode = bankName === 'UBS' ? 'CHF' : 'EUR'
+
+  // CIC statements list amounts as unsigned positive values — direction comes from description keywords
+  const isCICFormat = bankName === 'CIC'
 
   for (const line of lines) {
     if (!DATE_RE.test(line)) continue
@@ -531,17 +533,31 @@ function parsePDFTransactions(text: string, bankName: string): BankImportResult 
     const amount = parseAmount(amountMatch[1])
     if (amount === 0) continue
 
-    // Description: text after the first date, before the amount, minus any leading value date
+    // Description: text after the first date, before the amount, minus leading value date
     const afterDate = lineForAmount.slice(dateMatch.index! + dateMatch[0].length)
     const descRaw = afterDate
       .replace(AMOUNT_RE, '')
-      // strip leading value date (CIC format: "op_date  val_date  Description  amount")
+      // strip leading value date (CIC: "op_date  val_date  Description  amount")
       .replace(/^\s*\d{1,2}[\/.\-]\d{1,2}(?:[\/.\-]\d{2,4})?\s*/, '')
+      // strip residual "foreign_amount CURRENCY" on cross-currency CIC lines (e.g. "475,04   CHF")
+      .replace(/\s+\d{1,3}(?:[',\s]\d{3})*[,.]\d+\s*(?:CHF|EUR|USD|GBP|€)\s*$/i, '')
       .trim()
     const description = descRaw || bankName
 
     if (isCurrencyExchange(description)) continue
     const { category, subCategory } = classify(description)
+
+    // CIC: unsigned amounts — infer debit/credit from description prefix
+    // UBS: amounts are already signed (negative = debit)
+    let txType: 'debit' | 'credit'
+    if (isCICFormat) {
+      const dl = description.toLowerCase()
+      txType = (dl.startsWith('vir ') || dl.startsWith('virement') || dl.startsWith('remboursement'))
+        ? 'credit'
+        : 'debit'
+    } else {
+      txType = amount < 0 ? 'debit' : 'credit'
+    }
 
     transactions.push({
       id: uuid(),
@@ -549,7 +565,7 @@ function parsePDFTransactions(text: string, bankName: string): BankImportResult 
       title: description,
       amount: Math.abs(amount),
       currency,
-      type: amount < 0 ? 'debit' : 'credit',
+      type: txType,
       bank: bankName,
       suggestedCategory: category,
       suggestedSubCategory: subCategory,
