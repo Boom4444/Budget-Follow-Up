@@ -14,7 +14,7 @@ interface Props {
 
 export default function SummaryStrip({ entries, sorties, recurrents, active, onSelect, currency }: Props) {
   const segments: { key: StripFilter; label: string; value: number; color: string }[] = [
-    { key: 'credit', label: 'Entrées',    value: entries,    color: '#16a34a' },
+    { key: 'credit', label: 'Revenus',    value: entries,    color: '#16a34a' },
     { key: 'debit',  label: 'Sorties',    value: sorties,    color: '#ef4444' },
     { key: 'fixed',  label: 'Récurrents', value: recurrents, color: '#f97316' },
   ]

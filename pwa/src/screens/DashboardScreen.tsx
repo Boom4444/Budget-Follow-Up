@@ -26,6 +26,7 @@ export default function DashboardScreen() {
   const [viewCurrency, setViewCurrency] = useState<'all' | CurrencyCode>('all')
   const [chartRange, setChartRange] = useState<6 | 12 | 24>(12)
   const [showAdd, setShowAdd] = useState(false)
+  const [showAddRevenu, setShowAddRevenu] = useState(false)
   const [selectedCat, setSelectedCat] = useState<string | null>(null)
   const [stripFilter, setStripFilter] = useState<StripFilter>('all')
   const [drillCatId, setDrillCatId] = useState<string | null>(null)
@@ -88,11 +89,12 @@ export default function DashboardScreen() {
     [filtered]
   )
 
-  const debits  = filteredCurr.filter(e => e.type === 'debit')
-  const credits = filteredCurr.filter(e => e.type === 'credit')
+  const debits         = filteredCurr.filter(e => e.type === 'debit')
+  // Only explicit income (category 'revenus') counts as revenue in the dashboard
+  const revenusCredits = filteredCurr.filter(e => e.type === 'credit' && e.category === 'revenus')
 
   const totalDepenses = debits.reduce((s, e) => s + getAmt(e), 0)
-  const totalRevenus  = credits.reduce((s, e) => s + getAmt(e), 0)
+  const totalRevenus  = revenusCredits.reduce((s, e) => s + getAmt(e), 0)
   const solde         = totalRevenus - totalDepenses
   const totalFixed    = debits.filter(e => e.isFixed).reduce((s, e) => s + getAmt(e), 0)
   const totalVariable = totalDepenses - totalFixed
@@ -107,16 +109,17 @@ export default function DashboardScreen() {
     if (stripFilter === 'fixed') return e.isFixed
     return stripFilter !== 'credit'
   })
-  const stripCredits = filteredCurr.filter(e => {
-    if (e.type !== 'credit') return false
-    return stripFilter !== 'debit' && stripFilter !== 'fixed'
-  })
+  // Only 'revenus' category credits shown in the revenue strip view
+  const stripCredits = filteredCurr.filter(e =>
+    e.type === 'credit' && e.category === 'revenus' &&
+    stripFilter !== 'debit' && stripFilter !== 'fixed'
+  )
 
   const relevantTotal = stripFilter === 'credit'
     ? stripCredits.reduce((s, e) => s + getAmt(e), 0)
     : stripDebits.reduce((s, e) => s + getAmt(e), 0)
 
-  const stripLabel = stripFilter === 'credit' ? 'Entrées'
+  const stripLabel = stripFilter === 'credit' ? 'Revenus'
     : stripFilter === 'fixed' ? 'Récurrents'
     : stripFilter === 'debit' ? 'Sorties'
     : 'Total dépenses'
@@ -137,7 +140,7 @@ export default function DashboardScreen() {
           (viewCurrency === 'all' || e.currency === viewCurrency)
       })
       const debitMes  = mes.filter(e => e.type === 'debit')
-      const creditMes = mes.filter(e => e.type === 'credit')
+      const creditMes = mes.filter(e => e.type === 'credit' && e.category === 'revenus')
       const a = (e: Expense) => viewCurrency === 'all' ? e.amountInBase : e.amount
       result.unshift({
         name: chartRange > 12 ? `${shortMonth(m)}'${String(y).slice(2)}` : shortMonth(m),
@@ -180,10 +183,17 @@ export default function DashboardScreen() {
       <div className="bg-white dark:bg-gray-900 border-b border-gray-100 dark:border-gray-700 px-4 pt-3 pb-0 flex-shrink-0">
         <div className="flex items-center justify-between mb-3">
           <h1 className="text-[22px] font-bold dark:text-white">Tableau de bord</h1>
-          <button onClick={() => setShowAdd(true)}
-            className="w-9 h-9 bg-blue-600 rounded-full flex items-center justify-center text-white text-xl font-light shadow-sm">
-            +
-          </button>
+          <div className="flex items-center gap-2">
+            <button onClick={() => setShowAddRevenu(true)}
+              title="Ajouter un revenu"
+              className="h-9 px-3 bg-green-100 dark:bg-green-900/40 rounded-full flex items-center gap-1.5 text-green-700 dark:text-green-400 text-[13px] font-semibold shadow-sm">
+              💰 Revenu
+            </button>
+            <button onClick={() => setShowAdd(true)}
+              className="w-9 h-9 bg-blue-600 rounded-full flex items-center justify-center text-white text-xl font-light shadow-sm">
+              +
+            </button>
+          </div>
         </div>
 
         {/* Year nav */}
@@ -483,6 +493,12 @@ export default function DashboardScreen() {
       </div>
 
       {showAdd && <AddExpenseModal onClose={() => setShowAdd(false)} />}
+      {showAddRevenu && (
+        <AddExpenseModal
+          onClose={() => setShowAddRevenu(false)}
+          prefill={{ type: 'credit', category: 'revenus', subCategory: 'Salaire' }}
+        />
+      )}
 
       {drillCatId && (
         <CategoryDrillDown

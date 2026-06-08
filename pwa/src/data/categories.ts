@@ -48,6 +48,16 @@ export const CATEGORIES: CategoryMeta[] = [
     isFixed: true,
     subCategories: ['Loyer + Charges', 'Loyer Suisse', 'Location Logement', 'Eau / Électricité / Gaz'],
   },
+  // ── Revenus (income) ────────────────────────────────────────────────────────
+  {
+    id: 'revenus',
+    label: 'Revenus',
+    emoji: '💰',
+    color: '#15803d',
+    bgColor: '#dcfce7',
+    isFixed: false,
+    subCategories: ['Salaire', 'Prime / Bonus', 'Don / Cadeau', 'Remboursement global', 'Autre'],
+  },
   // ── Charges courantes ──────────────────────────────────────────────────────
   {
     id: 'nourriture',
@@ -155,7 +165,7 @@ export const CATEGORIES: CategoryMeta[] = [
     color: '#374151',
     bgColor: '#f3f4f6',
     isFixed: false,
-    subCategories: ['Salaire', 'Repas Travail', 'Transport Travail', 'Matériel Pro', 'Autres Pro'],
+    subCategories: ['Repas Travail', 'Transport Travail', 'Matériel Pro', 'Autres Pro'],
   },
   {
     id: 'autre',
@@ -181,8 +191,10 @@ export const CATEGORY_MAP = Object.fromEntries(
   CATEGORIES.map(c => [c.id, c])
 ) as Record<string, CategoryMeta>
 
-export const FIXED_CATEGORIES = CATEGORIES.filter(c => c.isFixed)
-export const VARIABLE_CATEGORIES = CATEGORIES.filter(c => !c.isFixed)
+export const FIXED_CATEGORIES   = CATEGORIES.filter(c => c.isFixed)
+// Expense categories only — excludes the income 'revenus' category and system 'a_classer'
+export const VARIABLE_CATEGORIES = CATEGORIES.filter(c => !c.isFixed && c.id !== 'revenus' && c.id !== 'a_classer')
+export const REVENUS_CATEGORY    = CATEGORIES.find(c => c.id === 'revenus')!
 
 export function getCategoryMeta(
   id: string,
@@ -220,8 +232,9 @@ export function getActiveCategories(
   deletedBuiltinCategoryIds: string[] = [],
 ): { id: string; label: string; emoji: string; isFixed: boolean }[] {
   const deletedSet = new Set(deletedBuiltinCategoryIds)
+  // Expense categories: exclude 'revenus' and 'a_classer' from the sorted body
   const builtinRows = CATEGORIES
-    .filter(c => c.id !== 'a_classer' && !deletedSet.has(c.id))
+    .filter(c => c.id !== 'a_classer' && c.id !== 'revenus' && !deletedSet.has(c.id))
     .map(c => {
       const ov = customCategories.find(o => o.id === c.id)
       return { id: c.id, label: ov?.label ?? c.label, emoji: ov?.emoji ?? c.emoji, isFixed: c.isFixed }
@@ -231,7 +244,9 @@ export function getActiveCategories(
     .map(c => ({ id: c.id, label: c.label, emoji: c.emoji, isFixed: c.isFixed }))
   const sorted = [...builtinRows, ...newCustom]
     .sort((a, b) => a.label.localeCompare(b.label, 'fr'))
-  // 'À classer' always at the end
+  // 'Revenus' always first, 'À classer' always last
+  const revOv = customCategories.find(o => o.id === 'revenus')
+  sorted.unshift({ id: 'revenus', label: revOv?.label ?? 'Revenus', emoji: revOv?.emoji ?? '💰', isFixed: false })
   sorted.push({ id: 'a_classer', label: 'À classer', emoji: '🏷️', isFixed: false })
   return sorted
 }

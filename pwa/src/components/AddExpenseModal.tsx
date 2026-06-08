@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useStore } from '../store/useStore'
-import { FIXED_CATEGORIES, VARIABLE_CATEGORIES, getCategoryMeta } from '../data/categories'
+import { FIXED_CATEGORIES, VARIABLE_CATEGORIES, REVENUS_CATEGORY, getCategoryMeta } from '../data/categories'
 import { CURRENCIES, prefetchRateForDate, getHistoricalConversionRate } from '../data/currencies'
 import { today } from '../utils/dates'
 import type { CurrencyCode, HouseholdMember } from '../models/types'
@@ -316,6 +316,19 @@ export default function AddExpenseModal({ onClose, editId, prefill }: Props) {
             <div className="w-16" />
           </div>
           <div className="flex-1 overflow-y-auto scroll-ios">
+            {/* Revenus — always shown first */}
+            <p className="section-header">Revenus</p>
+            <div className="card mx-4 overflow-hidden">
+              <button type="button" onClick={() => { setCategory(REVENUS_CATEGORY.id); setShowCatPicker(false) }}
+                className="w-full flex items-center gap-3 px-4 py-3 active:bg-gray-50 dark:active:bg-gray-700">
+                <span className="text-2xl">{REVENUS_CATEGORY.emoji}</span>
+                <div className="flex-1 text-left">
+                  <p className="text-[15px] dark:text-white">{REVENUS_CATEGORY.label}</p>
+                  <p className="text-xs text-green-600 dark:text-green-400">Salaire, prime, don, remboursement global…</p>
+                </div>
+                {category === REVENUS_CATEGORY.id && <span className="text-blue-600 text-lg font-bold">✓</span>}
+              </button>
+            </div>
             <p className="section-header">Charges incompressibles</p>
             <div className="card mx-4 overflow-hidden">
               {FIXED_CATEGORIES.filter(c => !deletedBuiltins.has(c.id)).map((c, i, arr) => (
