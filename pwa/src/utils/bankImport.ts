@@ -1,8 +1,6 @@
 import { v4 as uuid } from 'uuid'
 import type { CurrencyCode } from '../models/types'
-// Vite bundles the worker and gives us a constructor — handles module-worker
-// instantiation correctly across browsers (incl. iOS Safari), unlike a bare ?url.
-import PdfWorker from 'pdfjs-dist/legacy/build/pdf.worker.min.mjs?worker'
+import pdfWorkerUrl from 'pdfjs-dist/legacy/build/pdf.worker.min.mjs?url'
 
 export type BankFormat = 'revolut' | 'cic' | 'caisse_epargne' | 'ubs' | 'generic'
 
@@ -444,7 +442,7 @@ export async function importFromPDF(buffer: ArrayBuffer, fileName: string): Prom
   // Legacy build = broader compatibility (older Safari/iOS) and matches the worker above
   const pdfjsLib = await import('pdfjs-dist/legacy/build/pdf.mjs')
   // Give pdf.js a dedicated worker instance bundled by Vite
-  pdfjsLib.GlobalWorkerOptions.workerPort = new PdfWorker()
+  pdfjsLib.GlobalWorkerOptions.workerSrc = pdfWorkerUrl
 
   const pdf = await pdfjsLib.getDocument({ data: new Uint8Array(buffer) }).promise
   const pageTexts: string[] = []
