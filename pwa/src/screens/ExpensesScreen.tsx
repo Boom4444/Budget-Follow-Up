@@ -99,8 +99,12 @@ export default function ExpensesScreen() {
       setImportResult(result)
       setImportTxns(result.transactions)
       setImportFilter('all')
-    } catch {
-      setImportError('Erreur lors de la lecture du fichier.')
+    } catch (err) {
+      if (err instanceof Error && err.message === 'PDF_NO_TEXT') {
+        setImportError('Ce PDF ne contient pas de texte sélectionnable (scan/image). Exportez plutôt un PDF ou un fichier Excel/CSV depuis votre banque.')
+      } else {
+        setImportError('Erreur lors de la lecture du fichier.')
+      }
     } finally {
       setImportLoading(false)
     }

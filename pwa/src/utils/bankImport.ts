@@ -1,7 +1,8 @@
 import { v4 as uuid } from 'uuid'
 import type { CurrencyCode } from '../models/types'
-// Vite resolves this at build time, copies the worker to dist/, and returns its public URL
-import pdfWorkerUrl from 'pdfjs-dist/build/pdf.worker.min.mjs?url'
+// Vite bundles the worker and gives us a constructor — handles module-worker
+// instantiation correctly across browsers (incl. iOS Safari), unlike a bare ?url.
+import PdfWorker from 'pdfjs-dist/legacy/build/pdf.worker.min.mjs?worker'
 
 export type BankFormat = 'revolut' | 'cic' | 'caisse_epargne' | 'ubs' | 'generic'
 
@@ -440,10 +441,12 @@ export function importFromCSV(text: string, fileName: string): BankImportResult 
  * amounts and dates on the same visual row end up on the same text line.
  */
 export async function importFromPDF(buffer: ArrayBuffer, fileName: string): Promise<BankImportResult> {
-  const pdfjsLib = await import('pdfjs-dist')
-  pdfjsLib.GlobalWorkerOptions.workerSrc = pdfWorkerUrl
+  // Legacy build = broader compatibility (older Safari/iOS) and matches the worker above
+  const pdfjsLib = await import('pdfjs-dist/legacy/build/pdf.mjs')
+  // Give pdf.js a dedicated worker instance bundled by Vite
+  pdfjsLib.GlobalWorkerOptions.workerPort = new PdfWorker()
 
-  const pdf = await pdfjsLib.getDocument({ data: buffer }).promise
+  const pdf = await pdfjsLib.getDocument({ data: new Uint8Array(buffer) }).promise
   const pageTexts: string[] = []
 
   for (let i = 1; i <= pdf.numPages; i++) {
@@ -473,6 +476,13 @@ export async function importFromPDF(buffer: ArrayBuffer, fileName: string): Prom
   }
 
   const fullText = pageTexts.join('\n')
+
+  // If pdf.js returned no text at all, the PDF is image-only/scanned (or the
+  // worker failed) — surface a clear, distinct error instead of "0 transactions".
+  if (fullText.replace(/\s/g, '').length === 0) {
+    throw new Error('PDF_NO_TEXT')
+  }
+
   const bankName = fileName.replace(/\.pdf$/i, '')
 
   // Try to detect bank from text content
@@ -517,8 +527,38 @@ function parsePDFTransactions(text: string, bankName: string): BankImportResult 
   // CIC statements list amounts as unsigned positive values — direction comes from description keywords
   const isCICFormat = bankName === 'CIC'
 
+  // CIC puts the merchant name on the line *below* the amount line
+  // (e.g. "SPOTIFY FRANCE   CARTE 3935"). We merge that into the description so
+  // auto-categorisation works as well as it does for Excel/CSV imports.
+  let lastTxn: ImportedTransaction | null = null
+  let lastTxnMerged = false
+
   for (const line of lines) {
-    if (!DATE_RE.test(line)) continue
+    const isDateLine = DATE_RE.test(line) && DATE_TOKEN_RE.test(line)
+
+    if (!isDateLine) {
+      // Continuation line — for CIC, fold the merchant detail (which sits on the
+      // line directly below the amount) into the previous txn. We only ever look
+      // at the single immediate continuation line to avoid swallowing footer text.
+      if (isCICFormat && lastTxn && !lastTxnMerged) {
+        lastTxnMerged = true   // consume our one-shot look, success or not
+        const cont = line
+          .replace(/\bCARTE\s+\d+\b/i, '')                                            // "CARTE 3935"
+          .replace(/\s+\d{1,3}(?:[',\s]\d{3})*[,.]\d+\s*(?:CHF|EUR|USD|GBP|€)?\s*$/i, '') // stray amounts
+          .trim()
+        // Only merge merchant-like text (has letters), skip pure refs / totals / IBAN lines
+        if (cont && /[a-zA-Zà-ÿ]/.test(cont) && !/^(IBAN|QXBAN|R[ée]f\b|SOLDE|TOTAL|N°)/i.test(cont)) {
+          const combined = `${lastTxn.title} ${cont}`.trim()
+          lastTxn.title = combined
+          const c = classify(combined)
+          lastTxn.suggestedCategory = c.category
+          lastTxn.suggestedSubCategory = c.subCategory
+          lastTxn.needsReview = c.needsReview
+        }
+      }
+      continue
+    }
+
     const dateMatch = line.match(DATE_TOKEN_RE)
     if (!dateMatch) continue
     const date = parseDate(dateMatch[0], documentYear)
@@ -544,8 +584,11 @@ function parsePDFTransactions(text: string, bankName: string): BankImportResult 
       .trim()
     const description = descRaw || bankName
 
-    if (isCurrencyExchange(description)) continue
-    const { category, subCategory } = classify(description)
+    if (isCurrencyExchange(description)) {
+      lastTxn = null
+      continue
+    }
+    const { category, subCategory, needsReview } = classify(description)
 
     // CIC: unsigned amounts — infer debit/credit from description prefix
     // UBS: amounts are already signed (negative = debit)
@@ -559,7 +602,7 @@ function parsePDFTransactions(text: string, bankName: string): BankImportResult 
       txType = amount < 0 ? 'debit' : 'credit'
     }
 
-    transactions.push({
+    const txn: ImportedTransaction = {
       id: uuid(),
       date,
       title: description,
@@ -569,9 +612,12 @@ function parsePDFTransactions(text: string, bankName: string): BankImportResult 
       bank: bankName,
       suggestedCategory: category,
       suggestedSubCategory: subCategory,
-      needsReview: true,
+      needsReview,
       notes: '',
-    })
+    }
+    transactions.push(txn)
+    lastTxn = txn
+    lastTxnMerged = false
   }
 
   return { bank: 'generic', bankName, transactions }
