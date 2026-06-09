@@ -6,7 +6,7 @@ import { currentYear, currentMonth, shortMonth, dateYear, dateMonth } from '../u
 import type { Expense, HouseholdMember, CurrencyCode } from '../models/types'
 import AddExpenseModal from '../components/AddExpenseModal'
 import TransactionRow from '../components/TransactionRow'
-import { importFromCSV, importFromXLSX, importFromPDF } from '../utils/bankImport'
+import { importFromCSV, importFromXLSX, importFromPDF, importFromJSON } from '../utils/bankImport'
 import type { BankImportResult, ImportedTransaction } from '../utils/bankImport'
 import { prefetchHistoricalRates, getHistoricalConversionRate } from '../data/currencies'
 
@@ -90,21 +90,24 @@ export default function ExpensesScreen() {
       const hb = new Uint8Array(headerBuf)
       // %PDF = 0x25 0x50 0x44 0x46
       const hasPDFMagic  = hb[0] === 0x25 && hb[1] === 0x50 && hb[2] === 0x44 && hb[3] === 0x46
-      // XLSX/XLS = ZIP header PK (0x50 0x4B) or OLE2 header (0xD0 0xCF 0x11 0xE0)
+      // XLSX = ZIP header PK (0x50 0x4B); legacy XLS = OLE2 (0xD0 0xCF 0x11 0xE0)
       const hasXLSXMagic = hb[0] === 0x50 && hb[1] === 0x4B
       const hasXLSMagic  = hb[0] === 0xD0 && hb[1] === 0xCF && hb[2] === 0x11 && hb[3] === 0xE0
 
-      // A purely-numeric suffix like ".2026" or absent extension → try PDF
+      // First non-whitespace char — JSON starts with { or [
+      const firstChar = String.fromCharCode(hb[0]).trim() || String.fromCharCode(hb[1])
+
+      // A purely-numeric suffix like ".2026" or absent extension → treat as PDF
       const hasNoRealExt = ext === '' || /^\d+$/.test(ext)
 
       const isExcel = ext === 'xls' || ext === 'xlsx' || hasXLSXMagic || hasXLSMagic
-      const isCSV   = !isExcel && (ext === 'csv' || ext === 'tsv' || ext === 'txt')
-      const isPDF   = !isExcel && (hasPDFMagic || ext === 'pdf' ||
+      const isJSON  = !isExcel && (ext === 'json' || ((firstChar === '{' || firstChar === '[') && ext !== 'pdf'))
+      const isPDF   = !isExcel && !isJSON && (hasPDFMagic || ext === 'pdf' ||
                       file.type === 'application/pdf' || hasNoRealExt)
 
       console.log('[import]', file.name, '| ext:', ext || '(none)', '| mime:', file.type,
-        '| magic PDF:', hasPDFMagic, 'XLSX:', hasXLSXMagic, 'XLS:', hasXLSMagic,
-        '| decision:', isExcel ? 'excel' : isPDF ? 'pdf' : 'csv')
+        '| magic PDF:', hasPDFMagic, 'XLSX:', hasXLSXMagic,
+        '| decision:', isExcel ? 'excel' : isJSON ? 'json' : isPDF ? 'pdf' : 'csv')
 
       if (isExcel) {
         const buf = await file.arrayBuffer()
@@ -112,6 +115,9 @@ export default function ExpensesScreen() {
       } else if (isPDF) {
         const buf = await file.arrayBuffer()
         result = await importFromPDF(buf, file.name)
+      } else if (isJSON) {
+        const text = await file.text()
+        result = importFromJSON(text, file.name)
       } else {
         const text = await file.text()
         result = importFromCSV(text, file.name)
@@ -125,12 +131,14 @@ export default function ExpensesScreen() {
       setImportTxns(result.transactions)
       setImportFilter('all')
     } catch (err) {
-      if (err instanceof Error && err.message === 'PDF_NO_TEXT') {
+      const msg = err instanceof Error ? err.message : String(err)
+      if (msg === 'PDF_NO_TEXT') {
         setImportError('Ce PDF ne contient pas de texte sélectionnable (scan/image). Exportez plutôt un PDF ou un fichier Excel/CSV depuis votre banque.')
+      } else if (msg === 'PDF_PARSE_FAILED') {
+        setImportError('Impossible de lire ce PDF. Il est peut-être protégé ou endommagé. Essayez un export Excel/CSV depuis votre banque.')
       } else {
-        const detail = err instanceof Error ? err.message : String(err)
         console.error('[import] error:', err)
-        setImportError(`Erreur lors de la lecture du fichier. (${detail})`)
+        setImportError(`Erreur lors de la lecture du fichier. (${msg})`)
       }
     } finally {
       setImportLoading(false)

@@ -36,7 +36,7 @@ function credit(amount: number, currency: CurrencyCode): Pick<RawRow, 'type' | '
 // ─── Données de référence (source de vérité = feuille Excel) ──────────────────
 
 const JANVIER_2026: RawRow[] = [
-  { date: '2026-01-01', bank: 'UBS',    category: 'entreprise', subCategory: 'Salaire',            ...credit(7814,   'CHF'), title: 'Pictet',                  notes: '' },
+  { date: '2026-01-01', bank: 'UBS',    category: 'revenus',    subCategory: 'Salaire',               ...credit(7814,   'CHF'), title: 'Pictet',                  notes: '' },
   { date: '2026-01-01', bank: 'UBS',    category: 'logement',   subCategory: 'Loyer + Charges',    ...debit(2530,   'CHF'), title: 'Mme. Febo',               notes: '' },
   { date: '2026-01-01', bank: 'UBS',    category: 'nourriture', subCategory: 'Restaurant',         ...debit(64.40,  'CHF'), title: 'McDonalds',               notes: '' },
   { date: '2026-01-02', bank: 'CIC',    category: 'abonnements',subCategory: 'Spotify',            ...debit(17.20,  'EUR'), title: 'Spotify',                 notes: '' },
@@ -121,7 +121,7 @@ const JUIN_2024: RawRow[] = [
   { date: '2024-06-20', bank: 'CIC',    category: 'cadeaux',    subCategory: 'Couple',             ...debit(94.60, 'EUR'), title: 'Fever',                   notes: 'CandleLight Cathédrale Fourvière anniversaire Angèle' },
   { date: '2024-06-23', bank: 'Revolut',category: 'nourriture', subCategory: 'Autres Nourriture',  ...debit(13.80, 'CHF'), title: 'New York Coffee',         notes: '' },
   { date: '2024-06-23', bank: 'Revolut',category: 'transport',  subCategory: 'Essence',            ...debit(22.90, 'CHF'), title: 'Eni',                     notes: '' },
-  { date: '2024-06-24', bank: 'CS',     category: 'entreprise', subCategory: 'Salaire',            ...credit(6418.9,'CHF'), title: 'EY',                     notes: 'Salaire juin 2024' },
+  { date: '2024-06-24', bank: 'CS',     category: 'revenus',    subCategory: 'Salaire',               ...credit(6418.9,'CHF'), title: 'EY',                     notes: 'Salaire juin 2024' },
   { date: '2024-06-24', bank: 'Revolut',category: 'transport',  subCategory: 'Autres Transport',   ...debit(4,     'EUR'), title: 'Cumul',                   notes: 'Péage vacances Italie' },
   { date: '2024-06-24', bank: 'Revolut',category: 'nourriture', subCategory: 'Restaurant',         ...debit(6,     'EUR'), title: 'Gelateria Vernazza',      notes: 'Glaces avec Quentin et Alex' },
   { date: '2024-06-24', bank: 'Revolut',category: 'transport',  subCategory: 'SNCF / Train',               ...debit(30,    'EUR'), title: 'Trenitalia',              notes: 'Trains Cinque Terre' },
@@ -189,8 +189,8 @@ describe('Conversion de devises', () => {
 // ─── Tests : catégories ───────────────────────────────────────────────────────
 
 describe('Catégories', () => {
-  it('17 catégories au total', () => {
-    expect(CATEGORIES).toHaveLength(17)
+  it('19 catégories au total', () => {
+    expect(CATEGORIES).toHaveLength(19)
   })
 
   it('banque a les sous-catégories Prêt et Frais Carte', () => {
@@ -220,9 +220,9 @@ describe('Catégories', () => {
     expect(subs).toContain('Activité / Sortie')
   })
 
-  it('entreprise a Salaire, Repas Travail, Transport Travail', () => {
+  it('revenus a Salaire (revenu), entreprise a Repas/Transport Travail', () => {
+    expect(CATEGORY_MAP['revenus'].subCategories).toContain('Salaire')
     const subs = CATEGORY_MAP['entreprise'].subCategories
-    expect(subs).toContain('Salaire')
     expect(subs).toContain('Repas Travail')
     expect(subs).toContain('Transport Travail')
   })
@@ -263,7 +263,7 @@ describe('Données Janvier 2026', () => {
   })
 
   it('1 salaire UBS Pictet 7814 CHF (crédit)', () => {
-    const row = JANVIER_2026.find(r => r.category === 'entreprise' && r.subCategory === 'Salaire')
+    const row = JANVIER_2026.find(r => r.category === 'revenus' && r.subCategory === 'Salaire')
     expect(row).toBeDefined()
     expect(row!.amount).toBe(7814)
     expect(row!.currency).toBe('CHF')
@@ -366,7 +366,7 @@ describe('Données Juin 2024', () => {
   })
 
   it('salaire EY 6418.90 CHF crédit CS', () => {
-    const row = JUIN_2024.find(r => r.category === 'entreprise' && r.subCategory === 'Salaire')
+    const row = JUIN_2024.find(r => r.category === 'revenus' && r.subCategory === 'Salaire')
     expect(row).toBeDefined()
     expect(row!.amount).toBe(6418.9)
     expect(row!.currency).toBe('CHF')

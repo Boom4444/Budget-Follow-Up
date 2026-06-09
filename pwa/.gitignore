@@ -1,3 +1,7 @@
 node_modules/
 dist/
 .DS_Store
+
+# Private bank-statement fixtures (real financial data — never commit)
+src/__tests__/fixtures/*.pdf
+src/__tests__/fixtures/revolut_fr.csv

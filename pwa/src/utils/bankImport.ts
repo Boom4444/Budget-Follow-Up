@@ -1,6 +1,5 @@
 import { v4 as uuid } from 'uuid'
 import type { CurrencyCode } from '../models/types'
-import pdfWorkerUrl from 'pdfjs-dist/build/pdf.worker.min.mjs?url'
 
 export type BankFormat = 'revolut' | 'cic' | 'caisse_epargne' | 'ubs' | 'generic'
 
@@ -125,11 +124,13 @@ const EXCHANGE_PATTERNS = [
   /^currency exchange/i,
   /^fx (conversion|fee)/i,
   /^change de devises/i,
+  /^change en [a-z]{3}/i,   // Revolut FR: "Change en EUR", "Change en GBP"
   /^bureau de change/i,
 ]
 
-function isCurrencyExchange(desc: string, revolut_type?: string): boolean {
-  if (revolut_type?.toLowerCase() === 'exchange') return true
+function isCurrencyExchange(desc: string, txnType?: string): boolean {
+  const t = txnType?.toLowerCase() ?? ''
+  if (t === 'exchange' || t === 'changes' || t === 'change') return true
   return EXCHANGE_PATTERNS.some(p => p.test(desc.trim()))
 }
 
@@ -187,7 +188,11 @@ function detectSep(line: string): string {
 
 function detectFormat(header: string): BankFormat {
   const h = header.toLowerCase()
+  // Revolut: English ("Completed Date"/"Started Date") or French
+  // ("Date de début"/"Date de fin" + "Devise" + "État")
   if (h.includes('completed date') || h.includes('started date')) return 'revolut'
+  if ((h.includes('date de début') || h.includes('date de debut') || h.includes('date de fin')) &&
+      h.includes('devise') && (h.includes('état') || h.includes('etat'))) return 'revolut'
   if (h.includes('buchungsdatum') || h.includes('belastung') || h.includes('gutschrift')) return 'ubs'
   if (h.includes('date valeur')) return 'caisse_epargne'
   if (h.includes('numéro de compte') || h.includes('numero de compte')) return 'cic'
@@ -212,47 +217,82 @@ function splitLine(line: string, sep: string): string[] {
 
 // ── Per-bank parsers ──────────────────────────────────────────────────────────
 
+// Handles both the English and French Revolut CSV exports.
+// EN: Type,Product,Started Date,Completed Date,Description,Amount,Fee,Currency,State,Balance
+// FR: Type,Produit,Date de début,Date de fin,Description,Montant,Frais,Devise,État,Solde
 function parseRevolutCSV(lines: string[]): ImportedTransaction[] {
   const sep = detectSep(lines[0])
   const header = lines[0].split(sep).map(h => h.trim().toLowerCase().replace(/['"]/g, ''))
-  const col = (name: string) => header.indexOf(name)
+  // Find a column whose name contains any of the given substrings
+  const find = (...names: string[]) => header.findIndex(h => names.some(n => h.includes(n)))
 
-  const dateIdx    = col('completed date') !== -1 ? col('completed date') : col('started date')
-  const descIdx    = col('description')
-  const amountIdx  = col('amount')
-  const currencyIdx= col('currency')
-  const stateIdx   = col('state')
-  const typeIdx = col('type')
+  const completedIdx = find('completed date', 'date de fin')
+  const startedIdx   = find('started date', 'date de début', 'date de debut')
+  const dateIdx      = completedIdx !== -1 ? completedIdx : startedIdx
+  const descIdx      = find('description')
+  const amountIdx    = find('amount', 'montant')
+  const feeIdx       = find('fee', 'frais')
+  const currencyIdx  = find('currency', 'devise')
+  const stateIdx     = find('state', 'état', 'etat')
+  const typeIdx      = find('type')
+
+  // Only these states are real, settled transactions
+  const DONE = new Set(['completed', 'terminé', 'termine'])
 
   const out: ImportedTransaction[] = []
   for (const line of lines.slice(1)) {
     if (!line.trim()) continue
     const cols = splitLine(line, sep)
     if (cols.length < 5) continue
-    if (stateIdx >= 0 && (cols[stateIdx] ?? '').toLowerCase() !== 'completed') continue
-    const txType = typeIdx >= 0 ? (cols[typeIdx] ?? '').toLowerCase() : ''; if (txType === 'exchange') continue
+
+    const state = (stateIdx >= 0 ? cols[stateIdx] ?? '' : '').toLowerCase().trim()
+    if (stateIdx >= 0 && !DONE.has(state)) continue
+
+    const txType = typeIdx >= 0 ? (cols[typeIdx] ?? '') : ''
+    const currency = ((cols[currencyIdx] ?? 'EUR').trim().toUpperCase() || 'EUR') as CurrencyCode
+    const description = cols[descIdx] ?? ''
+    const date = parseDate(cols[dateIdx] ?? '')
+
+    // Skip internal currency-exchange legs (they double-count real spending)
+    if (isCurrencyExchange(description, txType)) continue
 
     const amount = parseAmount(cols[amountIdx] ?? '')
-    if (amount === 0) continue
+    const fee    = feeIdx >= 0 ? parseAmount(cols[feeIdx] ?? '') : 0
 
-    const currency = ((cols[currencyIdx] ?? 'EUR').trim().toUpperCase()) as CurrencyCode
-    const description = cols[descIdx] ?? ''
-    if (isCurrencyExchange(description, cols[typeIdx] ?? '')) continue
-    const { category, subCategory, needsReview } = classify(description)
+    if (amount !== 0) {
+      const { category, subCategory, needsReview } = classify(description)
+      out.push({
+        id: uuid(),
+        date,
+        title: description,
+        amount: Math.abs(amount),
+        currency,
+        type: amount < 0 ? 'debit' : 'credit',
+        bank: 'Revolut',
+        suggestedCategory: category,
+        suggestedSubCategory: subCategory,
+        needsReview,
+        notes: '',
+      })
+    }
 
-    out.push({
-      id: uuid(),
-      date: parseDate(cols[dateIdx] ?? ''),
-      title: description,
-      amount: Math.abs(amount),
-      currency,
-      type: amount < 0 ? 'debit' : 'credit',
-      bank: 'Revolut',
-      suggestedCategory: category,
-      suggestedSubCategory: subCategory,
-      needsReview,
-      notes: '',
-    })
+    // A non-zero fee is a real charge — capture it as its own debit so it
+    // isn't silently lost (e.g. "Frais d'abonnement Premium" = 10.99).
+    if (fee > 0) {
+      out.push({
+        id: uuid(),
+        date,
+        title: `Frais — ${description || 'Revolut'}`,
+        amount: Math.abs(fee),
+        currency,
+        type: 'debit',
+        bank: 'Revolut',
+        suggestedCategory: 'banque',
+        suggestedSubCategory: 'Frais Carte',
+        needsReview: false,
+        notes: '',
+      })
+    }
   }
   return out
 }
@@ -432,59 +472,178 @@ export function importFromCSV(text: string, fileName: string): BankImportResult 
   }
 }
 
-/**
- * Extract text from a PDF bank statement and attempt to parse transactions.
- * Uses pdf.js (dynamic import) to keep the initial bundle lean.
- * Each page's text items are sorted top-to-bottom, left-to-right so that
- * amounts and dates on the same visual row end up on the same text line.
- */
-export async function importFromPDF(buffer: ArrayBuffer, fileName: string): Promise<BankImportResult> {
-  // Standard (non-legacy) build — works correctly on modern iOS Safari (15+).
-  // The legacy build caused "undefined is not a function" crashes on iOS JSC.
-  const pdfjsLib = await import('pdfjs-dist')
-  pdfjsLib.GlobalWorkerOptions.workerSrc = pdfWorkerUrl
-  console.log('[pdf] workerSrc:', pdfWorkerUrl, '| buffer:', buffer.byteLength, 'bytes')
+// ── JSON import ────────────────────────────────────────────────────────────
+// Accepts either a bare array of transaction-like objects, or an object that
+// wraps the array under a common key (transactions / expenses / data / items).
+// Field names are matched flexibly (EN/FR), so it ingests both the app's own
+// export and generic third-party JSON dumps.
+export function importFromJSON(text: string, fileName: string): BankImportResult {
+  let parsed: any
+  try {
+    parsed = JSON.parse(text)
+  } catch {
+    return { bank: 'generic', bankName: 'Import', transactions: [] }
+  }
 
-  const standardFontDataUrl = import.meta.env.BASE_URL + 'standard_fonts/'
-  const pdf = await pdfjsLib.getDocument({
-    data: new Uint8Array(buffer),
-    standardFontDataUrl,
-  }).promise
-  console.log('[pdf] pages:', pdf.numPages)
+  // Locate the array of records
+  let arr: any[] | null = null
+  if (Array.isArray(parsed)) arr = parsed
+  else if (parsed && typeof parsed === 'object') {
+    for (const key of ['transactions', 'expenses', 'data', 'items', 'operations', 'records']) {
+      if (Array.isArray(parsed[key])) { arr = parsed[key]; break }
+    }
+  }
+  if (!arr) return { bank: 'generic', bankName: 'Import', transactions: [] }
+
+  const name = fileName.replace(/\.json$/i, '') || 'Import'
+
+  const pick = (obj: any, keys: string[]): any => {
+    for (const k of Object.keys(obj)) {
+      const lk = k.toLowerCase()
+      if (keys.some(want => lk === want || lk.includes(want))) return obj[k]
+    }
+    return undefined
+  }
+
+  const out: ImportedTransaction[] = []
+  for (const rec of arr) {
+    if (!rec || typeof rec !== 'object') continue
+
+    const rawDate = pick(rec, ['date', 'datum'])
+    const rawAmount = pick(rec, ['amount', 'montant', 'betrag', 'somme', 'value'])
+    const rawTitle = pick(rec, ['title', 'description', 'libellé', 'libelle', 'label', 'text', 'memo', 'name'])
+    const rawCurrency = pick(rec, ['currency', 'devise'])
+    const rawType = pick(rec, ['type'])
+
+    const amountNum = typeof rawAmount === 'number' ? rawAmount : parseAmount(String(rawAmount ?? ''))
+    if (!amountNum) continue
+
+    const description = String(rawTitle ?? name)
+    if (isCurrencyExchange(description, typeof rawType === 'string' ? rawType : undefined)) continue
+
+    const currency = (String(rawCurrency ?? 'EUR').trim().toUpperCase() || 'EUR') as CurrencyCode
+    const { category, subCategory, needsReview } = classify(description)
+
+    // Type: explicit debit/credit string wins, otherwise sign of the amount
+    let txType: 'debit' | 'credit'
+    const t = String(rawType ?? '').toLowerCase()
+    if (t === 'debit' || t === 'credit') txType = t
+    else txType = amountNum < 0 ? 'debit' : 'credit'
+
+    out.push({
+      id: uuid(),
+      date: parseDate(String(rawDate ?? '')),
+      title: description,
+      amount: Math.abs(amountNum),
+      currency,
+      type: txType,
+      bank: name,
+      suggestedCategory: category,
+      suggestedSubCategory: subCategory,
+      needsReview,
+      notes: '',
+    })
+  }
+
+  return { bank: 'generic', bankName: name, transactions: out }
+}
+
+/**
+ * Extract visual text rows from a pdf.js document. Items on the same visual
+ * line (snapped to an 8-unit y-grid) are joined left-to-right; rows are ordered
+ * top-to-bottom. Every step is defensive so a single malformed page/item can
+ * never throw and abort the whole import.
+ */
+export async function extractPdfText(pdf: any): Promise<string> {
+  type Item = { str: string; x: number; y: number }
   const pageTexts: string[] = []
 
   for (let i = 1; i <= pdf.numPages; i++) {
-    const page = await pdf.getPage(i)
-    const content = await page.getTextContent()
+    let content: any
+    try {
+      const page = await pdf.getPage(i)
+      content = await page.getTextContent()
+    } catch (e) {
+      console.warn('[pdf] page', i, 'failed', e)
+      continue
+    }
 
-    // content.items may contain TextMarkedContent objects (no .str/.transform).
-    // Filter them out and use optional chaining so a malformed item never throws.
-    type Item = { str: string; x: number; y: number }
-    const rawItems: any[] = Array.isArray(content.items)
-      ? content.items
-      : Array.from(content.items as Iterable<any>)
-    const items: Item[] = rawItems
-      .filter((it: any) => typeof it.str === 'string' && Array.isArray(it.transform))
-      .map((it: any) => ({
-        str: it.str as string,
-        x: Math.round(it.transform[4] ?? 0),
-        y: Math.round(it.transform[5] ?? 0),
-      }))
+    const rawItems: any[] = content && Array.isArray(content.items) ? content.items : []
+    const items: Item[] = []
+    for (const it of rawItems) {
+      if (!it || typeof it.str !== 'string' || !Array.isArray(it.transform)) continue
+      items.push({
+        str: it.str,
+        x: Math.round(Number(it.transform[4]) || 0),
+        y: Math.round(Number(it.transform[5]) || 0),
+      })
+    }
 
     const byY = new Map<number, Item[]>()
     for (const it of items) {
       const yKey = Math.round(it.y / 8) * 8
-      if (!byY.has(yKey)) byY.set(yKey, [])
-      byY.get(yKey)!.push(it)
+      const row = byY.get(yKey)
+      if (row) row.push(it)
+      else byY.set(yKey, [it])
     }
-    const rows = [...byY.entries()]
-      .sort(([a], [b]) => b - a)
+
+    const rows = Array.from(byY.entries())
+      .sort((a, b) => b[0] - a[0])
       .map(([, row]) => row.sort((a, b) => a.x - b.x).map(it => it.str).join(' ').trim())
       .filter(Boolean)
     pageTexts.push(rows.join('\n'))
   }
 
-  const fullText = pageTexts.join('\n')
+  return pageTexts.join('\n')
+}
+
+/**
+ * Lazily set up the pdf.js worker exactly once. We use Vite's `?worker` import
+ * which BUNDLES the worker as a classic (IIFE) chunk that Vite serves itself —
+ * this avoids the GitHub-Pages ".mjs is served as octet-stream" problem that
+ * breaks `new Worker(url, {type:'module'})`, and it works on iOS Safari.
+ * The import is dynamic so this module stays free of Vite-only syntax at the
+ * top level (keeps it importable by Node/vitest for unit-testing the parsers).
+ */
+let pdfjsLibPromise: Promise<any> | null = null
+async function getPdfjs(): Promise<any> {
+  if (pdfjsLibPromise) return pdfjsLibPromise
+  pdfjsLibPromise = (async () => {
+    const pdfjsLib = await import('pdfjs-dist')
+    try {
+      const WorkerCtor = (await import('pdfjs-dist/build/pdf.worker.min.mjs?worker')).default
+      pdfjsLib.GlobalWorkerOptions.workerPort = new WorkerCtor()
+    } catch (e) {
+      // If the bundled worker can't be instantiated, pdf.js falls back to a
+      // main-thread "fake worker" — slower but still functional.
+      console.warn('[pdf] worker setup failed, using main-thread fallback', e)
+    }
+    return pdfjsLib
+  })()
+  return pdfjsLibPromise
+}
+
+export async function importFromPDF(buffer: ArrayBuffer, fileName: string): Promise<BankImportResult> {
+  const pdfjsLib = await getPdfjs()
+  console.log('[pdf] start | buffer:', buffer.byteLength, 'bytes')
+
+  const standardFontDataUrl = import.meta.env.BASE_URL + 'standard_fonts/'
+  let pdf: any
+  try {
+    pdf = await pdfjsLib.getDocument({
+      data: new Uint8Array(buffer),
+      standardFontDataUrl,
+      // Don't fail the whole parse over font/eval issues
+      isEvalSupported: false,
+      useSystemFonts: true,
+    }).promise
+  } catch (e) {
+    console.error('[pdf] getDocument failed', e)
+    throw new Error('PDF_PARSE_FAILED')
+  }
+  console.log('[pdf] pages:', pdf.numPages)
+
+  const fullText = await extractPdfText(pdf)
   console.log('[pdf] total text chars:', fullText.length, '| sample:', fullText.slice(0, 300).replace(/\n/g, ' ↵ '))
 
   // If pdf.js returned no text at all, the PDF is image-only/scanned (or the
@@ -524,7 +683,7 @@ const TRAILING_DATE_RE = /\s+\d{2}[\/.\-]\d{2}[\/.\-]\d{4}\s*$/
 // Matches any date-like token — used without anchor to locate dates inside a line.
 const DATE_TOKEN_RE = /\d{1,2}[\/.\-]\d{1,2}(?:[\/.\-]\d{2,4})?|\d{4}-\d{2}-\d{2}/
 
-function parsePDFTransactions(text: string, bankName: string): BankImportResult {
+export function parsePDFTransactions(text: string, bankName: string): BankImportResult {
   const lines = text.split('\n').map(l => l.trim()).filter(Boolean)
   const transactions: ImportedTransaction[] = []
 

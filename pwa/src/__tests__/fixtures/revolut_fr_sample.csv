@@ -1,0 +1,12 @@
+Type,Produit,Date de début,Date de fin,Description,Montant,Frais,Devise,État,Solde
+Paiement par carte,Valeur actuelle,2026-04-02 20:14:15,2026-04-03 17:51:58,SBB CFF FFS,-2.00,0.00,CHF,TERMINÉ,2185.05
+Changes,Valeur actuelle,2026-04-14 12:06:49,2026-04-14 12:06:49,Change en EUR,-1200.00,0.00,CHF,TERMINÉ,967.01
+Ajout de fonds,Valeur actuelle,2026-04-23 04:13:24,2026-04-23 04:13:24,Paiement reçu,2500.00,0.00,CHF,TERMINÉ,3447.01
+Valider le paiement,Valeur actuelle,2026-04-28 08:56:34,2026-04-28 08:56:34,Frais d'abonnement Premium,0.00,10.99,CHF,TERMINÉ,1741.02
+Paiement par carte,Valeur actuelle,2026-04-02 16:11:54,2026-04-06 09:49:06,Canal+,-34.99,0.00,EUR,TERMINÉ,1183.44
+Paiement par carte,Valeur actuelle,2026-04-26 11:52:23,2026-04-28 09:53:41,Lidl,-89.63,0.00,EUR,TERMINÉ,1437.63
+Changes,Valeur actuelle,2026-05-15 14:21:20,2026-05-15 14:21:20,Change en GBP,-1000.00,0.00,EUR,TERMINÉ,817.52
+Paiement par carte,Valeur actuelle,2026-05-30 15:21:04,,IVS France,-2.10,0.00,EUR,RENVOYÉ,
+Paiement par carte,Valeur actuelle,2026-05-30 15:21:47,2026-05-31 19:44:31,IVS France,-2.40,0.00,EUR,TERMINÉ,989.77
+Valider le paiement,Valeur actuelle,2026-05-28 05:47:23,2026-05-28 05:47:23,Frais d'abonnement Premium,0.00,10.99,CHF,TERMINÉ,2298.87
+Paiement par carte,Valeur actuelle,2026-05-30 08:48:29,2026-05-31 19:27:26,Google,-29.99,0.00,EUR,TERMINÉ,992.17

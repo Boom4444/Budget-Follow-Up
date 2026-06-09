@@ -21,6 +21,8 @@ export type CategoryId =
   | 'maison'
   | 'beaute'
   | 'sport'
+  | 'revenus'
+  | 'a_classer'
   | 'autre'
 
 export interface CustomCategoryDef {
