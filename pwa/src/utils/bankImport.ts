@@ -1,6 +1,6 @@
 import { v4 as uuid } from 'uuid'
 import type { CurrencyCode } from '../models/types'
-import pdfWorkerUrl from 'pdfjs-dist/legacy/build/pdf.worker.min.mjs?url'
+import pdfWorkerUrl from 'pdfjs-dist/build/pdf.worker.min.mjs?url'
 
 export type BankFormat = 'revolut' | 'cic' | 'caisse_epargne' | 'ubs' | 'generic'
 
@@ -439,9 +439,9 @@ export function importFromCSV(text: string, fileName: string): BankImportResult 
  * amounts and dates on the same visual row end up on the same text line.
  */
 export async function importFromPDF(buffer: ArrayBuffer, fileName: string): Promise<BankImportResult> {
-  // Legacy build = broader compatibility (older Safari/iOS)
-  const pdfjsLib = await import('pdfjs-dist/legacy/build/pdf.mjs')
-  // workerSrc: pdf.js internally creates new Worker(url, {type:'module'}) so the .mjs file loads correctly
+  // Standard (non-legacy) build — works correctly on modern iOS Safari (15+).
+  // The legacy build caused "undefined is not a function" crashes on iOS JSC.
+  const pdfjsLib = await import('pdfjs-dist')
   pdfjsLib.GlobalWorkerOptions.workerSrc = pdfWorkerUrl
   console.log('[pdf] workerSrc:', pdfWorkerUrl, '| buffer:', buffer.byteLength, 'bytes')
 
@@ -457,21 +457,26 @@ export async function importFromPDF(buffer: ArrayBuffer, fileName: string): Prom
     const page = await pdf.getPage(i)
     const content = await page.getTextContent()
 
-    // Group items by their vertical position (round to nearest 3px) then sort by x
+    // content.items may contain TextMarkedContent objects (no .str/.transform).
+    // Filter them out and use optional chaining so a malformed item never throws.
     type Item = { str: string; x: number; y: number }
-    const items: Item[] = (content.items as any[]).map((it: any) => ({
-      str: it.str as string,
-      x: Math.round(it.transform[4]),
-      y: Math.round(it.transform[5]),
-    }))
+    const rawItems: any[] = Array.isArray(content.items)
+      ? content.items
+      : Array.from(content.items as Iterable<any>)
+    const items: Item[] = rawItems
+      .filter((it: any) => typeof it.str === 'string' && Array.isArray(it.transform))
+      .map((it: any) => ({
+        str: it.str as string,
+        x: Math.round(it.transform[4] ?? 0),
+        y: Math.round(it.transform[5] ?? 0),
+      }))
+
     const byY = new Map<number, Item[]>()
     for (const it of items) {
-      // Snap y to an 8-unit grid to merge items on the same visual row
       const yKey = Math.round(it.y / 8) * 8
       if (!byY.has(yKey)) byY.set(yKey, [])
       byY.get(yKey)!.push(it)
     }
-    // Sort rows top-to-bottom (higher y = higher on page in PDF coords)
     const rows = [...byY.entries()]
       .sort(([a], [b]) => b - a)
       .map(([, row]) => row.sort((a, b) => a.x - b.x).map(it => it.str).join(' ').trim())

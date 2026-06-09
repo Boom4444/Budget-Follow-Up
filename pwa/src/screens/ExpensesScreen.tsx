@@ -85,21 +85,26 @@ export default function ExpensesScreen() {
       const lastDot = nameLower.lastIndexOf('.')
       const ext = lastDot >= 0 ? nameLower.slice(lastDot + 1) : ''
 
-      // A "real" extension is a known format keyword. Purely-numeric suffixes like
-      // ".2026" in "CIC_01.2026" and no extension at all both mean → try PDF.
-      const isExcel = ext === 'xls' || ext === 'xlsx'
-      const isCSV   = ext === 'csv' || ext === 'tsv' || ext === 'txt'
+      // Read magic bytes for reliable format detection regardless of extension/MIME
+      const headerBuf = await file.slice(0, 8).arrayBuffer()
+      const hb = new Uint8Array(headerBuf)
+      // %PDF = 0x25 0x50 0x44 0x46
+      const hasPDFMagic  = hb[0] === 0x25 && hb[1] === 0x50 && hb[2] === 0x44 && hb[3] === 0x46
+      // XLSX/XLS = ZIP header PK (0x50 0x4B) or OLE2 header (0xD0 0xCF 0x11 0xE0)
+      const hasXLSXMagic = hb[0] === 0x50 && hb[1] === 0x4B
+      const hasXLSMagic  = hb[0] === 0xD0 && hb[1] === 0xCF && hb[2] === 0x11 && hb[3] === 0xE0
+
+      // A purely-numeric suffix like ".2026" or absent extension → try PDF
       const hasNoRealExt = ext === '' || /^\d+$/.test(ext)
 
-      // Magic-byte check: PDFs start with %PDF (0x25 0x50 0x44 0x46)
-      const headerBuf = await file.slice(0, 4).arrayBuffer()
-      const hb = new Uint8Array(headerBuf)
-      const hasPDFMagic = hb[0] === 0x25 && hb[1] === 0x50 && hb[2] === 0x44 && hb[3] === 0x46
-
-      const isPDF = hasPDFMagic || ext === 'pdf' || file.type === 'application/pdf' || hasNoRealExt
+      const isExcel = ext === 'xls' || ext === 'xlsx' || hasXLSXMagic || hasXLSMagic
+      const isCSV   = !isExcel && (ext === 'csv' || ext === 'tsv' || ext === 'txt')
+      const isPDF   = !isExcel && (hasPDFMagic || ext === 'pdf' ||
+                      file.type === 'application/pdf' || hasNoRealExt)
 
       console.log('[import]', file.name, '| ext:', ext || '(none)', '| mime:', file.type,
-        '| magic:%PDF:', hasPDFMagic, '| decision:', isExcel ? 'excel' : isPDF ? 'pdf' : isCSV ? 'csv' : 'csv-fallback')
+        '| magic PDF:', hasPDFMagic, 'XLSX:', hasXLSXMagic, 'XLS:', hasXLSMagic,
+        '| decision:', isExcel ? 'excel' : isPDF ? 'pdf' : 'csv')
 
       if (isExcel) {
         const buf = await file.arrayBuffer()
