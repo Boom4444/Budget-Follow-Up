@@ -37,7 +37,7 @@ export default defineConfig({
         ]
       },
       workbox: {
-        globPatterns: ['**/*.{js,mjs,css,html,ico,png,svg,woff2}'],
+        globPatterns: ['**/*.{js,mjs,css,html,ico,png,svg,woff2,pfb,ttf}'],
         runtimeCaching: [{ urlPattern: /^https:\/\//, handler: 'NetworkFirst' }]
       }
     })

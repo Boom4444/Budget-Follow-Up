@@ -445,7 +445,11 @@ export async function importFromPDF(buffer: ArrayBuffer, fileName: string): Prom
   pdfjsLib.GlobalWorkerOptions.workerSrc = pdfWorkerUrl
   console.log('[pdf] workerSrc:', pdfWorkerUrl, '| buffer:', buffer.byteLength, 'bytes')
 
-  const pdf = await pdfjsLib.getDocument({ data: new Uint8Array(buffer) }).promise
+  const standardFontDataUrl = import.meta.env.BASE_URL + 'standard_fonts/'
+  const pdf = await pdfjsLib.getDocument({
+    data: new Uint8Array(buffer),
+    standardFontDataUrl,
+  }).promise
   console.log('[pdf] pages:', pdf.numPages)
   const pageTexts: string[] = []
 
