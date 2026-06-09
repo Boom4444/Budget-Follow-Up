@@ -80,8 +80,13 @@ export default function ExpensesScreen() {
     try {
       let result: BankImportResult
       const nameLower = file.name.toLowerCase()
-      const hasNoExtension = !nameLower.includes('.') || nameLower.endsWith('.')
-      const isPDF = nameLower.endsWith('.pdf') || file.type === 'application/pdf' || hasNoExtension
+      // Detect PDF by magic bytes (%PDF = 0x25 0x50 0x44 0x46) — reliable for files
+      // without .pdf extension (e.g. CIC_01.2026, UBS_01.01.2026_to_31.05.2026).
+      const headerBuf = await file.slice(0, 4).arrayBuffer()
+      const headerBytes = new Uint8Array(headerBuf)
+      const hasPDFMagic = headerBytes[0] === 0x25 && headerBytes[1] === 0x50 &&
+                          headerBytes[2] === 0x44 && headerBytes[3] === 0x46
+      const isPDF = hasPDFMagic || nameLower.endsWith('.pdf') || file.type === 'application/pdf'
       if (nameLower.match(/\.xlsx?$/)) {
         const buf = await file.arrayBuffer()
         result = await importFromXLSX(buf, file.name)
@@ -103,7 +108,8 @@ export default function ExpensesScreen() {
       if (err instanceof Error && err.message === 'PDF_NO_TEXT') {
         setImportError('Ce PDF ne contient pas de texte sélectionnable (scan/image). Exportez plutôt un PDF ou un fichier Excel/CSV depuis votre banque.')
       } else {
-        setImportError('Erreur lors de la lecture du fichier.')
+        const detail = err instanceof Error ? err.message : String(err)
+        setImportError(`Erreur lors de la lecture du fichier. (${detail})`)
       }
     } finally {
       setImportLoading(false)
