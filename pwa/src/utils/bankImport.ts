@@ -439,12 +439,14 @@ export function importFromCSV(text: string, fileName: string): BankImportResult 
  * amounts and dates on the same visual row end up on the same text line.
  */
 export async function importFromPDF(buffer: ArrayBuffer, fileName: string): Promise<BankImportResult> {
-  // Legacy build = broader compatibility (older Safari/iOS) and matches the worker above
+  // Legacy build = broader compatibility (older Safari/iOS)
   const pdfjsLib = await import('pdfjs-dist/legacy/build/pdf.mjs')
-  // Give pdf.js a dedicated worker instance bundled by Vite
+  // workerSrc: pdf.js internally creates new Worker(url, {type:'module'}) so the .mjs file loads correctly
   pdfjsLib.GlobalWorkerOptions.workerSrc = pdfWorkerUrl
+  console.log('[pdf] workerSrc:', pdfWorkerUrl, '| buffer:', buffer.byteLength, 'bytes')
 
   const pdf = await pdfjsLib.getDocument({ data: new Uint8Array(buffer) }).promise
+  console.log('[pdf] pages:', pdf.numPages)
   const pageTexts: string[] = []
 
   for (let i = 1; i <= pdf.numPages; i++) {
@@ -474,6 +476,7 @@ export async function importFromPDF(buffer: ArrayBuffer, fileName: string): Prom
   }
 
   const fullText = pageTexts.join('\n')
+  console.log('[pdf] total text chars:', fullText.length, '| sample:', fullText.slice(0, 300).replace(/\n/g, ' ↵ '))
 
   // If pdf.js returned no text at all, the PDF is image-only/scanned (or the
   // worker failed) — surface a clear, distinct error instead of "0 transactions".
@@ -518,6 +521,8 @@ function parsePDFTransactions(text: string, bankName: string): BankImportResult 
 
   const yearMatch = text.match(/\b(20\d{2})\b/)
   const documentYear = yearMatch ? parseInt(yearMatch[1]) : new Date().getFullYear()
+  const dateLines = lines.filter(l => DATE_RE.test(l) && DATE_TOKEN_RE.test(l))
+  console.log('[pdf] bank:', bankName, '| lines:', lines.length, '| date-lines:', dateLines.length, '| year:', documentYear)
 
   // UBS → CHF, all others default to EUR
   const currency: CurrencyCode = bankName === 'UBS' ? 'CHF' : 'EUR'

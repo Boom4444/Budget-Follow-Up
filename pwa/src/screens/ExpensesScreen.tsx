@@ -80,14 +80,28 @@ export default function ExpensesScreen() {
     try {
       let result: BankImportResult
       const nameLower = file.name.toLowerCase()
-      // Detect PDF by magic bytes (%PDF = 0x25 0x50 0x44 0x46) — reliable for files
-      // without .pdf extension (e.g. CIC_01.2026, UBS_01.01.2026_to_31.05.2026).
+
+      // Determine file extension (part after the last dot, or '' if none)
+      const lastDot = nameLower.lastIndexOf('.')
+      const ext = lastDot >= 0 ? nameLower.slice(lastDot + 1) : ''
+
+      // A "real" extension is a known format keyword. Purely-numeric suffixes like
+      // ".2026" in "CIC_01.2026" and no extension at all both mean → try PDF.
+      const isExcel = ext === 'xls' || ext === 'xlsx'
+      const isCSV   = ext === 'csv' || ext === 'tsv' || ext === 'txt'
+      const hasNoRealExt = ext === '' || /^\d+$/.test(ext)
+
+      // Magic-byte check: PDFs start with %PDF (0x25 0x50 0x44 0x46)
       const headerBuf = await file.slice(0, 4).arrayBuffer()
-      const headerBytes = new Uint8Array(headerBuf)
-      const hasPDFMagic = headerBytes[0] === 0x25 && headerBytes[1] === 0x50 &&
-                          headerBytes[2] === 0x44 && headerBytes[3] === 0x46
-      const isPDF = hasPDFMagic || nameLower.endsWith('.pdf') || file.type === 'application/pdf'
-      if (nameLower.match(/\.xlsx?$/)) {
+      const hb = new Uint8Array(headerBuf)
+      const hasPDFMagic = hb[0] === 0x25 && hb[1] === 0x50 && hb[2] === 0x44 && hb[3] === 0x46
+
+      const isPDF = hasPDFMagic || ext === 'pdf' || file.type === 'application/pdf' || hasNoRealExt
+
+      console.log('[import]', file.name, '| ext:', ext || '(none)', '| mime:', file.type,
+        '| magic:%PDF:', hasPDFMagic, '| decision:', isExcel ? 'excel' : isPDF ? 'pdf' : isCSV ? 'csv' : 'csv-fallback')
+
+      if (isExcel) {
         const buf = await file.arrayBuffer()
         result = await importFromXLSX(buf, file.name)
       } else if (isPDF) {
@@ -97,6 +111,7 @@ export default function ExpensesScreen() {
         const text = await file.text()
         result = importFromCSV(text, file.name)
       }
+
       if (result.transactions.length === 0) {
         setImportError('Aucune transaction trouvée. Vérifiez le format du fichier.')
         return
@@ -109,6 +124,7 @@ export default function ExpensesScreen() {
         setImportError('Ce PDF ne contient pas de texte sélectionnable (scan/image). Exportez plutôt un PDF ou un fichier Excel/CSV depuis votre banque.')
       } else {
         const detail = err instanceof Error ? err.message : String(err)
+        console.error('[import] error:', err)
         setImportError(`Erreur lors de la lecture du fichier. (${detail})`)
       }
     } finally {
@@ -206,7 +222,7 @@ export default function ExpensesScreen() {
           </div>
         </div>
 
-        <input ref={importRef} type="file" accept=".csv,.tsv,.txt,.xls,.xlsx,.pdf,application/pdf" className="hidden"
+        <input ref={importRef} type="file" accept="*" className="hidden"
           onChange={handleImportFile} />
 
         {importError && (
