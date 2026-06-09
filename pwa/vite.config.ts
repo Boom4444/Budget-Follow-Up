@@ -38,7 +38,10 @@ export default defineConfig({
       },
       workbox: {
         globPatterns: ['**/*.{js,mjs,css,html,ico,png,svg,woff2,pfb,ttf}'],
-        runtimeCaching: [{ urlPattern: /^https:\/\//, handler: 'NetworkFirst' }]
+        // All static assets are precached — no runtimeCaching needed.
+        // Removing it prevents the SW from intercepting external API calls
+        // (e.g. api.frankfurter.app) and logging spurious no-response errors.
+        runtimeCaching: []
       }
     })
   ]

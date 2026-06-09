@@ -142,32 +142,39 @@ export default function ExpensesScreen() {
 
   async function confirmImport() {
     setImportLoading(true)
-    const base = settings.baseCurrency
-    // Fetch historical rates for the entire date range in one API call
-    const needsConversion = importTxns.some(t => t.currency !== base)
-    if (needsConversion && importTxns.length > 0) {
-      const dates = importTxns.map(t => t.date).sort()
-      await prefetchHistoricalRates(dates[0], dates[dates.length - 1])
+    try {
+      const base = settings.baseCurrency
+      // Fetch historical rates for the entire date range in one API call.
+      // Wrapped in try/catch: if the external API is unreachable we just
+      // fall back to live rates — the import must never fail because of this.
+      const needsConversion = importTxns.some(t => t.currency !== base)
+      if (needsConversion && importTxns.length > 0) {
+        try {
+          const dates = importTxns.map(t => t.date).sort()
+          await prefetchHistoricalRates(dates[0], dates[dates.length - 1])
+        } catch { /* rate fetch failed — proceed with live rates */ }
+      }
+      addBatchExpenses(importTxns.map(t => ({
+        title: t.title,
+        amount: t.amount,
+        currency: t.currency,
+        date: t.date,
+        category: t.needsReview ? 'a_classer' : t.suggestedCategory,
+        subCategory: t.needsReview ? 'Non classé' : t.suggestedSubCategory,
+        type: t.type,
+        isFixed: false,
+        bank: t.bank,
+        person: importPerson,
+        notes: t.notes,
+        exchangeRate: t.currency !== base
+          ? getHistoricalConversionRate(t.date, t.currency, base)
+          : undefined,
+      })))
+      setImportResult(null)
+      setImportTxns([])
+    } finally {
+      setImportLoading(false)
     }
-    addBatchExpenses(importTxns.map(t => ({
-      title: t.title,
-      amount: t.amount,
-      currency: t.currency,
-      date: t.date,
-      category: t.needsReview ? 'a_classer' : t.suggestedCategory,
-      subCategory: t.needsReview ? 'Non classé' : t.suggestedSubCategory,
-      type: t.type,
-      isFixed: false,
-      bank: t.bank,
-      person: importPerson,
-      notes: t.notes,
-      exchangeRate: t.currency !== base
-        ? getHistoricalConversionRate(t.date, t.currency, base)
-        : undefined,
-    })))
-    setImportResult(null)
-    setImportTxns([])
-    setImportLoading(false)
   }
 
   const reviewCount = importTxns.filter(t => t.needsReview).length
