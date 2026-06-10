@@ -17,6 +17,15 @@ export default defineConfig({
     include: ['src/**/*.test.ts', 'src/**/*.test.tsx'],
   },
   base: '/Budget-Follow-Up/',
+  build: {
+    sourcemap: true,
+    // ES2022 (private methods/fields, static blocks, top-level await — all
+    // supported since iOS Safari 16.4) so esbuild keeps pdf.js's native
+    // `#privateField`/`static {}` syntax instead of down-leveling it to a
+    // WeakMap-based emulation, which appears to crash inside pdf.js's
+    // getTextContent() on iOS Safari's JavaScriptCore.
+    target: 'es2022',
+  },
   plugins: [
     react(),
     VitePWA({

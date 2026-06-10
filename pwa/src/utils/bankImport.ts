@@ -570,7 +570,10 @@ export async function extractPdfText(pdf: any): Promise<{ text: string; diagnost
       content = await page.getTextContent()
     } catch (e) {
       const msg = e instanceof Error ? `${e.name}: ${e.message}` : String(e)
-      pageInfo.push(`p${i}:err(${msg})`)
+      const frame = e instanceof Error && e.stack
+        ? e.stack.split('\n')[1]?.match(/[\w.-]+\.m?js:\d+:\d+/)?.[0]
+        : undefined
+      pageInfo.push(`p${i}:err(${msg}${frame ? ` @${frame}` : ''})`)
       console.warn('[pdf] page', i, 'failed', e)
       continue
     }
@@ -602,7 +605,7 @@ export async function extractPdfText(pdf: any): Promise<{ text: string; diagnost
     pageInfo.push(`p${i}:items=${rawItems.length},valid=${items.length},rows=${rows.length}`)
   }
 
-  return { text: pageTexts.join('\n'), diagnostics: `pages=${pdf.numPages} ${pageInfo.join(' ')}` }
+  return { text: pageTexts.join('\n'), diagnostics: `v${__APP_VERSION__} pages=${pdf.numPages} ${pageInfo.join(' ')}` }
 }
 
 /**
