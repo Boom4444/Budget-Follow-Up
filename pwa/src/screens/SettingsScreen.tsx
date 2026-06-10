@@ -69,6 +69,8 @@ export default function SettingsScreen({ onShowHelp }: Props) {
   const [showEditEmojiPicker, setShowEditEmojiPicker] = useState(false)
   const emojiTarget = useRef<'add' | 'edit'>('add')
   const [showConfirmDemo, setShowConfirmDemo] = useState(false)
+  const [showClearCacheConfirm, setShowClearCacheConfirm] = useState(false)
+  const [clearingCache, setClearingCache] = useState(false)
   const [showRates, setShowRates] = useState(false)
   const [backupSlots, setBackupSlots] = useState<AutoBackupSlot[]>([])
   const [pending, setPending] = useState<PendingImport | null>(null)
@@ -217,6 +219,23 @@ export default function SettingsScreen({ onShowHelp }: Props) {
       }
     } catch { /* ignore */ }
     setTimeout(() => window.location.reload(), 300)
+  }
+
+  // Force-removes the service worker + all Cache Storage entries, then reloads.
+  // Does NOT touch localStorage (expenses, settings, exchange rate caches).
+  async function clearAppCache() {
+    setClearingCache(true)
+    try {
+      if ('serviceWorker' in navigator) {
+        const regs = await navigator.serviceWorker.getRegistrations()
+        await Promise.all(regs.map(r => r.unregister()))
+      }
+      if ('caches' in window) {
+        const keys = await caches.keys()
+        await Promise.all(keys.map(k => caches.delete(k)))
+      }
+    } catch { /* ignore */ }
+    window.location.reload()
   }
 
   async function checkUpdates() {
@@ -739,6 +758,12 @@ export default function SettingsScreen({ onShowHelp }: Props) {
               <span className="text-gray-400 text-[13px]">…</span>
             )}
           </button>
+          <button
+            onClick={() => setShowClearCacheConfirm(true)}
+            className="w-full flex items-center justify-between px-4 py-3 border-b border-gray-100 dark:border-gray-700 text-left">
+            <span className="text-[15px] text-orange-500">🧹 Vider le cache de l'app</span>
+            <span className="text-gray-400 dark:text-gray-500 text-[13px]">›</span>
+          </button>
           <div className="px-4 py-3 flex justify-between">
             <span className="text-[15px] text-gray-600 dark:text-gray-300">Données</span>
             <span className="text-[15px] text-gray-400 dark:text-gray-500">Stockées localement</span>
@@ -863,6 +888,28 @@ export default function SettingsScreen({ onShowHelp }: Props) {
             </button>
             <button onClick={() => setShowClearConfirm(false)}
               className="w-full py-3.5 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 rounded-xl font-medium text-[16px]">
+              Annuler
+            </button>
+          </div>
+        </div>
+      )}
+
+      {showClearCacheConfirm && (
+        <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/40">
+          <div className="bg-white dark:bg-gray-800 rounded-t-3xl w-full p-6"
+               style={{ paddingBottom: 'calc(1.5rem + env(safe-area-inset-bottom, 0px))' }}>
+            <p className="text-[17px] font-bold text-center mb-2 dark:text-white">Vider le cache de l'app ?</p>
+            <p className="text-[14px] text-gray-500 dark:text-gray-400 text-center mb-6">
+              Supprime les fichiers de l'application mis en cache et force le téléchargement de la dernière version.
+              Vos dépenses, réglages et catégories ne sont pas touchés.
+              L'application va se recharger.
+            </p>
+            <button onClick={clearAppCache} disabled={clearingCache}
+              className="w-full py-3.5 bg-orange-500 text-white rounded-xl font-semibold text-[16px] mb-3 disabled:opacity-50">
+              {clearingCache ? 'Nettoyage…' : 'Vider le cache et recharger'}
+            </button>
+            <button onClick={() => setShowClearCacheConfirm(false)} disabled={clearingCache}
+              className="w-full py-3.5 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 rounded-xl font-medium text-[16px] disabled:opacity-50">
               Annuler
             </button>
           </div>
