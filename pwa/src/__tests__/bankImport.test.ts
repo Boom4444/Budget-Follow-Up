@@ -20,7 +20,8 @@ async function extractFromPdfFile(path: string): Promise<string> {
   pdfjs.GlobalWorkerOptions.workerSrc = require.resolve('pdfjs-dist/legacy/build/pdf.worker.mjs')
   const data = new Uint8Array(readFileSync(path))
   const pdf = await pdfjs.getDocument({ data }).promise
-  return extractPdfText(pdf)
+  const { text } = await extractPdfText(pdf)
+  return text
 }
 
 // ── CSV: French Revolut export (synthetic fixture, always present) ─────────────

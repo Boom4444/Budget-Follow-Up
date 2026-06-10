@@ -132,8 +132,9 @@ export default function ExpensesScreen() {
       setImportFilter('all')
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err)
-      if (msg === 'PDF_NO_TEXT') {
-        setImportError('Ce PDF ne contient pas de texte sélectionnable (scan/image). Exportez plutôt un PDF ou un fichier Excel/CSV depuis votre banque.')
+      if (msg.startsWith('PDF_NO_TEXT')) {
+        const diag = msg.slice('PDF_NO_TEXT'.length).replace(/^\|/, '')
+        setImportError(`Ce PDF ne contient pas de texte sélectionnable (scan/image). Exportez plutôt un PDF ou un fichier Excel/CSV depuis votre banque.${diag ? ` [${diag}]` : ''}`)
       } else if (msg === 'PDF_PARSE_FAILED') {
         setImportError('Impossible de lire ce PDF. Il est peut-être protégé ou endommagé. Essayez un export Excel/CSV depuis votre banque.')
       } else {

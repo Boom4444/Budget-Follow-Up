@@ -553,10 +553,15 @@ export function importFromJSON(text: string, fileName: string): BankImportResult
  * line (snapped to an 8-unit y-grid) are joined left-to-right; rows are ordered
  * top-to-bottom. Every step is defensive so a single malformed page/item can
  * never throw and abort the whole import.
+ *
+ * Also returns a short per-page `diagnostics` string (page count, item/row
+ * counts, or the error for failed pages) so a "no text extracted" failure can
+ * be reported back with enough detail to debug without browser devtools.
  */
-export async function extractPdfText(pdf: any): Promise<string> {
+export async function extractPdfText(pdf: any): Promise<{ text: string; diagnostics: string }> {
   type Item = { str: string; x: number; y: number }
   const pageTexts: string[] = []
+  const pageInfo: string[] = []
 
   for (let i = 1; i <= pdf.numPages; i++) {
     let content: any
@@ -564,6 +569,8 @@ export async function extractPdfText(pdf: any): Promise<string> {
       const page = await pdf.getPage(i)
       content = await page.getTextContent()
     } catch (e) {
+      const msg = e instanceof Error ? `${e.name}: ${e.message}` : String(e)
+      pageInfo.push(`p${i}:err(${msg})`)
       console.warn('[pdf] page', i, 'failed', e)
       continue
     }
@@ -592,9 +599,10 @@ export async function extractPdfText(pdf: any): Promise<string> {
       .map(([, row]) => row.sort((a, b) => a.x - b.x).map(it => it.str).join(' ').trim())
       .filter(Boolean)
     pageTexts.push(rows.join('\n'))
+    pageInfo.push(`p${i}:items=${rawItems.length},valid=${items.length},rows=${rows.length}`)
   }
 
-  return pageTexts.join('\n')
+  return { text: pageTexts.join('\n'), diagnostics: `pages=${pdf.numPages} ${pageInfo.join(' ')}` }
 }
 
 /**
@@ -643,13 +651,14 @@ export async function importFromPDF(buffer: ArrayBuffer, fileName: string): Prom
   }
   console.log('[pdf] pages:', pdf.numPages)
 
-  const fullText = await extractPdfText(pdf)
-  console.log('[pdf] total text chars:', fullText.length, '| sample:', fullText.slice(0, 300).replace(/\n/g, ' ↵ '))
+  const { text: fullText, diagnostics } = await extractPdfText(pdf)
+  console.log('[pdf] total text chars:', fullText.length, '| sample:', fullText.slice(0, 300).replace(/\n/g, ' ↵ '), '| diag:', diagnostics)
 
   // If pdf.js returned no text at all, the PDF is image-only/scanned (or the
-  // worker failed) — surface a clear, distinct error instead of "0 transactions".
+  // worker failed) — surface a clear, distinct error (with diagnostics) instead
+  // of a generic "0 transactions" message.
   if (fullText.replace(/\s/g, '').length === 0) {
-    throw new Error('PDF_NO_TEXT')
+    throw new Error(`PDF_NO_TEXT|${diagnostics}`)
   }
 
   const bankName = fileName.replace(/\.pdf$/i, '')
