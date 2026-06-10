@@ -606,10 +606,13 @@ export async function extractPdfText(pdf: any): Promise<{ text: string; diagnost
 }
 
 /**
- * Lazily set up the pdf.js worker exactly once. We use Vite's `?worker` import
- * which BUNDLES the worker as a classic (IIFE) chunk that Vite serves itself —
- * this avoids the GitHub-Pages ".mjs is served as octet-stream" problem that
- * breaks `new Worker(url, {type:'module'})`, and it works on iOS Safari.
+ * Lazily set up pdf.js exactly once. We deliberately do NOT spin up a real
+ * Worker: importing the worker module directly into the main thread sets
+ * `globalThis.pdfjsWorker.WorkerMessageHandler`, which makes pdf.js use its
+ * "fake worker" (a same-realm `LoopbackPort`) instead of postMessage-ing
+ * across a real Worker. This is the same code path our Node test suite uses
+ * (where these PDFs parse fine) and avoids a structured-clone-related crash
+ * inside `getTextContent()` seen on iOS Safari with a real classic Worker.
  * The import is dynamic so this module stays free of Vite-only syntax at the
  * top level (keeps it importable by Node/vitest for unit-testing the parsers).
  */
@@ -619,12 +622,9 @@ async function getPdfjs(): Promise<any> {
   pdfjsLibPromise = (async () => {
     const pdfjsLib = await import('pdfjs-dist')
     try {
-      const WorkerCtor = (await import('pdfjs-dist/build/pdf.worker.min.mjs?worker')).default
-      pdfjsLib.GlobalWorkerOptions.workerPort = new WorkerCtor()
+      await import('pdfjs-dist/build/pdf.worker.min.mjs')
     } catch (e) {
-      // If the bundled worker can't be instantiated, pdf.js falls back to a
-      // main-thread "fake worker" — slower but still functional.
-      console.warn('[pdf] worker setup failed, using main-thread fallback', e)
+      console.warn('[pdf] worker module preload failed', e)
     }
     return pdfjsLib
   })()
