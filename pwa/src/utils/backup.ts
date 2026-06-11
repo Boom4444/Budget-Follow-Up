@@ -342,12 +342,13 @@ export function autoSave(
   expenses: Expense[],
   recurring: RecurringExpense[],
   settings: AppSettings,
+  budgets: MonthlyBudget[] = [],
 ): void {
   try {
     const existing: AutoBackupSlot[] = getAutoBackupSlots()
     const slot: AutoBackupSlot = {
       savedAt: new Date().toISOString(),
-      data: { version: BACKUP_VERSION, exportedAt: new Date().toISOString(), settings, expenses, recurring },
+      data: { version: BACKUP_VERSION, exportedAt: new Date().toISOString(), settings, expenses, recurring, budgets },
     }
     const updated = [slot, ...existing].slice(0, AUTO_BACKUP_MAX_SLOTS)
     localStorage.setItem(AUTO_BACKUP_KEY, JSON.stringify(updated))

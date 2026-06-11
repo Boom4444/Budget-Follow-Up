@@ -46,22 +46,31 @@ function loadGisScript(): Promise<void> {
 
 // ── Token request ─────────────────────────────────────────────────────────────
 
+export interface DriveTokenResult {
+  token: string
+  /** Token lifetime in seconds (typically 3599) */
+  expiresIn: number
+}
+
 /**
  * Request a Drive access token via GIS popup.
  * Loads the GIS script on the first call.
+ * With `silent: true`, no consent screen is shown: if the user has an active
+ * Google session with prior consent the popup opens and closes instantly;
+ * otherwise the promise rejects (callers should fall back gracefully).
  */
-export function requestDriveToken(clientId: string): Promise<string> {
+export function requestDriveToken(clientId: string, opts: { silent?: boolean } = {}): Promise<DriveTokenResult> {
   return loadGisScript().then(
     () =>
-      new Promise<string>((resolve, reject) => {
+      new Promise<DriveTokenResult>((resolve, reject) => {
         const client = google.accounts.oauth2.initTokenClient({
           client_id: clientId,
           scope: 'https://www.googleapis.com/auth/drive.file',
-          callback: (response: { access_token?: string; error?: string }) => {
+          callback: (response: { access_token?: string; expires_in?: number; error?: string }) => {
             if (response.error) {
               reject(new Error(`GIS token error: ${response.error}`))
             } else if (response.access_token) {
-              resolve(response.access_token)
+              resolve({ token: response.access_token, expiresIn: Number(response.expires_in) || 3600 })
             } else {
               reject(new Error('GIS returned no access token'))
             }
@@ -70,7 +79,7 @@ export function requestDriveToken(clientId: string): Promise<string> {
             reject(new Error(`GIS error: ${error.type}`))
           },
         })
-        client.requestAccessToken({ prompt: 'consent' })
+        client.requestAccessToken({ prompt: opts.silent ? '' : 'consent' })
       })
   )
 }

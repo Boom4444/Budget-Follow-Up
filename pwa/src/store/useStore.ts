@@ -8,6 +8,8 @@ import { autoSave } from '../utils/backup'
 export interface AutoBackupStatus {
   at: string
   status: 'ok' | 'error'
+  /** 'auth' = Drive reconnection needed; 'other' = network/server failure */
+  reason?: 'auth' | 'other'
 }
 
 interface AppState {
@@ -36,13 +38,23 @@ interface AppState {
   copyBudget: (fromYear: number, fromMonth: number, fromPerson: HouseholdMember, toYear: number, toMonth: number, toPerson: HouseholdMember) => void
   setIncome: (year: number, month: number, person: HouseholdMember, amount: number) => void
 
-  // Transient (not persisted)
+  // Drive session — persisted so auto-backup survives app relaunches
+  // (Google access tokens last ~1h; expiry is checked before each use)
   driveToken: string | null
-  setDriveToken: (token: string | null) => void
+  driveTokenExpiresAt: number | null
+  setDriveToken: (token: string | null, expiresInSeconds?: number) => void
   lastAutoBackup: AutoBackupStatus | null
   setLastAutoBackup: (b: AutoBackupStatus | null) => void
+  // Transient (not persisted)
   claudeApiKey: string
   setClaudeApiKey: (key: string) => void
+}
+
+/** Returns the stored Drive token only if it has >60s of validity left. */
+export function getValidDriveToken(s: Pick<AppState, 'driveToken' | 'driveTokenExpiresAt'>): string | null {
+  if (!s.driveToken) return null
+  if (s.driveTokenExpiresAt != null && Date.now() > s.driveTokenExpiresAt - 60_000) return null
+  return s.driveToken
 }
 
 export const useStore = create<AppState>()(
@@ -68,8 +80,6 @@ export const useStore = create<AppState>()(
           ? e.amount * e.exchangeRate
           : convertToBase(e.amount, e.currency, base)
         set(s => ({ expenses: [...s.expenses, { ...e, id: uuid(), amountInBase }] }))
-        const { expenses, recurring, settings } = get()
-        autoSave(expenses, recurring, settings)
       },
 
       addBatchExpenses(items) {
@@ -82,8 +92,6 @@ export const useStore = create<AppState>()(
             : convertToBase(e.amount, e.currency, base),
         }))
         set(s => ({ expenses: [...s.expenses, ...newExpenses] }))
-        const { expenses, recurring, settings } = get()
-        autoSave(expenses, recurring, settings)
       },
 
       updateExpense(id, patch) {
@@ -99,14 +107,10 @@ export const useStore = create<AppState>()(
             return merged
           }),
         }))
-        const { expenses, recurring, settings } = get()
-        autoSave(expenses, recurring, settings)
       },
 
       deleteExpense(id) {
         set(s => ({ expenses: s.expenses.filter(e => e.id !== id) }))
-        const { expenses, recurring, settings } = get()
-        autoSave(expenses, recurring, settings)
       },
 
       addRecurring(r) {
@@ -135,8 +139,6 @@ export const useStore = create<AppState>()(
               : e
           ),
         }))
-        const { expenses, recurring, settings } = get()
-        autoSave(expenses, recurring, settings)
       },
 
       loadDemoData() {
@@ -295,8 +297,6 @@ export const useStore = create<AppState>()(
         ]
 
         set({ expenses, recurring })
-        const s = get()
-        autoSave(s.expenses, s.recurring, s.settings)
       },
 
       importData(newExpenses, newRecurring, newBudgets, merge = false) {
@@ -305,8 +305,6 @@ export const useStore = create<AppState>()(
           recurring: merge ? [...s.recurring, ...newRecurring] : newRecurring,
           budgets:   merge ? [...s.budgets,   ...newBudgets]   : newBudgets,
         }))
-        const { expenses, recurring, settings } = get()
-        autoSave(expenses, recurring, settings)
       },
 
       clearData() {
@@ -355,7 +353,11 @@ export const useStore = create<AppState>()(
       },
 
       driveToken: null,
-      setDriveToken: (token) => set({ driveToken: token }),
+      driveTokenExpiresAt: null,
+      setDriveToken: (token, expiresInSeconds) => set({
+        driveToken: token,
+        driveTokenExpiresAt: token && expiresInSeconds ? Date.now() + expiresInSeconds * 1000 : null,
+      }),
       lastAutoBackup: null,
       setLastAutoBackup: (b) => set({ lastAutoBackup: b }),
       claudeApiKey: '',
@@ -372,6 +374,9 @@ export const useStore = create<AppState>()(
           recurring: state.recurring,
           budgets: state.budgets,
           settings: cleanSettings,
+          driveToken: state.driveToken,
+          driveTokenExpiresAt: state.driveTokenExpiresAt,
+          lastAutoBackup: state.lastAutoBackup,
         }
       },
       migrate(persistedState, version) {
@@ -408,6 +413,24 @@ export const useStore = create<AppState>()(
     }
   )
 )
+
+// ── Local auto-backup ─────────────────────────────────────────────────────────
+// One debounced subscription covers EVERY data change (expenses, recurring,
+// budgets, settings) instead of per-action calls, so nothing is ever missed.
+let autoSaveTimer: ReturnType<typeof setTimeout> | null = null
+useStore.subscribe((state, prev) => {
+  if (
+    state.expenses === prev.expenses &&
+    state.recurring === prev.recurring &&
+    state.budgets === prev.budgets &&
+    state.settings === prev.settings
+  ) return
+  if (autoSaveTimer) clearTimeout(autoSaveTimer)
+  autoSaveTimer = setTimeout(() => {
+    const s = useStore.getState()
+    autoSave(s.expenses, s.recurring, s.settings, s.budgets)
+  }, 2_000)
+})
 
 // Selectors
 export const selectExpensesByYearMonth = (

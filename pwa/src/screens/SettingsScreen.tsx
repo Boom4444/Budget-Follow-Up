@@ -2,7 +2,7 @@ import { useState, useRef, useEffect } from 'react'
 import { useStore } from '../store/useStore'
 import { CURRENCIES } from '../data/currencies'
 import { CATEGORIES, CATEGORY_MAP, getActiveCategories } from '../data/categories'
-import type { CurrencyCode, AppTheme, MonthlyBudget, CustomCategoryDef } from '../models/types'
+import type { CurrencyCode, AppTheme, MonthlyBudget, CustomCategoryDef, AppSettings } from '../models/types'
 import type { Expense, RecurringExpense } from '../models/types'
 import { v4 as uuid } from 'uuid'
 import {
@@ -22,6 +22,8 @@ interface PendingImport {
   expenses: Expense[]
   recurring: RecurringExpense[]
   budgets: MonthlyBudget[]
+  /** Preferences from a JSON/Drive backup — restored together with the data */
+  settings?: Partial<AppSettings>
   label: string
 }
 
@@ -176,7 +178,7 @@ export default function SettingsScreen({ onShowHelp }: Props) {
           setImportError('Fichier JSON invalide ou vide.')
           return
         }
-        setPending({ expenses: backup.expenses, recurring: backup.recurring ?? [], budgets: backup.budgets ?? [], label: `${backup.expenses.length} dépenses depuis ${file.name}` })
+        setPending({ expenses: backup.expenses, recurring: backup.recurring ?? [], budgets: backup.budgets ?? [], settings: backup.settings, label: `${backup.expenses.length} dépenses depuis ${file.name}` })
       } else {
         const parsed = parseCSV(text, settings.baseCurrency)
         if (parsed.length === 0) {
@@ -193,6 +195,12 @@ export default function SettingsScreen({ onShowHelp }: Props) {
   function confirmImport(merge: boolean) {
     if (!pending) return
     importData(pending.expenses, pending.recurring, pending.budgets, merge)
+    // Restore preferences from the backup too (only when replacing, never when
+    // merging into existing data). Connection-specific fields are kept local.
+    if (!merge && pending.settings) {
+      const { claudeApiKey: _k, autoBackupFileId: _f, ...restored } = pending.settings as AppSettings
+      updateSettings(restored)
+    }
     setBackupSlots(getAutoBackupSlots())
     setPending(null)
   }
@@ -269,8 +277,11 @@ export default function SettingsScreen({ onShowHelp }: Props) {
     setDriveLoading(true)
     setDriveError('')
     try {
-      const token = await requestDriveToken(clientId)
-      setDriveToken(token)
+      // Try the silent flow first (no consent screen on reconnection);
+      // fall back to the full consent prompt for first-time connections.
+      const { token, expiresIn } = await requestDriveToken(clientId, { silent: true })
+        .catch(() => requestDriveToken(clientId))
+      setDriveToken(token, expiresIn)
       const folderId = settings.driveBackupFolder?.id
       const files = await listDriveBackups(token, folderId)
       setDriveFiles(files)
@@ -317,10 +328,11 @@ export default function SettingsScreen({ onShowHelp }: Props) {
     setDriveError('')
     try {
       const folderId = settings.driveBackupFolder?.id
+      const { claudeApiKey: _k, ...cleanSettings } = settings
       await uploadToDrive(driveToken, {
         version: 3,
         exportedAt: new Date().toISOString(),
-        settings,
+        settings: cleanSettings,
         expenses,
         recurring,
         budgets,
@@ -342,7 +354,7 @@ export default function SettingsScreen({ onShowHelp }: Props) {
       const text = await downloadFromDrive(driveToken, fileId)
       const backup = parseJSONBackup(text)
       if (!backup) { setDriveError('Fichier invalide'); return }
-      setPending({ expenses: backup.expenses, recurring: backup.recurring ?? [], budgets: backup.budgets ?? [], label: `${backup.expenses.length} dépenses depuis Drive` })
+      setPending({ expenses: backup.expenses, recurring: backup.recurring ?? [], budgets: backup.budgets ?? [], settings: backup.settings, label: `${backup.expenses.length} dépenses depuis Drive` })
     } catch (err: any) {
       setDriveError(err?.message ?? 'Échec du téléchargement')
     } finally {
@@ -595,13 +607,21 @@ export default function SettingsScreen({ onShowHelp }: Props) {
               <span className="text-gray-400 dark:text-gray-500 text-[13px]">›</span>
             </button>
           ) : !driveToken ? (
-            <button onClick={connectDrive} disabled={driveLoading}
-              className="w-full flex items-center justify-between px-4 py-3 text-left">
-              <span className="text-[15px] text-blue-600">
-                {driveLoading ? 'Connexion…' : 'Connecter Google Drive'}
-              </span>
-              <span className="text-[20px]">☁️</span>
-            </button>
+            <>
+              {settings.autoBackupToDrive && (
+                <p className="px-4 pt-3 pb-1 text-[12px] text-orange-500">
+                  ⚠️ Sauvegarde automatique en pause — reconnexion requise
+                  {lastAutoBackup?.status === 'ok' && ` (dernière sauvegarde : ${formatRelativeTime(lastAutoBackup.at)})`}
+                </p>
+              )}
+              <button onClick={connectDrive} disabled={driveLoading}
+                className="w-full flex items-center justify-between px-4 py-3 text-left">
+                <span className="text-[15px] text-blue-600">
+                  {driveLoading ? 'Connexion…' : 'Connecter Google Drive'}
+                </span>
+                <span className="text-[20px]">☁️</span>
+              </button>
+            </>
           ) : (
             <>
               {/* Auto-backup toggle */}
@@ -610,7 +630,11 @@ export default function SettingsScreen({ onShowHelp }: Props) {
                   <p className="text-[15px] dark:text-white">Sauvegarde automatique</p>
                   {settings.autoBackupToDrive && lastAutoBackup && (
                     <p className={`text-[11px] mt-0.5 ${lastAutoBackup.status === 'ok' ? 'text-green-500' : 'text-red-400'}`}>
-                      {lastAutoBackup.status === 'ok' ? '✓ Sauvegardé' : '✗ Échec'} — {new Date(lastAutoBackup.at).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}
+                      {lastAutoBackup.status === 'ok'
+                        ? `✓ Sauvegardé ${formatRelativeTime(lastAutoBackup.at)}`
+                        : lastAutoBackup.reason === 'auth'
+                          ? '✗ Échec — reconnexion Google requise'
+                          : `✗ Échec ${formatRelativeTime(lastAutoBackup.at)} — réessaiera à la prochaine modification`}
                     </p>
                   )}
                   {settings.autoBackupToDrive && !lastAutoBackup && (
