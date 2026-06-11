@@ -5,6 +5,9 @@ import type { BackupData } from '../utils/backup'
 import { BACKUP_VERSION } from '../utils/backup'
 
 const DEBOUNCE_MS = 1_500
+// Safety net: retry/sync at a fixed interval so a failed change-triggered
+// backup (network blip, expired token…) can never linger unnoticed.
+const PERIODIC_MS = 5 * 60_000
 
 /**
  * Keeps a single auto-backup file on Google Drive in sync with the store.
@@ -24,6 +27,8 @@ export function useAutoBackupToDrive() {
   const mountedRef = useRef(false)
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const runningRef = useRef(false)
+  const lastChangeAtRef = useRef(0)
+  const lastOkAtRef = useRef(0)
 
   // Subscribe to the pieces that should trigger a backup. The settings key
   // excludes autoBackupFileId (written by the backup itself) to avoid loops.
@@ -90,6 +95,7 @@ export function useAutoBackupToDrive() {
         const newId = await uploadToDrive(token, data, s.settings.driveBackupFolder?.id)
         s.updateSettings({ autoBackupFileId: newId })
       }
+      lastOkAtRef.current = Date.now()
       useStore.getState().setLastAutoBackup({ at: new Date().toISOString(), status: 'ok' })
     } catch (err: any) {
       const auth = err?.message?.includes('401')
@@ -110,6 +116,7 @@ export function useAutoBackupToDrive() {
       mountedRef.current = true
       return
     }
+    lastChangeAtRef.current = Date.now()
     const s = useStore.getState()
     if (!s.settings.autoBackupToDrive) return
 
@@ -119,6 +126,19 @@ export function useAutoBackupToDrive() {
       if (timerRef.current) clearTimeout(timerRef.current)
     }
   }, [expenses, recurring, budgets, settingsKey]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Periodic safety net: if anything changed since the last successful
+  // backup (e.g. a change-triggered upload failed), retry every 5 minutes.
+  useEffect(() => {
+    const id = setInterval(() => {
+      const s = useStore.getState()
+      if (!s.settings.autoBackupToDrive) return
+      if (lastChangeAtRef.current === 0) return
+      if (lastChangeAtRef.current <= lastOkAtRef.current) return
+      void runBackup()
+    }, PERIODIC_MS)
+    return () => clearInterval(id)
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Flush a pending backup the moment the app goes to background
   useEffect(() => {

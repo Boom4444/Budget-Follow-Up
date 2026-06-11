@@ -1,4 +1,4 @@
-import { defineConfig } from 'vite'
+import { defineConfig, type Plugin } from 'vite'
 import react from '@vitejs/plugin-react'
 import { VitePWA } from 'vite-plugin-pwa'
 import { readFileSync, writeFileSync } from 'node:fs'
@@ -7,6 +7,39 @@ const appVersion = JSON.parse(readFileSync('./package.json', 'utf-8')).version
 
 // Keep public/version.json in sync with package.json version
 writeFileSync('./public/version.json', JSON.stringify({ version: appVersion }) + '\n')
+
+// Content Security Policy: the app's own bundles plus the four external
+// services it talks to (Google Identity, Drive API, Anthropic API, exchange
+// rates). Inline scripts are forbidden (the theme bootstrap is an external
+// file); inline styles are required by React style props. Injected only at
+// build time — the dev server needs inline scripts for react-refresh.
+// GitHub Pages can't set HTTP headers, hence the meta tag.
+const CSP = [
+  "default-src 'self'",
+  "script-src 'self' https://accounts.google.com",
+  "style-src 'self' 'unsafe-inline'",
+  "img-src 'self' data:",
+  "font-src 'self'",
+  "connect-src 'self' https://api.frankfurter.app https://api.anthropic.com https://www.googleapis.com https://accounts.google.com",
+  "frame-src https://accounts.google.com",
+  "worker-src 'self'",
+  "object-src 'none'",
+  "base-uri 'self'",
+  "form-action 'self'",
+].join('; ')
+
+function injectCsp(): Plugin {
+  return {
+    name: 'inject-csp',
+    apply: 'build',
+    transformIndexHtml(html) {
+      return html.replace(
+        '<meta charset="UTF-8" />',
+        `<meta charset="UTF-8" />\n    <meta http-equiv="Content-Security-Policy" content="${CSP}" />`,
+      )
+    },
+  }
+}
 
 export default defineConfig({
   define: {
@@ -27,6 +60,7 @@ export default defineConfig({
     target: 'es2022',
   },
   plugins: [
+    injectCsp(),
     react(),
     VitePWA({
       registerType: 'autoUpdate',

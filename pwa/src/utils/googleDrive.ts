@@ -220,8 +220,10 @@ export async function listDriveBackups(token: string, folderId?: string): Promis
   try {
     const resolvedFolderId = folderId ?? await getOrCreateFolder(token)
 
+    // Escape quotes so an unexpected folder ID can't break out of the query
+    const safeId = resolvedFolderId.replace(/['\\]/g, '')
     const query = encodeURIComponent(
-      `'${resolvedFolderId}' in parents and mimeType='application/json' and trashed=false`
+      `'${safeId}' in parents and mimeType='application/json' and trashed=false`
     )
     const url =
       `https://www.googleapis.com/drive/v3/files` +

@@ -90,6 +90,9 @@ export interface AppSettings {
   autoBackupFileId?: string   // Drive file ID for the single auto-backup file (update-in-place)
   customCategories: CustomCategoryDef[]
   deletedBuiltinCategories?: string[]   // built-in category IDs the user has removed
+  /** Keep the Claude API key encrypted on this device (AES-GCM / IndexedDB).
+   *  When false the key only lives in memory for the current session. */
+  storeApiKeyLocally?: boolean
   /** @deprecated moved to secure storage (IndexedDB) — kept for one-time migration only */
   claudeApiKey?: string
 }

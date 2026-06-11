@@ -90,10 +90,13 @@ export function exportJSON(
   settings: AppSettings,
   budgets: MonthlyBudget[] = [],
 ): void {
+  // Never write the (deprecated) API key field into exported files
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const { claudeApiKey: _k, ...cleanSettings } = settings
   const data: BackupData = {
     version: BACKUP_VERSION,
     exportedAt: new Date().toISOString(),
-    settings,
+    settings: cleanSettings,
     expenses,
     recurring,
     budgets,
@@ -198,6 +201,17 @@ export function exportXLSX(expenses: Expense[], budgets: MonthlyBudget[] = []): 
   XLSX.writeFile(wb, `budget-export-${isoDate()}.xlsx`)
 }
 
+// Escape user-controlled strings before interpolating them into the print
+// document — imported files (CSV/PDF/JSON) could otherwise inject HTML/JS.
+function esc(s: unknown): string {
+  return String(s ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;')
+}
+
 export function exportPDF(expenses: Expense[], baseCurrency: string, budgets: MonthlyBudget[] = []): void {
   const MONTHS = ['Jan','Fév','Mar','Avr','Mai','Jun','Jul','Aoû','Sep','Oct','Nov','Déc']
   const sorted = expenses.slice().sort((a, b) => b.date.localeCompare(a.date))
@@ -205,12 +219,12 @@ export function exportPDF(expenses: Expense[], baseCurrency: string, budgets: Mo
     const sign = e.type === 'credit' ? '+' : '-'
     const catLabel = CATEGORY_MAP[e.category as CategoryId]?.label ?? e.category
     return `<tr>
-      <td>${e.date}</td>
-      <td>${e.title}</td>
-      <td>${catLabel}</td>
-      <td>${e.subCategory}</td>
-      <td style="text-align:right;color:${e.type === 'credit' ? 'green' : 'inherit'}">${sign}${e.amount.toFixed(2)} ${e.currency}</td>
-      <td>${e.bank}</td>
+      <td>${esc(e.date)}</td>
+      <td>${esc(e.title)}</td>
+      <td>${esc(catLabel)}</td>
+      <td>${esc(e.subCategory)}</td>
+      <td style="text-align:right;color:${e.type === 'credit' ? 'green' : 'inherit'}">${sign}${Number(e.amount).toFixed(2)} ${esc(e.currency)}</td>
+      <td>${esc(e.bank)}</td>
     </tr>`
   }).join('')
 
@@ -222,10 +236,10 @@ export function exportPDF(expenses: Expense[], baseCurrency: string, budgets: Mo
       const monthLabel = `${MONTHS[b.month - 1]} ${b.year}`
       const personLabel = b.person === 'person1' ? 'P.1' : b.person === 'person2' ? 'P.2' : 'Commun'
       const rows = b.items.map(it =>
-        `<tr><td>${monthLabel}</td><td>${personLabel}</td><td>${CATEGORY_MAP[it.categoryId]?.label ?? it.categoryId}</td><td style="text-align:right">${it.amount.toFixed(2)} ${baseCurrency}</td></tr>`
+        `<tr><td>${esc(monthLabel)}</td><td>${esc(personLabel)}</td><td>${esc(CATEGORY_MAP[it.categoryId]?.label ?? it.categoryId)}</td><td style="text-align:right">${Number(it.amount).toFixed(2)} ${esc(baseCurrency)}</td></tr>`
       )
       if (b.estimatedIncome != null) {
-        rows.push(`<tr style="color:#16a34a"><td>${monthLabel}</td><td>${personLabel}</td><td>Revenu prévu</td><td style="text-align:right">+${b.estimatedIncome.toFixed(2)} ${baseCurrency}</td></tr>`)
+        rows.push(`<tr style="color:#16a34a"><td>${esc(monthLabel)}</td><td>${esc(personLabel)}</td><td>Revenu prévu</td><td style="text-align:right">+${Number(b.estimatedIncome).toFixed(2)} ${esc(baseCurrency)}</td></tr>`)
       }
       return rows
     }).join('')
@@ -248,7 +262,7 @@ export function exportPDF(expenses: Expense[], baseCurrency: string, budgets: Mo
     </style>
   </head><body>
     <h1>Budget — Export ${isoDate()}</h1>
-    <p>${expenses.length} transactions · devise base : ${baseCurrency}</p>
+    <p>${expenses.length} transactions · devise base : ${esc(baseCurrency)}</p>
     <table>
       <thead><tr><th>Date</th><th>Boutique</th><th>Catégorie</th><th>Sous-cat.</th><th>Montant</th><th>Banque</th></tr></thead>
       <tbody>${expenseRows}</tbody>
@@ -268,7 +282,17 @@ export function exportPDF(expenses: Expense[], baseCurrency: string, budgets: Mo
 export function parseJSONBackup(text: string): BackupData | null {
   try {
     const obj = JSON.parse(text)
-    if (!obj.expenses || !Array.isArray(obj.expenses)) return null
+    if (!obj || typeof obj !== 'object' || !Array.isArray(obj.expenses)) return null
+    // Drop malformed entries instead of corrupting the store: every expense
+    // must at least have a date string and a finite positive amount.
+    obj.expenses = obj.expenses.filter((e: any) =>
+      e && typeof e === 'object' &&
+      typeof e.date === 'string' &&
+      Number.isFinite(Number(e.amount))
+    )
+    if (obj.recurring != null && !Array.isArray(obj.recurring)) obj.recurring = []
+    if (obj.budgets != null && !Array.isArray(obj.budgets)) obj.budgets = []
+    if (obj.settings != null && typeof obj.settings !== 'object') obj.settings = undefined
     return obj as BackupData
   } catch {
     return null

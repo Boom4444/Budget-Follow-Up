@@ -73,3 +73,28 @@ describe('autoSave (local backup slots)', () => {
     expect(restored!.settings.person1Name).toBe('Moi')
   })
 })
+
+describe('parseJSONBackup (hardening)', () => {
+  it('drops malformed expense entries instead of corrupting the store', () => {
+    const restored = parseJSONBackup(JSON.stringify({
+      expenses: [
+        expense,
+        null,
+        'not-an-object',
+        { date: 42, amount: 10 },          // bad date type
+        { date: '2026-01-01', amount: 'x' }, // non-numeric amount
+      ],
+    }))
+    expect(restored).not.toBeNull()
+    expect(restored!.expenses).toHaveLength(1)
+    expect(restored!.expenses[0].id).toBe('e1')
+  })
+
+  it('normalizes non-array recurring/budgets and rejects non-object roots', () => {
+    const restored = parseJSONBackup(JSON.stringify({ expenses: [], recurring: 'x', budgets: 5 }))
+    expect(restored!.recurring).toEqual([])
+    expect(restored!.budgets).toEqual([])
+    expect(parseJSONBackup('"just a string"')).toBeNull()
+    expect(parseJSONBackup('[1,2,3]')).toBeNull()
+  })
+})

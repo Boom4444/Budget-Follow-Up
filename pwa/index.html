@@ -2,6 +2,9 @@
 <html lang="fr">
   <head>
     <meta charset="UTF-8" />
+    <!-- The Content-Security-Policy meta tag is injected at build time by the
+         injectCsp plugin in vite.config.ts (inline scripts are forbidden in
+         production, which would break the dev server's React preamble). -->
     <link rel="icon" type="image/svg+xml" href="/Budget-Follow-Up/favicon.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1.0" />
     <meta name="theme-color" content="#f2f2f7" media="(prefers-color-scheme: light)" />
@@ -12,18 +15,9 @@
     <meta name="apple-mobile-web-app-title" content="Budget" />
     <link rel="apple-touch-icon" href="/Budget-Follow-Up/apple-touch-icon.png" />
     <title>Budget Foyer</title>
-    <!-- Prevent black-screen flash on iOS standalone launch by applying the
-         right background before React mounts. Reads the persisted theme from
-         localStorage and falls back to the system preference. -->
+    <!-- Prevent black-screen flash on iOS standalone launch (see theme-init.js) -->
     <style>html { background: #f2f2f7 } html.dark { background: #1c1c1e }</style>
-    <script>
-      try {
-        var s = JSON.parse(localStorage.getItem('budget-app-store') || '{}')
-        var t = s && s.state && s.state.settings && s.state.settings.theme
-        var dark = t === 'dark' || (t !== 'light' && matchMedia('(prefers-color-scheme:dark)').matches)
-        if (dark) document.documentElement.classList.add('dark')
-      } catch(e) {}
-    </script>
+    <script src="/Budget-Follow-Up/theme-init.js"></script>
   </head>
   <body>
     <div id="root"></div>
