@@ -1,9 +1,7 @@
 import { useState, useRef, useEffect } from 'react'
 import { useStore } from '../store/useStore'
-import { CURRENCIES } from '../data/currencies'
 import { CATEGORIES, CATEGORY_MAP, getActiveCategories } from '../data/categories'
-import type { CurrencyCode, AppTheme, MonthlyBudget, CustomCategoryDef, AppSettings } from '../models/types'
-import type { Expense, RecurringExpense } from '../models/types'
+import type { CustomCategoryDef, AppSettings } from '../models/types'
 import { v4 as uuid } from 'uuid'
 import {
   exportJSON, exportCSV, exportXLSX, exportPDF,
@@ -17,26 +15,15 @@ import {
 import type { DriveFile, DriveFolder } from '../utils/googleDrive'
 import { storeApiKey, clearApiKey } from '../utils/secureStorage'
 import TrashSheet from '../components/TrashSheet'
+import AppearanceSection from '../components/settings/AppearanceSection'
+import HouseholdSection from '../components/settings/HouseholdSection'
+import CurrencySection from '../components/settings/CurrencySection'
+import type { PendingImport } from '../components/settings/types'
 import { useRegisterSW } from 'virtual:pwa-register/react'
-
-interface PendingImport {
-  expenses: Expense[]
-  recurring: RecurringExpense[]
-  budgets: MonthlyBudget[]
-  /** Preferences from a JSON/Drive backup — restored together with the data */
-  settings?: Partial<AppSettings>
-  label: string
-}
 
 interface Props {
   onShowHelp?: () => void
 }
-
-const THEME_OPTIONS: { value: AppTheme; label: string; icon: string }[] = [
-  { value: 'light',  label: 'Clair',    icon: '☀️' },
-  { value: 'dark',   label: 'Sombre',   icon: '🌙' },
-  { value: 'system', label: 'Système',  icon: '⚙️' },
-]
 
 const EMOJI_GROUPS = [
   { label: 'Logement & Maison', emojis: ['🏠', '🏡', '🏢', '🛋️', '💡', '🔧', '🪴', '🛁', '🚿', '🪑', '🛏️', '🪟'] },
@@ -77,7 +64,6 @@ export default function SettingsScreen({ onShowHelp }: Props) {
   const [showConfirmDemo, setShowConfirmDemo] = useState(false)
   const [showClearCacheConfirm, setShowClearCacheConfirm] = useState(false)
   const [clearingCache, setClearingCache] = useState(false)
-  const [showRates, setShowRates] = useState(false)
   const [backupSlots, setBackupSlots] = useState<AutoBackupSlot[]>([])
   const [pending, setPending] = useState<PendingImport | null>(null)
   const [showClearConfirm, setShowClearConfirm] = useState(false)
@@ -367,110 +353,9 @@ export default function SettingsScreen({ onShowHelp }: Props) {
 
       <div className="flex-1 overflow-y-auto scroll-ios">
 
-        {/* Appearance */}
-        <p className="section-header">Apparence</p>
-        <div className="card mx-4 overflow-hidden">
-          <div className="flex p-1.5 gap-1">
-            {THEME_OPTIONS.map(opt => (
-              <button key={opt.value} onClick={() => updateSettings({ theme: opt.value })}
-                className={`flex-1 flex flex-col items-center py-2.5 rounded-xl text-[12px] font-semibold transition-colors
-                  ${settings.theme === opt.value
-                    ? 'bg-blue-600 text-white shadow-sm'
-                    : 'text-gray-500 dark:text-gray-400'}`}>
-                <span className="text-lg mb-0.5">{opt.icon}</span>
-                {opt.label}
-              </button>
-            ))}
-          </div>
-        </div>
-
-        {/* Household */}
-        <p className="section-header">Foyer</p>
-        <div className="card mx-4 overflow-hidden">
-          <div className="flex items-center px-4 py-3 border-b border-gray-100 dark:border-gray-700">
-            <span className="text-gray-400 dark:text-gray-500 text-sm w-28">Personne 1</span>
-            <input type="text" value={settings.person1Name}
-              onChange={e => updateSettings({ person1Name: e.target.value })}
-              className="flex-1 text-[15px] text-right outline-none bg-transparent dark:text-white" placeholder="Prénom" />
-          </div>
-          <div className="flex items-center px-4 py-3 border-b border-gray-100 dark:border-gray-700">
-            <span className="text-gray-400 dark:text-gray-500 text-sm w-28">Personne 2</span>
-            <input type="text" value={settings.person2Name}
-              onChange={e => updateSettings({ person2Name: e.target.value })}
-              className="flex-1 text-[15px] text-right outline-none bg-transparent dark:text-white" placeholder="Prénom" />
-          </div>
-          {/* Who uses this device — new/imported expenses default to this person */}
-          <div className="px-4 py-3 border-b border-gray-100 dark:border-gray-700">
-            <p className="text-[15px] dark:text-white mb-0.5">Qui utilise cet appareil ?</p>
-            <p className="text-[12px] text-gray-400 dark:text-gray-500 mb-2">
-              Les nouvelles dépenses et les imports sont attribués à cette personne par défaut
-            </p>
-            <div className="flex rounded-xl overflow-hidden bg-gray-100 dark:bg-gray-700 p-0.5">
-              {(['person1', 'person2'] as const).map(p => (
-                <button key={p} onClick={() => updateSettings({ currentUser: p })}
-                  className={`flex-1 py-1.5 text-[13px] font-semibold rounded-lg transition-colors
-                    ${(settings.currentUser ?? 'person1') === p ? 'bg-blue-600 text-white' : 'text-gray-500 dark:text-gray-400'}`}>
-                  {p === 'person1' ? settings.person1Name : settings.person2Name}
-                </button>
-              ))}
-            </div>
-          </div>
-          {/* Default split for shared expenses */}
-          <div className="px-4 py-3">
-            <p className="text-[15px] dark:text-white mb-0.5">Répartition des dépenses communes</p>
-            <p className="text-[12px] text-gray-400 dark:text-gray-500 mb-2">
-              Au prorata : selon les revenus mensuels renseignés dans Budget (ex. loyer).
-              Modifiable dépense par dépense.
-            </p>
-            <div className="flex rounded-xl overflow-hidden bg-gray-100 dark:bg-gray-700 p-0.5">
-              {([
-                { id: 'equal',  label: '50 / 50' },
-                { id: 'income', label: 'Prorata des revenus' },
-              ] as const).map(opt => (
-                <button key={opt.id} onClick={() => updateSettings({ sharedSplitMode: opt.id })}
-                  className={`flex-1 py-1.5 text-[13px] font-semibold rounded-lg transition-colors
-                    ${(settings.sharedSplitMode ?? 'equal') === opt.id ? 'bg-blue-600 text-white' : 'text-gray-500 dark:text-gray-400'}`}>
-                  {opt.label}
-                </button>
-              ))}
-            </div>
-          </div>
-        </div>
-
-        {/* Currency */}
-        <p className="section-header">Devise</p>
-        <div className="card mx-4 overflow-hidden">
-          <div className="flex items-center px-4 py-3 border-b border-gray-100 dark:border-gray-700">
-            <span className="text-gray-400 dark:text-gray-500 text-sm flex-1">Devise de référence</span>
-            <select value={settings.baseCurrency}
-              onChange={e => updateSettings({ baseCurrency: e.target.value as CurrencyCode })}
-              className="text-[15px] text-blue-600 font-medium outline-none bg-transparent">
-              {CURRENCIES.map(c => (
-                <option key={c.code} value={c.code}>{c.flag} {c.code} – {c.name}</option>
-              ))}
-            </select>
-          </div>
-          <button onClick={() => setShowRates(!showRates)}
-            className="w-full flex items-center justify-between px-4 py-3 text-left">
-            <span className="text-[15px] text-blue-600">Taux de conversion</span>
-            <span className="text-gray-300 dark:text-gray-600">{showRates ? '▲' : '▼'}</span>
-          </button>
-          {showRates && (
-            <div className="px-4 pb-3">
-              {CURRENCIES.filter(c => c.code !== settings.baseCurrency).map(c => {
-                const fromRate = { EUR: 1, USD: 1.08, GBP: 0.86, CHF: 0.96, MAD: 10.85, DZD: 145.2, TND: 3.35, JPY: 162.5, CAD: 1.47, AUD: 1.65, SGD: 1.45, AED: 3.97 }
-                const toRate = fromRate[c.code as keyof typeof fromRate] / fromRate[settings.baseCurrency as keyof typeof fromRate]
-                const from = CURRENCIES.find(x => x.code === settings.baseCurrency)!
-                return (
-                  <div key={c.code} className="flex justify-between py-1.5 border-b border-gray-50 dark:border-gray-700 last:border-0">
-                    <span className="text-[13px] text-gray-500 dark:text-gray-400">{from.flag} 1 {settings.baseCurrency}</span>
-                    <span className="text-[13px] font-medium dark:text-white">{toRate.toFixed(4)} {c.code} {c.flag}</span>
-                  </div>
-                )
-              })}
-            </div>
-          )}
-        </div>
+        <AppearanceSection />
+        <HouseholdSection />
+        <CurrencySection />
 
         {/* All categories — built-in (editable + deletable) + custom, sorted alphabetically */}
         <p className="section-header">Catégories</p>
