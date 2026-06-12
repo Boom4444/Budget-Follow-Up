@@ -5,6 +5,7 @@ export type HouseholdMember = 'person1' | 'person2' | 'shared'
 export type RecurrenceFrequency = 'weekly' | 'biweekly' | 'monthly' | 'quarterly' | 'yearly'
 
 export type CategoryId =
+  | 'banque'
   | 'impots'
   | 'cadeaux'
   | 'abonnements'

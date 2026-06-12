@@ -53,7 +53,7 @@ const JANVIER_2026: RawRow[] = [
   { date: '2026-01-07', bank: 'UBS',    category: 'cadeaux',    subCategory: 'Autres Cadeaux',     ...debit(30,    'CHF'), title: 'Sabine A.',               notes: 'Twint départ Sophie P.' },
   { date: '2026-01-07', bank: 'UBS',    category: 'nourriture', subCategory: 'Autres Nourriture',  ...debit(27.20, 'CHF'), title: 'Aux Merveilleux de Fred', notes: 'Petit-déjeuner anniversaire' },
   { date: '2026-01-07', bank: 'UBS',    category: 'entreprise', subCategory: 'Repas Travail', ...debit(25,    'CHF'), title: 'Pictet',                  notes: 'Repas + consigne Tupperware' },
-  { date: '2026-01-08', bank: 'CIC',    category: 'autre',      subCategory: 'Frais bancaires',        ...debit(5.47,  'EUR'), title: 'CIC',                     notes: '' },
+  { date: '2026-01-08', bank: 'CIC',    category: 'banque',     subCategory: 'Frais Carte',        ...debit(5.47,  'EUR'), title: 'CIC',                     notes: '' },
   { date: '2026-01-08', bank: 'Revolut',category: 'loisirs',    subCategory: 'Autres Loisirs',     ...debit(25.90, 'CHF'), title: 'Meta Pay',                notes: '1er jeu avec Oculus' },
   { date: '2026-01-08', bank: 'Revolut',category: 'besoinsPersonnels', subCategory: 'Livres / Éducation', ...debit(80, 'CHF'), title: 'Apple',               notes: 'CISSP Renouvellement questions 6 mois' },
   { date: '2026-01-08', bank: 'UBS',    category: 'entreprise', subCategory: 'Repas Travail', ...debit(22,    'CHF'), title: 'Pictet',                  notes: 'Repas + consigne Tupperware' },
@@ -79,7 +79,7 @@ const JANVIER_2026: RawRow[] = [
   { date: '2026-01-16', bank: 'UBS',    category: 'entreprise', subCategory: 'Repas Travail', ...debit(3.35,  'CHF'), title: 'Pictet',                  notes: 'Fruit petit déjeuner' },
   { date: '2026-01-16', bank: 'UBS',    category: 'entreprise', subCategory: 'Repas Travail', ...credit(25,   'CHF'), title: 'Pictet',                  notes: 'Retour consignes repas' },
   { date: '2026-01-19', bank: 'UBS',    category: 'impots',     subCategory: 'Global',             ...debit(1611,  'CHF'), title: 'Etat',                    notes: 'Acompte 2026 (1/12)' },
-  { date: '2026-01-28', bank: 'LCL',    category: 'autre',      subCategory: 'Prêt',               ...debit(535.67,'EUR'), title: 'LCL',                     notes: 'Échéance prêt 36/60' },
+  { date: '2026-01-28', bank: 'LCL',    category: 'banque',     subCategory: 'Prêt',               ...debit(535.67,'EUR'), title: 'LCL',                     notes: 'Échéance prêt 36/60' },
 ]
 
 const JUIN_2024: RawRow[] = [
@@ -134,7 +134,7 @@ const JUIN_2024: RawRow[] = [
   { date: '2024-06-25', bank: 'CIC',    category: 'logement',   subCategory: 'Location Logement',  ...debit(30,    'EUR'), title: 'Airbnb',                  notes: 'Puy Du Fou avec Angèle et Jacky (1/3)' },
   { date: '2024-06-25', bank: 'CIC',    category: 'logement',   subCategory: 'Location Logement',  ...debit(34,    'EUR'), title: 'Airbnb',                  notes: 'Puy Du Fou avec Angèle et Jacky (1/3)' },
   { date: '2024-06-25', bank: 'CIC',    category: 'abonnements',subCategory: 'Téléphone',          ...debit(25.99, 'EUR'), title: 'Sosh',                    notes: '' },
-  { date: '2024-06-26', bank: 'CS',     category: 'autre',      subCategory: 'Frais bancaires',        ...debit(21,    'CHF'), title: 'Crédit Suisse',           notes: 'Décompte de frais' },
+  { date: '2024-06-26', bank: 'CS',     category: 'banque',     subCategory: 'Frais Carte',        ...debit(21,    'CHF'), title: 'Crédit Suisse',           notes: 'Décompte de frais' },
   { date: '2024-06-26', bank: 'Revolut',category: 'nourriture', subCategory: 'Autres Nourriture',  ...debit(3.60,  'EUR'), title: 'Melissa Coffee',          notes: '' },
   { date: '2024-06-26', bank: 'Revolut',category: 'nourriture', subCategory: 'Autres Nourriture',  ...debit(6,     'EUR'), title: 'Mokita Lounge',           notes: '' },
   { date: '2024-06-26', bank: 'Revolut',category: 'transport',  subCategory: 'Autres Transport',   ...debit(15.30, 'EUR'), title: 'Autostrade per l\'Italia',notes: 'Péage Italie' },
@@ -147,9 +147,9 @@ const JUIN_2024: RawRow[] = [
   { date: '2024-06-28', bank: 'Revolut',category: 'nourriture', subCategory: 'Restaurant',         ...debit(19.50, 'EUR'), title: 'Ramen Djizan',            notes: '' },
   { date: '2024-06-28', bank: 'Revolut',category: 'loisirs',    subCategory: 'Alcool',             ...debit(50,    'EUR'), title: 'Caveau Château',          notes: '' },
   { date: '2024-06-28', bank: 'Revolut',category: 'nourriture', subCategory: 'Courses',            ...debit(18.40, 'EUR'), title: 'Craqui Shop',             notes: '' },
-  { date: '2024-06-28', bank: 'LCL',    category: 'autre',      subCategory: 'Prêt',               ...debit(535.67,'EUR'), title: 'LCL',                     notes: 'Échéance prêt 17/60' },
+  { date: '2024-06-28', bank: 'LCL',    category: 'banque',     subCategory: 'Prêt',               ...debit(535.67,'EUR'), title: 'LCL',                     notes: 'Échéance prêt 17/60' },
   { date: '2024-06-29', bank: 'Revolut',category: 'transport',  subCategory: 'Autres Transport',   ...debit(12.90, 'EUR'), title: 'APRR',                    notes: '' },
-  { date: '2024-06-29', bank: 'Revolut',category: 'autre',      subCategory: 'Frais bancaires',        ...debit(10.99, 'CHF'), title: 'Revolut',                 notes: '' },
+  { date: '2024-06-29', bank: 'Revolut',category: 'banque',     subCategory: 'Frais Carte',        ...debit(10.99, 'CHF'), title: 'Revolut',                 notes: '' },
 ]
 
 const ALL_ROWS = [...JANVIER_2026, ...JUIN_2024]
@@ -189,12 +189,12 @@ describe('Conversion de devises', () => {
 // ─── Tests : catégories ───────────────────────────────────────────────────────
 
 describe('Catégories', () => {
-  it('18 catégories au total', () => {
-    expect(CATEGORIES).toHaveLength(18)
+  it('19 catégories au total', () => {
+    expect(CATEGORIES).toHaveLength(19)
   })
 
-  it("la catégorie 'banque' n'existe plus", () => {
-    expect(CATEGORY_MAP['banque']).toBeUndefined()
+  it('banque a les sous-catégories Prêt et Frais Carte', () => {
+    expect(CATEGORY_MAP['banque'].subCategories).toEqual(['Prêt', 'Frais Carte'])
   })
 
   it('impots a les sous-catégories Global et Acompte', () => {
@@ -227,9 +227,9 @@ describe('Catégories', () => {
     expect(subs).toContain('Transport Travail')
   })
 
-  it('les catégories incompressibles sont : impots, assurance, logement', () => {
+  it('les catégories incompressibles sont : banque, impots, assurance, logement', () => {
     const fixed = CATEGORIES.filter(c => c.isFixed).map(c => c.id)
-    expect(fixed).not.toContain('banque')
+    expect(fixed).toContain('banque')
     expect(fixed).toContain('impots')
     expect(fixed).toContain('assurance')
     expect(fixed).toContain('logement')

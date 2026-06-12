@@ -59,7 +59,6 @@ export default function SettingsScreen({ onShowHelp }: Props) {
     needRefresh: [needRefresh],
     updateServiceWorker,
   } = useRegisterSW()
-  const [newBank, setNewBank] = useState('')
   const [newCatEmoji, setNewCatEmoji] = useState('📦')
   const [newCatLabel, setNewCatLabel] = useState('')
   const [newCatFixed, setNewCatFixed] = useState(false)
@@ -102,17 +101,6 @@ export default function SettingsScreen({ onShowHelp }: Props) {
   useEffect(() => {
     setBackupSlots(getAutoBackupSlots())
   }, [expenses])
-
-  function addBank() {
-    const b = newBank.trim()
-    if (!b || settings.banks.includes(b)) { setNewBank(''); return }
-    updateSettings({ banks: [...settings.banks, b] })
-    setNewBank('')
-  }
-
-  function removeBank(bank: string) {
-    updateSettings({ banks: settings.banks.filter(b => b !== bank) })
-  }
 
   function addCustomCategory() {
     const label = newCatLabel.trim()
@@ -621,27 +609,6 @@ export default function SettingsScreen({ onShowHelp }: Props) {
               </p>
             </div>
           )}
-        </div>
-
-        {/* Banks */}
-        <p className="section-header">Banques</p>
-        <div className="card mx-4 overflow-hidden">
-          {settings.banks.map((bank, i) => (
-            <div key={bank} className={`flex items-center gap-3 px-4 py-3 ${i < settings.banks.length - 1 ? 'border-b border-gray-100 dark:border-gray-700' : ''}`}>
-              <span className="text-[15px] flex-1 dark:text-white">🏦 {bank}</span>
-              <button onClick={() => removeBank(bank)} className="text-red-400 text-xl">×</button>
-            </div>
-          ))}
-          <div className={`flex items-center gap-3 px-4 py-3 ${settings.banks.length > 0 ? 'border-t border-gray-100 dark:border-gray-700' : ''}`}>
-            <span className="text-green-500 text-xl">+</span>
-            <input type="text" placeholder="Ajouter une banque…"
-              value={newBank} onChange={e => setNewBank(e.target.value)}
-              onKeyDown={e => e.key === 'Enter' && addBank()}
-              className="flex-1 text-[15px] outline-none bg-transparent dark:text-white dark:placeholder-gray-500" />
-            {newBank && (
-              <button onClick={addBank} className="text-blue-600 text-[14px] font-medium">OK</button>
-            )}
-          </div>
         </div>
 
         {/* Backup & Data */}

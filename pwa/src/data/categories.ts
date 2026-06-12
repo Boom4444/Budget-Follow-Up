@@ -13,6 +13,15 @@ export interface CategoryMeta {
 export const CATEGORIES: CategoryMeta[] = [
   // ── Charges fixes ──────────────────────────────────────────────────────────
   {
+    id: 'banque',
+    label: 'Banque',
+    emoji: '🏦',
+    color: '#1d4ed8',
+    bgColor: '#dbeafe',
+    isFixed: true,
+    subCategories: ['Prêt', 'Frais Carte'],
+  },
+  {
     id: 'impots',
     label: 'Impôts & Administratif',
     emoji: '🏛️',
@@ -165,7 +174,7 @@ export const CATEGORIES: CategoryMeta[] = [
     color: '#6b7280',
     bgColor: '#f9fafb',
     isFixed: false,
-    subCategories: ['Divers', 'Frais bancaires', 'Prêt'],
+    subCategories: ['Divers'],
   },
   {
     id: 'a_classer',
