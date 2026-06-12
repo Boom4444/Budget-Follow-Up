@@ -5,7 +5,6 @@ export type HouseholdMember = 'person1' | 'person2' | 'shared'
 export type RecurrenceFrequency = 'weekly' | 'biweekly' | 'monthly' | 'quarterly' | 'yearly'
 
 export type CategoryId =
-  | 'banque'
   | 'impots'
   | 'cadeaux'
   | 'abonnements'
@@ -47,6 +46,9 @@ export interface Expense {
   person: HouseholdMember
   notes: string
   splitRatio?: { person1: number; person2: number }  // percentages summing to 100, only for person='shared'
+  /** 'income' = split recomputed each month from both persons' estimated incomes
+   *  (takes precedence over splitRatio). Absent = use splitRatio, else 50/50. */
+  splitMode?: 'income'
   exchangeRate?: number  // 1 unit of `currency` = exchangeRate units of baseCurrency, at transaction date
 }
 
@@ -81,6 +83,12 @@ export interface MonthlyBudget {
 export interface AppSettings {
   person1Name: string
   person2Name: string
+  /** Who uses this device — new and imported expenses default to this person.
+   *  Device-specific: deliberately NOT restored from backups. */
+  currentUser?: 'person1' | 'person2'
+  /** Default split for shared (foyer) expenses and foyer budget tracking:
+   *  'equal' = 50/50, 'income' = prorated on each person's monthly income. */
+  sharedSplitMode?: 'equal' | 'income'
   baseCurrency: CurrencyCode
   banks: string[]
   theme: AppTheme

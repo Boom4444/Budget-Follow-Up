@@ -19,7 +19,7 @@ export interface BackupData {
 
 // Maps French spreadsheet category names → CategoryId
 const CSV_CAT_MAP: Record<string, CategoryId> = {
-  'banque':                   'banque',
+  'banque':                   'autre',   // catégorie 'banque' supprimée
   'impôts & administratif':   'impots',
   'impôts':                   'impots',
   'impots':                   'impots',

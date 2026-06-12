@@ -5,6 +5,7 @@ import { CATEGORY_MAP, getCategoryMeta, getActiveCategories } from '../data/cate
 import { CURRENCIES, CURRENCY_MAP } from '../data/currencies'
 import { formatAmount, formatPercent } from '../utils/formatters'
 import { currentYear, shortMonth, longMonth } from '../utils/dates'
+import { householdRatioForMonth, personShareFraction } from '../utils/split'
 import type { Expense, CurrencyCode } from '../models/types'
 import AddExpenseModal from '../components/AddExpenseModal'
 import SummaryStrip from '../components/SummaryStrip'
@@ -12,7 +13,7 @@ import type { StripFilter } from '../components/SummaryStrip'
 import CategoryDrillDown from '../components/CategoryDrillDown'
 
 export default function DashboardScreen() {
-  const { expenses, settings, updateExpense } = useStore()
+  const { expenses, budgets, settings, updateExpense } = useStore()
   const customCategories = settings.customCategories ?? []
   const sortedCategories = useMemo(
     () => getActiveCategories(customCategories, settings.deletedBuiltinCategories),
@@ -55,28 +56,36 @@ export default function DashboardScreen() {
   const displayCurr: CurrencyCode = viewCurrency === 'all' ? base : viewCurrency
   const sym = CURRENCY_MAP[displayCurr]?.symbol ?? displayCurr
 
-  // Amount accessor: native currency amount or base-converted
-  const getAmt = (e: Expense) => viewCurrency === 'all' ? e.amountInBase : e.amount
-
-  // Per-person share (accounts for split ratio on shared expenses)
-  function personShareAmt(e: Expense, person: 'person1' | 'person2'): number {
-    if (e.type !== 'debit') return 0
-    const amt = getAmt(e)
-    if (e.person === person) return amt
-    if (e.person !== 'shared') return 0
-    const ratio = e.splitRatio ?? { person1: 50, person2: 50 }
-    return amt * (ratio[person] / 100)
+  // Fraction of an expense counted in the current person filter. Shared
+  // expenses are split between the two persons (per their ratio or the
+  // monthly income proration) instead of disappearing from personal views.
+  function shareWeight(e: Expense): number {
+    if (filterPerson === 'all') return 1
+    if (filterPerson === 'shared') return e.person === 'shared' ? 1 : 0
+    return personShareFraction(e, filterPerson, budgets, settings)
   }
 
-  // Base filter: year + month + person
+  // Amount accessor: native currency amount or base-converted, weighted by
+  // the person filter (a shared 50/50 expense counts half in a personal view)
+  const getAmt = (e: Expense) => (viewCurrency === 'all' ? e.amountInBase : e.amount) * shareWeight(e)
+
+  // Per-person share (accounts for split ratio / income proration on shared expenses)
+  function personShareAmt(e: Expense, person: 'person1' | 'person2'): number {
+    if (e.type !== 'debit') return 0
+    const amt = viewCurrency === 'all' ? e.amountInBase : e.amount
+    return amt * personShareFraction(e, person, budgets, settings)
+  }
+
+  // Base filter: year + month + person (shared expenses stay visible in
+  // personal views since each person bears a part of them)
   const filtered = useMemo(() => expenses.filter(e => {
     const ey = parseInt(e.date.slice(0, 4))
     const em = parseInt(e.date.slice(5, 7))
     if (ey !== year) return false
     if (month !== null && em !== month) return false
-    if (filterPerson !== 'all' && e.person !== filterPerson) return false
+    if (filterPerson !== 'all' && shareWeight(e) === 0) return false
     return true
-  }), [expenses, year, month, filterPerson])
+  }), [expenses, year, month, filterPerson, budgets, settings])  // eslint-disable-line react-hooks/exhaustive-deps
 
   // Currency filter on top of base filter
   const filteredCurr = useMemo(() =>
@@ -136,12 +145,12 @@ export default function DashboardScreen() {
         const ey = parseInt(e.date.slice(0, 4))
         const em = parseInt(e.date.slice(5, 7))
         return ey === y && em === m &&
-          (filterPerson === 'all' || e.person === filterPerson) &&
+          (filterPerson === 'all' || shareWeight(e) > 0) &&
           (viewCurrency === 'all' || e.currency === viewCurrency)
       })
       const debitMes  = mes.filter(e => e.type === 'debit')
       const creditMes = mes.filter(e => e.type === 'credit' && e.category === 'revenus')
-      const a = (e: Expense) => viewCurrency === 'all' ? e.amountInBase : e.amount
+      const a = (e: Expense) => (viewCurrency === 'all' ? e.amountInBase : e.amount) * shareWeight(e)
       result.unshift({
         name: chartRange > 12 ? `${shortMonth(m)}'${String(y).slice(2)}` : shortMonth(m),
         fixed:    Math.round(debitMes.filter(e => e.isFixed).reduce((s, e) => s + a(e), 0)),
@@ -151,7 +160,7 @@ export default function DashboardScreen() {
       if (m === 1) { y--; m = 12 } else { m-- }
     }
     return result
-  }, [expenses, chartRange, filterPerson, viewCurrency])
+  }, [expenses, chartRange, filterPerson, viewCurrency, budgets, settings])  // eslint-disable-line react-hooks/exhaustive-deps
 
   // Category data based on strip filter
   const catSourceData = stripFilter === 'credit' ? stripCredits : stripDebits
@@ -173,6 +182,56 @@ export default function DashboardScreen() {
       .sort((a, b) => b.value - a.value)
       .slice(0, 8)
   }, [catSourceData, viewCurrency]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // ── Budget tracking (month or whole year, per person filter) ──────────────
+  // Foyer budget items and shared expenses are split between the two persons
+  // in personal views (50/50 or income proration, per settings/expense).
+  // Always computed in the base currency — budgets are stored in base.
+  const budgetTracking = useMemo(() => {
+    const months = month !== null ? [month] : Array.from({ length: 12 }, (_, i) => i + 1)
+    const budgeted: Record<string, number> = {}
+    for (const m of months) {
+      const ratio = householdRatioForMonth(budgets, settings, year, m)
+      for (const b of budgets.filter(b => b.year === year && b.month === m)) {
+        for (const it of b.items) {
+          let amt = 0
+          if (filterPerson === 'all') amt = it.amount
+          else if (filterPerson === 'shared') amt = b.person === 'shared' ? it.amount : 0
+          else if (b.person === filterPerson) amt = it.amount
+          else if (b.person === 'shared') amt = it.amount * ratio[filterPerson] / 100
+          if (amt > 0) budgeted[it.categoryId] = (budgeted[it.categoryId] ?? 0) + amt
+        }
+      }
+    }
+    if (Object.keys(budgeted).length === 0) return null
+
+    const actual: Record<string, number> = {}
+    for (const e of expenses) {
+      if (e.type !== 'debit') continue
+      if (parseInt(e.date.slice(0, 4)) !== year) continue
+      if (month !== null && parseInt(e.date.slice(5, 7)) !== month) continue
+      let w = 1
+      if (filterPerson === 'shared') w = e.person === 'shared' ? 1 : 0
+      else if (filterPerson !== 'all') w = personShareFraction(e, filterPerson, budgets, settings)
+      const amt = e.amountInBase * w
+      if (amt > 0) actual[e.category] = (actual[e.category] ?? 0) + amt
+    }
+
+    const rows = Object.keys(budgeted)
+      .map(id => ({
+        id,
+        meta: getCategoryMeta(id, customCategories),
+        budgeted: budgeted[id],
+        actual: actual[id] ?? 0,
+      }))
+      .sort((a, b) => b.budgeted - a.budgeted)
+    const totalBudgeted = rows.reduce((s, r) => s + r.budgeted, 0)
+    const totalActual   = rows.reduce((s, r) => s + r.actual, 0)
+    const offBudget = Object.entries(actual)
+      .filter(([id]) => !budgeted[id] && id !== 'a_classer')
+      .reduce((s, [, v]) => s + v, 0)
+    return { rows, totalBudgeted, totalActual, offBudget }
+  }, [expenses, budgets, settings, year, month, filterPerson, customCategories])
 
   const fmt = (v: number) => v === 0 ? '' : v >= 1000 ? `${(v / 1000).toFixed(0)}k` : String(v)
 
@@ -387,6 +446,74 @@ export default function DashboardScreen() {
             {sharedP2 > 0 && <p className="text-[10px] text-gray-400 dark:text-gray-500 mt-0.5">dont {formatAmount(sharedP2, displayCurr)} commun</p>}
           </div>
         </div>
+
+        {/* Budget tracking */}
+        {budgetTracking && (() => {
+          const { rows, totalBudgeted, totalActual, offBudget } = budgetTracking
+          const pct = totalBudgeted > 0 ? (totalActual / totalBudgeted) * 100 : 0
+          const barColor = (p: number) => p >= 100 ? 'bg-red-500' : p >= 80 ? 'bg-orange-400' : 'bg-green-500'
+          const shown = rows.slice(0, 6)
+          return (
+            <div className="card mx-4 mt-4 p-4">
+              <div className="flex items-center justify-between mb-1">
+                <p className="text-[15px] font-semibold dark:text-white">🎯 Suivi du budget</p>
+                <p className="text-[12px] text-gray-400 dark:text-gray-500">
+                  {month !== null ? `${longMonth(month)} ${year}` : `Année ${year}`}
+                </p>
+              </div>
+              {filterPerson === 'person1' || filterPerson === 'person2' ? (
+                <p className="text-[11px] text-gray-400 dark:text-gray-500 mb-2">
+                  Inclut la part du budget foyer ({settings.sharedSplitMode === 'income' ? 'prorata des revenus' : '50/50'})
+                </p>
+              ) : <div className="mb-2" />}
+              {/* Global bar */}
+              <div className="flex items-baseline justify-between mb-1">
+                <span className={`text-[20px] font-bold ${totalActual > totalBudgeted ? 'text-red-500' : 'dark:text-white'}`}>
+                  {formatAmount(totalActual, base)}
+                </span>
+                <span className="text-[13px] text-gray-400 dark:text-gray-500">
+                  sur {formatAmount(totalBudgeted, base)} · {pct.toFixed(0)}%
+                </span>
+              </div>
+              <div className="h-2 bg-gray-100 dark:bg-gray-700 rounded-full overflow-hidden mb-3">
+                <div className={`h-full rounded-full transition-all ${barColor(pct)}`}
+                  style={{ width: `${Math.min(pct, 100)}%` }} />
+              </div>
+              {/* Per-category bars */}
+              <div className="space-y-2">
+                {shown.map(r => {
+                  const rPct = r.budgeted > 0 ? (r.actual / r.budgeted) * 100 : 0
+                  return (
+                    <div key={r.id}>
+                      <div className="flex items-center justify-between mb-0.5">
+                        <span className="text-[12px] text-gray-600 dark:text-gray-300 truncate">
+                          {r.meta?.emoji ?? '📦'} {r.meta?.label ?? r.id}
+                        </span>
+                        <span className={`text-[11px] ${r.actual > r.budgeted ? 'text-red-500 font-semibold' : 'text-gray-400 dark:text-gray-500'}`}>
+                          {formatAmount(r.actual, base)} / {formatAmount(r.budgeted, base)}
+                        </span>
+                      </div>
+                      <div className="h-1.5 bg-gray-100 dark:bg-gray-700 rounded-full overflow-hidden">
+                        <div className={`h-full rounded-full ${barColor(rPct)}`}
+                          style={{ width: `${Math.min(rPct, 100)}%` }} />
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+              {rows.length > shown.length && (
+                <p className="text-[11px] text-gray-400 dark:text-gray-500 mt-2">
+                  + {rows.length - shown.length} autres catégories budgétisées (voir l'onglet Budget)
+                </p>
+              )}
+              {offBudget > 0 && (
+                <p className="text-[11px] text-orange-500 mt-2">
+                  ⚠️ {formatAmount(offBudget, base)} dépensés hors catégories budgétisées
+                </p>
+              )}
+            </div>
+          )
+        })()}
 
         {/* Category donut chart with centered label */}
         {catData.length > 0 && (

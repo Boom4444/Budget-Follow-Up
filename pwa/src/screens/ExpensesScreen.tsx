@@ -41,7 +41,7 @@ export default function ExpensesScreen() {
   const [importLoading, setImportLoading] = useState(false)
   const [importError, setImportError] = useState('')
   const [importFilter, setImportFilter] = useState<'all' | 'review'>('all')
-  const [importPerson, setImportPerson] = useState<HouseholdMember>('person1')
+  const [importPerson, setImportPerson] = useState<HouseholdMember>(settings.currentUser ?? 'person1')
 
   const NOW = currentYear()
 
@@ -382,6 +382,7 @@ export default function ExpensesScreen() {
             person:      editingExpense.person,
             notes:       editingExpense.notes,
             splitRatio:  editingExpense.splitRatio,
+            splitMode:   editingExpense.splitMode,
           }}
         />
       )}
@@ -413,14 +414,14 @@ export default function ExpensesScreen() {
           <div className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-4 py-2 flex items-center gap-3 flex-shrink-0">
             <span className="text-[13px] text-gray-500 dark:text-gray-400 flex-shrink-0">Compte de :</span>
             <div className="flex gap-2">
-              {(['person1', 'person2'] as HouseholdMember[]).map(p => (
+              {(['person1', 'person2', 'shared'] as HouseholdMember[]).map(p => (
                 <button key={p} onClick={() => setImportPerson(p)}
                   className={`px-3 py-1 rounded-full text-[13px] font-medium transition-colors ${
                     importPerson === p
                       ? 'bg-blue-600 text-white'
                       : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300'
                   }`}>
-                  {p === 'person1' ? settings.person1Name : settings.person2Name}
+                  {p === 'person1' ? settings.person1Name : p === 'person2' ? settings.person2Name : 'Commun'}
                 </button>
               ))}
             </div>

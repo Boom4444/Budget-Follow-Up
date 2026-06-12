@@ -66,6 +66,8 @@ export const useStore = create<AppState>()(
       settings: {
         person1Name: 'Moi',
         person2Name: 'Partenaire',
+        currentUser: 'person1',
+        sharedSplitMode: 'equal',
         baseCurrency: 'CHF',
         banks: ['LCL', 'UBS', 'CIC', 'Revolut', 'CS', 'Cash'],
         theme: 'system',
@@ -177,7 +179,7 @@ export const useStore = create<AppState>()(
           ['2026-01-07', 'UBS', 'cadeaux',    'Autres Cadeaux',   'debit',   30,    'CHF', false, 'Sabine A.',                'person1', 'Twint départ Sophie P.'],
           ['2026-01-07', 'UBS', 'nourriture', 'Café / Boulangerie','debit',   27.20, 'CHF', false, 'Aux Merveilleux de Fred',  'person1', 'Petit-déjeuner anniversaire'],
           ['2026-01-07', 'UBS', 'entreprise', 'Repas Travail',     'debit',   25,    'CHF', false, 'Pictet',                   'person1', 'Repas + consigne Tupperware'],
-          ['2026-01-08', 'CIC', 'banque',     'Frais Carte',      'debit',    5.47, 'EUR', false, 'CIC',                      'person1', ''],
+          ['2026-01-08', 'CIC', 'autre',      'Frais bancaires',      'debit',    5.47, 'EUR', false, 'CIC',                      'person1', ''],
           ['2026-01-08', 'Revolut','loisirs',  'Jeux / Jeux vidéo','debit',   25.90, 'CHF', false, 'Meta Pay',                 'person1', '1er jeu avec Oculus'],
           ['2026-01-08', 'Revolut','besoinsPersonnels','Livres / Éducation','debit',80,'CHF', false, 'Apple',                   'person1', 'CISSP Renouvellement questions 6 mois'],
           ['2026-01-08', 'UBS', 'entreprise', 'Repas Travail',     'debit',   22,    'CHF', false, 'Pictet',                   'person1', 'Repas + consigne Tupperware'],
@@ -203,7 +205,7 @@ export const useStore = create<AppState>()(
           ['2026-01-16', 'UBS', 'entreprise', 'Repas Travail',     'debit',    3.35, 'CHF', false, 'Pictet',                   'person1', 'Fruit petit déjeuner'],
           ['2026-01-16', 'UBS', 'entreprise', 'Repas Travail',     'credit',  25,    'CHF', false, 'Pictet',                   'person1', 'Retour consignes repas'],
           ['2026-01-19', 'UBS', 'impots',     'Global',           'debit', 1611,    'CHF', true,  'Etat',                     'person1', 'Acompte 2026 (1/12)'],
-          ['2026-01-28', 'LCL', 'banque',     'Prêt',             'debit',  535.67, 'EUR', true,  'LCL',                      'person1', 'Échéance prêt 36/60'],
+          ['2026-01-28', 'LCL', 'autre',      'Prêt',             'debit',  535.67, 'EUR', true,  'LCL',                      'person1', 'Échéance prêt 36/60'],
 
           // ── Juin 2024 ────────────────────────────────────────────────────────
           ['2024-06-01', 'CIC', 'loisirs',    'Voyage',           'debit',  130,    'EUR', false, 'Click & Boat',             'person1', 'Location bateau Italie avec Quentin et Alex (1/3)'],
@@ -257,7 +259,7 @@ export const useStore = create<AppState>()(
           ['2024-06-25', 'CIC',   'logement',  'Location Logement','debit',   30,    'EUR', false, 'Airbnb',                   'person1', 'Puy Du Fou avec Angèle et Jacky (1/3)'],
           ['2024-06-25', 'CIC',   'logement',  'Location Logement','debit',   34,    'EUR', false, 'Airbnb',                   'person1', 'Puy Du Fou avec Angèle et Jacky (1/3)'],
           ['2024-06-25', 'CIC',   'abonnements','Téléphone',        'debit',   25.99, 'EUR', false, 'Sosh',                     'person1', ''],
-          ['2024-06-26', 'CS',    'banque',     'Frais Carte',      'debit',   21,    'CHF', false, 'Crédit Suisse',            'person1', 'Décompte de frais'],
+          ['2024-06-26', 'CS',    'autre',      'Frais bancaires',      'debit',   21,    'CHF', false, 'Crédit Suisse',            'person1', 'Décompte de frais'],
           ['2024-06-26', 'Revolut','nourriture','Café / Boulangerie','debit',   3.60, 'EUR', false, 'Melissa Coffee',           'person1', ''],
           ['2024-06-26', 'Revolut','nourriture','Café / Boulangerie','debit',   6,    'EUR', false, 'Mokita Lounge',            'person1', ''],
           ['2024-06-26', 'Revolut','transport', 'Péages',           'debit',   15.30, 'EUR', false, "Autostrade per l'Italia",  'person1', 'Péage Italie'],
@@ -270,9 +272,9 @@ export const useStore = create<AppState>()(
           ['2024-06-28', 'Revolut','nourriture','Restaurant',        'debit',   19.50, 'EUR', false, 'Ramen Djizan',             'person1', ''],
           ['2024-06-28', 'Revolut','loisirs',   'Alcool',           'debit',   50,    'EUR', false, 'Caveau Château',           'person1', ''],
           ['2024-06-28', 'Revolut','nourriture','Courses',           'debit',   18.40, 'EUR', false, 'Craqui Shop',              'person1', ''],
-          ['2024-06-28', 'LCL',   'banque',     'Prêt',             'debit',  535.67, 'EUR', true,  'LCL',                      'person1', 'Échéance prêt 17/60'],
+          ['2024-06-28', 'LCL',   'autre',      'Prêt',             'debit',  535.67, 'EUR', true,  'LCL',                      'person1', 'Échéance prêt 17/60'],
           ['2024-06-29', 'Revolut','transport', 'Péages',           'debit',   12.90, 'EUR', false, 'APRR',                     'person1', ''],
-          ['2024-06-29', 'Revolut','banque',    'Frais Carte',      'debit',   10.99, 'CHF', false, 'Revolut',                  'person1', ''],
+          ['2024-06-29', 'Revolut','autre',     'Frais bancaires',      'debit',   10.99, 'CHF', false, 'Revolut',                  'person1', ''],
         ]
 
         const expenses: Expense[] = rows.map(
@@ -286,7 +288,7 @@ export const useStore = create<AppState>()(
         )
 
         const recurring: RecurringExpense[] = [
-          { id: uuid(), title: 'LCL',      category: 'banque',     subCategory: 'Prêt',                    amount: 535.67, currency: 'EUR', isFixed: true,  bank: 'LCL',    person: 'person1', frequency: 'monthly' },
+          { id: uuid(), title: 'LCL',      category: 'autre',      subCategory: 'Prêt',                    amount: 535.67, currency: 'EUR', isFixed: true,  bank: 'LCL',    person: 'person1', frequency: 'monthly' },
           { id: uuid(), title: 'Mme. Febo',category: 'logement',   subCategory: 'Loyer + Charges',         amount: 2530,   currency: 'CHF', isFixed: true,  bank: 'UBS',    person: 'person1', frequency: 'monthly' },
           { id: uuid(), title: 'Sanitas',  category: 'assurance',  subCategory: 'Maladie (Lamal)',          amount: 442.75, currency: 'CHF', isFixed: true,  bank: 'UBS',    person: 'person1', frequency: 'monthly' },
           { id: uuid(), title: 'Etat',     category: 'impots',     subCategory: 'Global',                  amount: 1611,   currency: 'CHF', isFixed: true,  bank: 'UBS',    person: 'person1', frequency: 'monthly' },
@@ -365,7 +367,7 @@ export const useStore = create<AppState>()(
     }),
     {
       name: 'budget-app-store',
-      version: 5,
+      version: 6,
       partialize: (state) => {
         // eslint-disable-next-line @typescript-eslint/no-unused-vars
         const { claudeApiKey: _dep, ...cleanSettings } = state.settings as AppSettings & { claudeApiKey?: string }
@@ -405,6 +407,35 @@ export const useStore = create<AppState>()(
             settings: {
               ...state.settings,
               claudeApiKey: state.settings?.claudeApiKey ?? '',
+            },
+          }
+        }
+        if (version < 6) {
+          // The 'banque' category was removed — fold its entries into 'autre'
+          const remap = (c: string) => c === 'banque' ? 'autre' : c
+          state = {
+            ...state,
+            expenses: (state.expenses ?? []).map((e: any) =>
+              e.category === 'banque' ? { ...e, category: 'autre' } : e
+            ),
+            recurring: (state.recurring ?? []).map((r: any) =>
+              r.category === 'banque' ? { ...r, category: 'autre' } : r
+            ),
+            budgets: (state.budgets ?? []).map((b: any) => {
+              if (!b.items?.some((i: any) => i.categoryId === 'banque')) return b
+              const items: any[] = []
+              for (const it of b.items) {
+                const cid = remap(it.categoryId)
+                const ex = items.find(x => x.categoryId === cid)
+                if (ex) ex.amount += it.amount
+                else items.push({ ...it, categoryId: cid })
+              }
+              return { ...b, items }
+            }),
+            settings: {
+              ...state.settings,
+              currentUser: state.settings?.currentUser ?? 'person1',
+              sharedSplitMode: state.settings?.sharedSplitMode ?? 'equal',
             },
           }
         }

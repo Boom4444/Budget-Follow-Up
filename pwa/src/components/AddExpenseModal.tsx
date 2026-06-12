@@ -3,6 +3,7 @@ import { useStore } from '../store/useStore'
 import { FIXED_CATEGORIES, VARIABLE_CATEGORIES, REVENUS_CATEGORY, getCategoryMeta } from '../data/categories'
 import { CURRENCIES, prefetchRateForDate, getHistoricalConversionRate } from '../data/currencies'
 import { today } from '../utils/dates'
+import { incomeRatioForMonth } from '../utils/split'
 import type { CurrencyCode, HouseholdMember } from '../models/types'
 
 interface Props {
@@ -21,13 +22,25 @@ interface Props {
     person?: HouseholdMember
     notes?: string
     splitRatio?: { person1: number; person2: number }
+    splitMode?: 'income'
   }
 }
 
+type SplitChoice = 'equal' | 'income' | 'custom'
+
 export default function AddExpenseModal({ onClose, editId, prefill }: Props) {
-  const { expenses, recurring, settings, addExpense, updateExpense } = useStore()
+  const { expenses, recurring, budgets, settings, addExpense, updateExpense } = useStore()
   const customCategories = settings.customCategories ?? []
   const deletedBuiltins = new Set(settings.deletedBuiltinCategories ?? [])
+
+  // Initial split choice: explicit prefill wins, else the household default
+  const initialSplit: SplitChoice = prefill?.splitMode === 'income'
+    ? 'income'
+    : prefill?.splitRatio && prefill.splitRatio.person1 !== 50
+      ? 'custom'
+      : prefill?.splitRatio
+        ? 'equal'
+        : settings.sharedSplitMode === 'income' ? 'income' : 'equal'
 
   const [title, setTitle]             = useState(prefill?.title ?? '')
   const [amount, setAmount]           = useState(prefill?.amount != null ? String(prefill.amount) : '')
@@ -38,9 +51,10 @@ export default function AddExpenseModal({ onClose, editId, prefill }: Props) {
   const [type, setType]               = useState<'debit' | 'credit'>(prefill?.type ?? 'debit')
   const [isFixed, setIsFixed]         = useState(prefill?.isFixed ?? false)
   const [bank, setBank]               = useState(prefill?.bank ?? '')
-  const [person, setPerson]           = useState<HouseholdMember>(prefill?.person ?? 'person1')
+  const [person, setPerson]           = useState<HouseholdMember>(prefill?.person ?? settings.currentUser ?? 'person1')
   const [notes, setNotes]             = useState(prefill?.notes ?? '')
   const [showCatPicker, setShowCatPicker] = useState(false)
+  const [splitChoice, setSplitChoice] = useState<SplitChoice>(initialSplit)
   const [splitPct, setSplitPct] = useState(prefill?.splitRatio?.person1 ?? 50)
   const [submitting, setSubmitting] = useState(false)
 
@@ -87,7 +101,12 @@ export default function AddExpenseModal({ onClose, editId, prefill }: Props) {
     if (!title.trim() || isNaN(num) || submitting) return
     setSubmitting(true)
     const base = settings.baseCurrency
-    const splitRatio = person === 'shared' ? { person1: splitPct, person2: 100 - splitPct } : undefined
+    const splitMode = person === 'shared' && splitChoice === 'income' ? 'income' as const : undefined
+    const splitRatio = person === 'shared' && splitChoice !== 'income'
+      ? splitChoice === 'custom'
+        ? { person1: splitPct, person2: 100 - splitPct }
+        : { person1: 50, person2: 50 }
+      : undefined
     // Fetch historical rate for the transaction date (uses cache if already prefetched)
     let exchangeRate: number | undefined
     if (currency !== base) {
@@ -95,9 +114,9 @@ export default function AddExpenseModal({ onClose, editId, prefill }: Props) {
       exchangeRate = getHistoricalConversionRate(date, currency, base)
     }
     if (editId) {
-      updateExpense(editId, { title: title.trim(), amount: num, currency, date, category, subCategory, type, isFixed, bank, person, notes, splitRatio, exchangeRate })
+      updateExpense(editId, { title: title.trim(), amount: num, currency, date, category, subCategory, type, isFixed, bank, person, notes, splitRatio, splitMode, exchangeRate })
     } else {
-      addExpense({ title: title.trim(), amount: num, currency, date, category, subCategory, type, isFixed, bank, person, notes, splitRatio, exchangeRate })
+      addExpense({ title: title.trim(), amount: num, currency, date, category, subCategory, type, isFixed, bank, person, notes, splitRatio, splitMode, exchangeRate })
     }
     onClose()
   }
@@ -262,21 +281,44 @@ export default function AddExpenseModal({ onClose, editId, prefill }: Props) {
                 <option value="shared">Commun</option>
               </select>
             </div>
-            {person === 'shared' && (
-              <div className="px-4 py-3 border-b border-gray-100 dark:border-gray-700">
-                <div className="flex items-center justify-between mb-2">
-                  <span className="text-[12px] font-semibold text-blue-600">{settings.person1Name} · {splitPct}%</span>
-                  <span className="text-[12px] text-gray-400 dark:text-gray-500">Répartition</span>
-                  <span className="text-[12px] font-semibold text-purple-600">{100 - splitPct}% · {settings.person2Name}</span>
+            {person === 'shared' && (() => {
+              const incomeRatio = incomeRatioForMonth(budgets, parseInt(date.slice(0, 4)), parseInt(date.slice(5, 7)))
+              const shownPct = splitChoice === 'income' ? incomeRatio.person1 : splitChoice === 'equal' ? 50 : splitPct
+              return (
+                <div className="px-4 py-3 border-b border-gray-100 dark:border-gray-700">
+                  <p className="text-[12px] text-gray-400 dark:text-gray-500 mb-2">Répartition</p>
+                  <div className="flex rounded-xl overflow-hidden bg-gray-100 dark:bg-gray-700 p-0.5 mb-2">
+                    {([
+                      { id: 'equal',  label: '50 / 50' },
+                      { id: 'income', label: 'Prorata revenus' },
+                      { id: 'custom', label: 'Personnalisé' },
+                    ] as const).map(opt => (
+                      <button key={opt.id} type="button" onClick={() => setSplitChoice(opt.id)}
+                        className={`flex-1 py-1.5 text-[12px] font-semibold rounded-lg transition-colors
+                          ${splitChoice === opt.id ? 'bg-blue-600 text-white' : 'text-gray-500 dark:text-gray-400'}`}>
+                        {opt.label}
+                      </button>
+                    ))}
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-[12px] font-semibold text-blue-600">{settings.person1Name} · {shownPct}%</span>
+                    <span className="text-[12px] font-semibold text-purple-600">{100 - shownPct}% · {settings.person2Name}</span>
+                  </div>
+                  {splitChoice === 'custom' && (
+                    <input type="range" min={0} max={100} step={5}
+                      value={splitPct} onChange={e => setSplitPct(Number(e.target.value))}
+                      className="w-full accent-blue-600 mt-1" />
+                  )}
+                  {splitChoice === 'income' && (
+                    <p className="text-[11px] text-gray-400 dark:text-gray-500 mt-1">
+                      {incomeRatio.person1 === 50 && incomeRatio.person2 === 50
+                        ? 'Revenus non renseignés dans Budget → 50/50 par défaut'
+                        : 'Calculé chaque mois selon les revenus renseignés dans Budget'}
+                    </p>
+                  )}
                 </div>
-                <input type="range" min={0} max={100} step={5}
-                  value={splitPct} onChange={e => setSplitPct(Number(e.target.value))}
-                  className="w-full accent-blue-600" />
-                <p className="text-[11px] text-center text-gray-400 dark:text-gray-500 mt-1">
-                  {splitPct === 50 ? 'Partage équitable' : `${settings.person1Name} paie ${splitPct}%, ${settings.person2Name} paie ${100 - splitPct}%`}
-                </p>
-              </div>
-            )}
+              )
+            })()}
             <div className="px-4 py-2 flex items-center gap-3">
               <span className="text-gray-400 dark:text-gray-500 text-sm w-20">Banque</span>
               <select value={bank} onChange={e => setBank(e.target.value)}

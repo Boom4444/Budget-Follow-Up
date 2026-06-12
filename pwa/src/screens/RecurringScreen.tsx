@@ -138,7 +138,7 @@ function RecurringFormModal({ editItem, settings, onClose, onSave }: {
   const [subCategory, setSubCategory] = useState(editItem?.subCategory ?? '')
   const [isFixed, setIsFixed]       = useState(editItem?.isFixed ?? false)
   const [bank, setBank]             = useState(editItem?.bank ?? '')
-  const [person, setPerson]         = useState<HouseholdMember>(editItem?.person ?? 'person1')
+  const [person, setPerson]         = useState<HouseholdMember>(editItem?.person ?? settings.currentUser ?? 'person1')
   const [frequency, setFrequency]   = useState<RecurrenceFrequency>(editItem?.frequency ?? 'monthly')
   const [showCatPicker, setShowCatPicker] = useState(false)
 

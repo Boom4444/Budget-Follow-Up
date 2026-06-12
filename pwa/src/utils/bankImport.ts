@@ -86,9 +86,9 @@ const KEYWORD_RULES: Array<{ keywords: string[]; category: string; subCategory: 
   { keywords: ['sanitas', 'groupe mutuel', 'css assurance', 'helsana', 'swica ', 'concordia', 'visana', 'assura '], category: 'assurance', subCategory: 'Maladie (Lamal)' },
   { keywords: ['mutuelle', 'complémentaire santé'], category: 'assurance', subCategory: 'Maladie (Complémentaire)' },
 
-  // Banque
-  { keywords: ['frais carte', 'cotisation carte', 'frais de tenue', 'interets debiteurs'], category: 'banque', subCategory: 'Frais Carte' },
-  { keywords: ['remboursement pret', 'remboursement prêt', 'echeance pret', 'échéance prêt', 'mensualite credit', 'mensualité crédit'], category: 'banque', subCategory: 'Prêt' },
+  // Frais bancaires / prêts (la catégorie 'banque' a été supprimée)
+  { keywords: ['frais carte', 'cotisation carte', 'frais de tenue', 'interets debiteurs'], category: 'autre', subCategory: 'Frais bancaires' },
+  { keywords: ['remboursement pret', 'remboursement prêt', 'echeance pret', 'échéance prêt', 'mensualite credit', 'mensualité crédit'], category: 'autre', subCategory: 'Prêt' },
 
   // Impôts
   { keywords: ['dgfip', 'tresor public', 'trésor public', 'impots.gouv', 'taxe habitation', 'taxe fonciere', 'taxe foncière'], category: 'impots', subCategory: 'Global' },
@@ -287,8 +287,8 @@ function parseRevolutCSV(lines: string[]): ImportedTransaction[] {
         currency,
         type: 'debit',
         bank: 'Revolut',
-        suggestedCategory: 'banque',
-        suggestedSubCategory: 'Frais Carte',
+        suggestedCategory: 'autre',
+        suggestedSubCategory: 'Frais bancaires',
         needsReview: false,
         notes: '',
       })

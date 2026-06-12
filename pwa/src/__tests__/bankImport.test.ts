@@ -50,7 +50,8 @@ describe('importFromCSV — Revolut FR', () => {
     expect(fees.length).toBe(2)
     expect(fees.every(f => f.type === 'debit')).toBe(true)
     expect(fees.every(f => Math.abs(f.amount - 10.99) < 0.01)).toBe(true)
-    expect(fees.every(f => f.suggestedCategory === 'banque')).toBe(true)
+    expect(fees.every(f => f.suggestedCategory === 'autre')).toBe(true)
+    expect(fees.every(f => f.suggestedSubCategory === 'Frais bancaires')).toBe(true)
   })
 
   it('preserves both CHF and EUR currencies', () => {

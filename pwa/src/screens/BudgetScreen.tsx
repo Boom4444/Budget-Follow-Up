@@ -7,6 +7,7 @@ import { CATEGORIES, CATEGORY_MAP } from '../data/categories'
 import { convertToBase } from '../data/currencies'
 import { formatAmount } from '../utils/formatters'
 import { currentYear, currentMonth, longMonth } from '../utils/dates'
+import { householdRatioForMonth, personShareFraction } from '../utils/split'
 import type { HouseholdMember } from '../models/types'
 
 function prevMonth(y: number, m: number) {
@@ -42,6 +43,20 @@ export default function BudgetScreen() {
 
   const budget = budgets.find(b => b.year === year && b.month === month && b.person === person)
 
+  // In personal tabs, each person also bears a share of the foyer budget and
+  // of the shared expenses (50/50 or income proration, per settings/expense)
+  const isPersonTab = person === 'person1' || person === 'person2'
+  const foyerBudget = isPersonTab
+    ? budgets.find(b => b.year === year && b.month === month && b.person === 'shared')
+    : undefined
+  const householdRatio = householdRatioForMonth(budgets, settings, year, month)
+  const foyerShareFor = (catId: string): number => {
+    if (!foyerBudget || !isPersonTab) return 0
+    const it = foyerBudget.items.find(i => i.categoryId === catId)
+    return it ? it.amount * householdRatio[person as 'person1' | 'person2'] / 100 : 0
+  }
+  const hasFoyerShare = isPersonTab && (foyerBudget?.items.length ?? 0) > 0
+
   // ── Fixed amounts from isFixed recurring for this person ──────────────────
   const fixedByCategory = useMemo(() => {
     const map: Record<string, number> = {}
@@ -67,32 +82,38 @@ export default function BudgetScreen() {
     fixedCatIds.every(id => budget?.items.some(i => i.categoryId === id))
 
   // ── Actual spend per category for this person ────────────────────────────
+  // Personal tabs include the person's share of shared (foyer) expenses
   const actualByCategory = useMemo(() => {
     const map: Record<string, number> = {}
     expenses
       .filter(e =>
         parseInt(e.date.slice(0, 4)) === year &&
         parseInt(e.date.slice(5, 7)) === month &&
-        e.type === 'debit' &&
-        e.person === person
+        e.type === 'debit'
       )
-      .forEach(e => { map[e.category] = (map[e.category] ?? 0) + e.amountInBase })
+      .forEach(e => {
+        const w = person === 'shared'
+          ? (e.person === 'shared' ? 1 : 0)
+          : personShareFraction(e, person as 'person1' | 'person2', budgets, settings)
+        if (w > 0) map[e.category] = (map[e.category] ?? 0) + e.amountInBase * w
+      })
     return map
-  }, [expenses, year, month, person])
+  }, [expenses, year, month, person, budgets, settings])
 
   // ── Rows ─────────────────────────────────────────────────────────────────
   const rows = useMemo(() =>
     CATEGORIES.map(cat => {
       const budgetItem = budget?.items.find(i => i.categoryId === cat.id)
-      const budgeted = budgetItem?.amount ?? 0
+      const foyerPart = foyerShareFor(cat.id)
+      const budgeted = (budgetItem?.amount ?? 0) + foyerPart
       const actual   = actualByCategory[cat.id] ?? 0
       const fixed    = fixedByCategory[cat.id] ?? 0
       const variable = Math.max(budgeted - fixed, 0)
       const deviation = actual - budgeted
       const pct = budgeted > 0 ? Math.min((actual / budgeted) * 100, 999) : null
-      return { cat, budgeted, actual, fixed, variable, deviation, pct }
+      return { cat, budgeted, actual, fixed, variable, deviation, pct, foyerPart }
     }).filter(r => r.budgeted > 0 || r.actual > 0),
-    [budget, actualByCategory, fixedByCategory]
+    [budget, actualByCategory, fixedByCategory, foyerBudget, householdRatio]  // eslint-disable-line react-hooks/exhaustive-deps
   )
 
   const totalBudgeted = rows.reduce((s, r) => s + r.budgeted, 0)
@@ -141,17 +162,27 @@ export default function BudgetScreen() {
     }
     return months.map(({ year: y, month: m }) => {
       const b = budgets.find(bx => bx.year === y && bx.month === m && bx.person === person)
-      const budgeted = b?.items.reduce((s, i) => s + i.amount, 0) ?? 0
+      let budgeted = b?.items.reduce((s, i) => s + i.amount, 0) ?? 0
+      if (person !== 'shared') {
+        const foyer = budgets.find(bx => bx.year === y && bx.month === m && bx.person === 'shared')
+        const ratio = householdRatioForMonth(budgets, settings, y, m)
+        budgeted += (foyer?.items.reduce((s, i) => s + i.amount, 0) ?? 0) * ratio[person as 'person1' | 'person2'] / 100
+      }
       const actual = expenses
-        .filter(e => parseInt(e.date.slice(0, 4)) === y && parseInt(e.date.slice(5, 7)) === m && e.type === 'debit' && e.person === person)
-        .reduce((s, e) => s + e.amountInBase, 0)
+        .filter(e => parseInt(e.date.slice(0, 4)) === y && parseInt(e.date.slice(5, 7)) === m && e.type === 'debit')
+        .reduce((s, e) => {
+          const w = person === 'shared'
+            ? (e.person === 'shared' ? 1 : 0)
+            : personShareFraction(e, person as 'person1' | 'person2', budgets, settings)
+          return s + e.amountInBase * w
+        }, 0)
       return {
         name: chartRange > 6 ? `${longMonth(m).slice(0, 3)} ${String(y).slice(2)}` : longMonth(m).slice(0, 4),
         budgeted: Math.round(budgeted),
         actual: Math.round(actual),
       }
     })
-  }, [budgets, expenses, year, month, person, chartRange])
+  }, [budgets, expenses, year, month, person, chartRange, settings])
 
   // ── Planifier helpers ────────────────────────────────────────────────────
   function prefillFromFixed() {
@@ -237,7 +268,7 @@ export default function BudgetScreen() {
       <div className="flex-1 overflow-y-auto scroll-ios pb-6">
 
         {/* Summary card */}
-        {budget && (
+        {(budget || hasFoyerShare) && (
           <div className="card mx-4 mt-4 p-4">
             {/* Expenses row */}
             <div className="flex justify-between items-start mb-3">
@@ -275,6 +306,12 @@ export default function BudgetScreen() {
               </div>
             )}
             {/* Deviation */}
+            {hasFoyerShare && (
+              <p className="text-[11px] text-gray-400 dark:text-gray-500 mt-2">
+                Inclut {householdRatio[person as 'person1' | 'person2']}% du budget foyer
+                ({settings.sharedSplitMode === 'income' ? 'prorata des revenus' : '50/50'})
+              </p>
+            )}
             <div className="flex justify-between items-center mt-2">
               <p className="text-[12px] text-gray-400 dark:text-gray-500">{globalPct.toFixed(0)}% utilisé</p>
               <p className={`text-[13px] font-semibold ${totalDev <= 0 ? 'text-green-600' : 'text-red-500'}`}>
