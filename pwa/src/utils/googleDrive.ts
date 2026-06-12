@@ -248,7 +248,7 @@ export async function findBackupsInFolder(token: string, folderId: string): Prom
  * Update the content of an existing Drive file in-place (PATCH).
  * Throws if the file no longer exists (404) so callers can create a new one.
  */
-export async function updateDriveFile(token: string, fileId: string, data: BackupData): Promise<void> {
+export async function updateDriveFile(token: string, fileId: string, data: unknown, name = 'budget-auto-backup.json'): Promise<void> {
   const json = JSON.stringify(data, null, 2)
   const boundary = '-------BackupBoundary314159265358979'
   const delimiter = `\r\n--${boundary}\r\n`
@@ -256,7 +256,7 @@ export async function updateDriveFile(token: string, fileId: string, data: Backu
   const multipartBody =
     delimiter +
     'Content-Type: application/json; charset=UTF-8\r\n\r\n' +
-    JSON.stringify({ name: 'budget-auto-backup.json', mimeType: 'application/json' }) +
+    JSON.stringify({ name, mimeType: 'application/json' }) +
     delimiter +
     'Content-Type: application/json; charset=UTF-8\r\n\r\n' +
     json +
@@ -300,6 +300,60 @@ export async function createDriveFolder(token: string, name: string): Promise<Dr
   }
   const json: { id: string; name: string } = await res.json()
   return { id: json.id, name: json.name }
+}
+
+/**
+ * Find a file by exact name in the given (or default) folder.
+ * Returns the file ID, or null when it doesn't exist.
+ */
+export async function findFileByName(token: string, name: string, folderId?: string): Promise<string | null> {
+  const resolvedFolderId = folderId ?? await getOrCreateFolder(token)
+  const safeId = resolvedFolderId.replace(/['\\]/g, '')
+  const safeName = name.replace(/['\\]/g, '')
+  const query = encodeURIComponent(
+    `'${safeId}' in parents and name='${safeName}' and trashed=false`
+  )
+  const url = `https://www.googleapis.com/drive/v3/files?q=${query}&fields=files(id)&pageSize=1`
+  const res = await driveGet<{ files: Array<{ id: string }> }>(token, url)
+  return res.files?.[0]?.id ?? null
+}
+
+/**
+ * Create a JSON file with an exact name in the given (or default) folder.
+ * Returns the new file ID.
+ */
+export async function createJsonFile(token: string, name: string, data: unknown, folderId?: string): Promise<string> {
+  const resolvedFolderId = folderId ?? await getOrCreateFolder(token)
+  const boundary = '-------BackupBoundary314159265358979'
+  const delimiter = `\r\n--${boundary}\r\n`
+  const closeDelimiter = `\r\n--${boundary}--`
+  const multipartBody =
+    delimiter +
+    'Content-Type: application/json; charset=UTF-8\r\n\r\n' +
+    JSON.stringify({ name, mimeType: 'application/json', parents: [resolvedFolderId] }) +
+    delimiter +
+    'Content-Type: application/json; charset=UTF-8\r\n\r\n' +
+    JSON.stringify(data, null, 2) +
+    closeDelimiter
+
+  const res = await fetch(
+    'https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id',
+    {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${token}`,
+        'Content-Type': `multipart/related; boundary="${boundary}"`,
+      },
+      body: multipartBody,
+    }
+  )
+  if (!res.ok) {
+    const text = await res.text()
+    throw new Error(`Drive create failed ${res.status}: ${text}`)
+  }
+  const json: { id?: string } = await res.json()
+  if (!json.id) throw new Error('Drive create returned no file ID')
+  return json.id
 }
 
 /**

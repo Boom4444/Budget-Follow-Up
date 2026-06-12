@@ -54,7 +54,7 @@ const EMOJI_GROUPS = [
 ]
 
 export default function SettingsScreen({ onShowHelp }: Props) {
-  const { settings, updateSettings, recategorizeExpenses, loadDemoData, expenses, recurring, budgets, importData, clearData, driveToken, setDriveToken, lastAutoBackup, claudeApiKey, setClaudeApiKey } = useStore()
+  const { settings, updateSettings, recategorizeExpenses, loadDemoData, expenses, recurring, budgets, importData, clearData, driveToken, setDriveToken, lastAutoBackup, lastSync, claudeApiKey, setClaudeApiKey } = useStore()
   const {
     needRefresh: [needRefresh],
     updateServiceWorker,
@@ -682,6 +682,36 @@ export default function SettingsScreen({ onShowHelp }: Props) {
                 >
                   <span className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform ${settings.autoBackupToDrive ? 'translate-x-5' : 'translate-x-0'}`} />
                 </button>
+              </div>
+
+              {/* Household sync toggle */}
+              <div className="px-4 py-3 border-b border-gray-100 dark:border-gray-700">
+                <div className="flex items-center justify-between">
+                  <div className="pr-3">
+                    <p className="text-[15px] dark:text-white">Synchronisation du foyer</p>
+                    <p className="text-[11px] text-gray-400 dark:text-gray-500 mt-0.5">
+                      Les 2 téléphones connectés au même compte Google partagent les mêmes
+                      données (fusion automatique, sans doublons ni écrasement)
+                    </p>
+                    {settings.driveSyncEnabled && lastSync && (
+                      <p className={`text-[11px] mt-0.5 ${lastSync.status === 'ok' ? 'text-green-500' : 'text-red-400'}`}>
+                        {lastSync.status === 'ok'
+                          ? `✓ Synchronisé ${formatRelativeTime(lastSync.at)}`
+                          : lastSync.reason === 'auth'
+                            ? '✗ Échec — reconnexion Google requise'
+                            : `✗ Échec ${formatRelativeTime(lastSync.at)} — nouvel essai automatique`}
+                      </p>
+                    )}
+                  </div>
+                  <button
+                    role="switch"
+                    aria-checked={!!settings.driveSyncEnabled}
+                    onClick={() => updateSettings({ driveSyncEnabled: !settings.driveSyncEnabled })}
+                    className={`relative w-11 h-6 rounded-full transition-colors flex-shrink-0 ${settings.driveSyncEnabled ? 'bg-green-500' : 'bg-gray-300 dark:bg-gray-600'}`}
+                  >
+                    <span className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform ${settings.driveSyncEnabled ? 'translate-x-5' : 'translate-x-0'}`} />
+                  </button>
+                </div>
               </div>
 
               <button onClick={uploadDrive} disabled={driveLoading}

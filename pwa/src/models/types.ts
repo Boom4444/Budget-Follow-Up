@@ -51,6 +51,8 @@ export interface Expense {
    *  (takes precedence over splitRatio). Absent = use splitRatio, else 50/50. */
   splitMode?: 'income'
   exchangeRate?: number  // 1 unit of `currency` = exchangeRate units of baseCurrency, at transaction date
+  /** Last modification (epoch ms) — drives conflict resolution in household sync */
+  updatedAt?: number
 }
 
 export interface RecurringExpense {
@@ -64,6 +66,8 @@ export interface RecurringExpense {
   bank: string
   person: HouseholdMember
   frequency: RecurrenceFrequency
+  /** Last modification (epoch ms) — drives conflict resolution in household sync */
+  updatedAt?: number
 }
 
 export type AppTheme = 'light' | 'dark' | 'system'
@@ -79,6 +83,8 @@ export interface MonthlyBudget {
   person: HouseholdMember
   estimatedIncome?: number
   items: BudgetItem[]
+  /** Last modification (epoch ms) — drives conflict resolution in household sync */
+  updatedAt?: number
 }
 
 export interface AppSettings {
@@ -97,6 +103,10 @@ export interface AppSettings {
   driveBackupFolder?: { id: string; name: string }
   autoBackupToDrive?: boolean
   autoBackupFileId?: string   // Drive file ID for the single auto-backup file (update-in-place)
+  /** Household sync: both phones connected to the same Google account merge
+   *  their data through a single shared Drive file. */
+  driveSyncEnabled?: boolean
+  syncFileId?: string         // Drive file ID of the shared sync file
   customCategories: CustomCategoryDef[]
   deletedBuiltinCategories?: string[]   // built-in category IDs the user has removed
   /** Keep the Claude API key encrypted on this device (AES-GCM / IndexedDB).

@@ -4,6 +4,7 @@ import { v4 as uuid } from 'uuid'
 import type { Expense, RecurringExpense, AppSettings, CurrencyCode, HouseholdMember, MonthlyBudget, BudgetItem } from '../models/types'
 import { convertToBase } from '../data/currencies'
 import { autoSave } from '../utils/backup'
+import { budgetKey, emptyTombstones, type Tombstones } from '../utils/sync'
 
 export interface AutoBackupStatus {
   at: string
@@ -45,6 +46,20 @@ interface AppState {
   setDriveToken: (token: string | null, expiresInSeconds?: number) => void
   lastAutoBackup: AutoBackupStatus | null
   setLastAutoBackup: (b: AutoBackupStatus | null) => void
+
+  // Household sync (shared Drive file between the two phones)
+  tombstones: Tombstones
+  lastSync: AutoBackupStatus | null
+  setLastSync: (s: AutoBackupStatus | null) => void
+  applySync: (data: {
+    expenses: Expense[]
+    recurring: RecurringExpense[]
+    budgets: MonthlyBudget[]
+    tombstones: Tombstones
+    customCategories: AppSettings['customCategories']
+    deletedBuiltinCategories: string[]
+  }) => void
+
   // Transient (not persisted)
   claudeApiKey: string
   setClaudeApiKey: (key: string) => void
@@ -81,17 +96,19 @@ export const useStore = create<AppState>()(
         const amountInBase = e.exchangeRate != null
           ? e.amount * e.exchangeRate
           : convertToBase(e.amount, e.currency, base)
-        set(s => ({ expenses: [...s.expenses, { ...e, id: uuid(), amountInBase }] }))
+        set(s => ({ expenses: [...s.expenses, { ...e, id: uuid(), amountInBase, updatedAt: Date.now() }] }))
       },
 
       addBatchExpenses(items) {
         const base = get().settings.baseCurrency
+        const now = Date.now()
         const newExpenses = items.map(e => ({
           ...e,
           id: uuid(),
           amountInBase: e.exchangeRate != null
             ? e.amount * e.exchangeRate
             : convertToBase(e.amount, e.currency, base),
+          updatedAt: now,
         }))
         set(s => ({ expenses: [...s.expenses, ...newExpenses] }))
       },
@@ -100,7 +117,7 @@ export const useStore = create<AppState>()(
         set(s => ({
           expenses: s.expenses.map(e => {
             if (e.id !== id) return e
-            const merged = { ...e, ...patch }
+            const merged = { ...e, ...patch, updatedAt: Date.now() }
             const base = s.settings.baseCurrency
             // Use stored historical rate if available; fall back to live cross-rate
             merged.amountInBase = merged.exchangeRate != null
@@ -112,21 +129,27 @@ export const useStore = create<AppState>()(
       },
 
       deleteExpense(id) {
-        set(s => ({ expenses: s.expenses.filter(e => e.id !== id) }))
+        set(s => ({
+          expenses: s.expenses.filter(e => e.id !== id),
+          tombstones: { ...s.tombstones, expenses: { ...s.tombstones.expenses, [id]: Date.now() } },
+        }))
       },
 
       addRecurring(r) {
-        set(s => ({ recurring: [...s.recurring, { ...r, id: uuid() }] }))
+        set(s => ({ recurring: [...s.recurring, { ...r, id: uuid(), updatedAt: Date.now() }] }))
       },
 
       updateRecurring(id, patch) {
         set(s => ({
-          recurring: s.recurring.map(r => r.id === id ? { ...r, ...patch } : r),
+          recurring: s.recurring.map(r => r.id === id ? { ...r, ...patch, updatedAt: Date.now() } : r),
         }))
       },
 
       deleteRecurring(id) {
-        set(s => ({ recurring: s.recurring.filter(r => r.id !== id) }))
+        set(s => ({
+          recurring: s.recurring.filter(r => r.id !== id),
+          tombstones: { ...s.tombstones, recurring: { ...s.tombstones.recurring, [id]: Date.now() } },
+        }))
       },
 
       updateSettings(patch) {
@@ -134,10 +157,11 @@ export const useStore = create<AppState>()(
       },
 
       recategorizeExpenses(fromCategoryId, toCategoryId) {
+        const now = Date.now()
         set(s => ({
           expenses: s.expenses.map(e =>
             e.category === fromCategoryId
-              ? { ...e, category: toCategoryId, subCategory: 'Non classé' }
+              ? { ...e, category: toCategoryId, subCategory: 'Non classé', updatedAt: now }
               : e
           ),
         }))
@@ -302,11 +326,33 @@ export const useStore = create<AppState>()(
       },
 
       importData(newExpenses, newRecurring, newBudgets, merge = false) {
-        set(s => ({
-          expenses:  merge ? [...s.expenses,  ...newExpenses]  : newExpenses,
-          recurring: merge ? [...s.recurring, ...newRecurring] : newRecurring,
-          budgets:   merge ? [...s.budgets,   ...newBudgets]   : newBudgets,
-        }))
+        set(s => {
+          if (!merge) {
+            return { expenses: newExpenses, recurring: newRecurring, budgets: newBudgets }
+          }
+          // Merge by id/key so re-importing a backup never duplicates entries
+          const expById = new Map(s.expenses.map(e => [e.id, e]))
+          for (const e of newExpenses) {
+            const ex = expById.get(e.id)
+            if (!ex || (e.updatedAt ?? 0) >= (ex.updatedAt ?? 0)) expById.set(e.id, e)
+          }
+          const recById = new Map(s.recurring.map(r => [r.id, r]))
+          for (const r of newRecurring) {
+            const ex = recById.get(r.id)
+            if (!ex || (r.updatedAt ?? 0) >= (ex.updatedAt ?? 0)) recById.set(r.id, r)
+          }
+          const budByKey = new Map(s.budgets.map(b => [budgetKey(b), b]))
+          for (const b of newBudgets) {
+            const k = budgetKey(b)
+            const ex = budByKey.get(k)
+            if (!ex || (b.updatedAt ?? 0) >= (ex.updatedAt ?? 0)) budByKey.set(k, b)
+          }
+          return {
+            expenses: [...expById.values()],
+            recurring: [...recById.values()],
+            budgets: [...budByKey.values()],
+          }
+        })
       },
 
       clearData() {
@@ -320,17 +366,25 @@ export const useStore = create<AppState>()(
           if (existing) {
             const items = existing.items.filter(i => i.categoryId !== categoryId)
             if (amount > 0) items.push({ categoryId, amount })
-            return { budgets: s.budgets.map(b => match(b) ? { ...b, items } : b) }
+            return { budgets: s.budgets.map(b => match(b) ? { ...b, items, updatedAt: Date.now() } : b) }
           }
           if (amount <= 0) return {}
-          return { budgets: [...s.budgets, { year, month, person, items: [{ categoryId, amount }] }] }
+          return { budgets: [...s.budgets, { year, month, person, items: [{ categoryId, amount }], updatedAt: Date.now() }] }
         })
       },
 
       setBudgetItems(year, month, person, items) {
         set(s => {
           const filtered = s.budgets.filter(b => !(b.year === year && b.month === month && b.person === person))
-          return { budgets: items.length > 0 ? [...filtered, { year, month, person, items }] : filtered }
+          if (items.length > 0) {
+            return { budgets: [...filtered, { year, month, person, items, updatedAt: Date.now() }] }
+          }
+          // Budget removed — leave a tombstone so the deletion syncs
+          const key = budgetKey({ year, month, person })
+          return {
+            budgets: filtered,
+            tombstones: { ...s.tombstones, budgets: { ...s.tombstones.budgets, [key]: Date.now() } },
+          }
         })
       },
 
@@ -339,7 +393,7 @@ export const useStore = create<AppState>()(
         if (!src) return
         set(s => {
           const filtered = s.budgets.filter(b => !(b.year === toYear && b.month === toMonth && b.person === toPerson))
-          return { budgets: [...filtered, { year: toYear, month: toMonth, person: toPerson, estimatedIncome: src.estimatedIncome, items: [...src.items] }] }
+          return { budgets: [...filtered, { year: toYear, month: toMonth, person: toPerson, estimatedIncome: src.estimatedIncome, items: [...src.items], updatedAt: Date.now() }] }
         })
       },
 
@@ -348,9 +402,9 @@ export const useStore = create<AppState>()(
           const match = (b: MonthlyBudget) => b.year === year && b.month === month && b.person === person
           const existing = s.budgets.find(match)
           if (existing) {
-            return { budgets: s.budgets.map(b => match(b) ? { ...b, estimatedIncome: amount } : b) }
+            return { budgets: s.budgets.map(b => match(b) ? { ...b, estimatedIncome: amount, updatedAt: Date.now() } : b) }
           }
-          return { budgets: [...s.budgets, { year, month, person, estimatedIncome: amount, items: [] }] }
+          return { budgets: [...s.budgets, { year, month, person, estimatedIncome: amount, items: [], updatedAt: Date.now() }] }
         })
       },
 
@@ -362,6 +416,24 @@ export const useStore = create<AppState>()(
       }),
       lastAutoBackup: null,
       setLastAutoBackup: (b) => set({ lastAutoBackup: b }),
+
+      tombstones: emptyTombstones(),
+      lastSync: null,
+      setLastSync: (st) => set({ lastSync: st }),
+      applySync(data) {
+        set(s => ({
+          expenses: data.expenses,
+          recurring: data.recurring,
+          budgets: data.budgets,
+          tombstones: data.tombstones,
+          settings: {
+            ...s.settings,
+            customCategories: data.customCategories,
+            deletedBuiltinCategories: data.deletedBuiltinCategories,
+          },
+        }))
+      },
+
       claudeApiKey: '',
       setClaudeApiKey: (key) => set({ claudeApiKey: key }),
     }),
@@ -379,6 +451,8 @@ export const useStore = create<AppState>()(
           driveToken: state.driveToken,
           driveTokenExpiresAt: state.driveTokenExpiresAt,
           lastAutoBackup: state.lastAutoBackup,
+          tombstones: state.tombstones,
+          lastSync: state.lastSync,
         }
       },
       migrate(persistedState, version) {

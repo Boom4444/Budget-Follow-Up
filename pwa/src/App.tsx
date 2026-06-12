@@ -11,6 +11,7 @@ import AIChatScreen from './screens/AIChatScreen'
 import OutilsScreen from './screens/OutilsScreen'
 import UpdatePrompt from './components/UpdatePrompt'
 import { useAutoBackupToDrive } from './hooks/useAutoBackupToDrive'
+import { useDriveSync } from './hooks/useDriveSync'
 import { loadApiKey, storeApiKey } from './utils/secureStorage'
 
 type Tab = 'dashboard' | 'expenses' | 'budget' | 'recurring' | 'outils' | 'ai' | 'settings'
@@ -30,6 +31,7 @@ export default function App() {
   const [showHelp, setShowHelp] = useState(false)
   const { settings, updateSettings, setClaudeApiKey } = useStore()
   useAutoBackupToDrive()
+  useDriveSync()
 
   // Load Claude API key from secure storage; migrate old plaintext key if present
   useEffect(() => {
