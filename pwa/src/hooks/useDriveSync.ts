@@ -1,6 +1,7 @@
 import { useEffect, useRef } from 'react'
-import { useStore, getValidDriveToken } from '../store/useStore'
-import { requestDriveToken, downloadFromDrive, updateDriveFile, createJsonFile, findFileByName } from '../utils/googleDrive'
+import { useStore } from '../store/useStore'
+import { downloadFromDrive, updateDriveFile, createJsonFile, findFileByName } from '../utils/googleDrive'
+import { ensureDriveToken } from '../utils/driveSession'
 import { SYNC_FILE_NAME, mergeSyncData, parseSyncData, canonicalize, emptyTombstones, type SyncData } from '../utils/sync'
 
 const DEBOUNCE_MS = 2_500
@@ -45,21 +46,6 @@ export function useDriveSync() {
   const tombstones = useStore(s => s.tombstones)
   const syncEnabled = useStore(s => s.settings.driveSyncEnabled ?? false)
 
-  async function getToken(): Promise<string | null> {
-    const s = useStore.getState()
-    const valid = getValidDriveToken(s)
-    if (valid) return valid
-    const clientId = s.settings.googleDriveClientId?.trim()
-    if (!clientId) return null
-    try {
-      const { token, expiresIn } = await requestDriveToken(clientId, { silent: true })
-      s.setDriveToken(token, expiresIn)
-      return token
-    } catch {
-      return null
-    }
-  }
-
   async function runSync() {
     if (runningRef.current) return
     const s = useStore.getState()
@@ -67,7 +53,7 @@ export function useDriveSync() {
 
     runningRef.current = true
     try {
-      const token = await getToken()
+      const token = await ensureDriveToken()
       if (!token) {
         s.setLastSync({ at: new Date().toISOString(), status: 'error', reason: 'auth' })
         return

@@ -1,6 +1,7 @@
 import { useEffect, useRef } from 'react'
 import { useStore, getValidDriveToken } from '../store/useStore'
-import { uploadToDrive, updateDriveFile, requestDriveToken } from '../utils/googleDrive'
+import { uploadToDrive, updateDriveFile } from '../utils/googleDrive'
+import { ensureDriveToken } from '../utils/driveSession'
 import type { BackupData } from '../utils/backup'
 import { BACKUP_VERSION } from '../utils/backup'
 
@@ -38,21 +39,6 @@ export function useAutoBackupToDrive() {
   const settings = useStore(s => s.settings)
   const settingsKey = JSON.stringify({ ...settings, autoBackupFileId: undefined })
 
-  async function getToken(interactive: boolean): Promise<string | null> {
-    const s = useStore.getState()
-    const valid = getValidDriveToken(s)
-    if (valid) return valid
-    const clientId = s.settings.googleDriveClientId?.trim()
-    if (!clientId) return null
-    try {
-      const { token, expiresIn } = await requestDriveToken(clientId, { silent: !interactive })
-      s.setDriveToken(token, expiresIn)
-      return token
-    } catch {
-      return null
-    }
-  }
-
   async function runBackup() {
     if (runningRef.current) return
     const s = useStore.getState()
@@ -62,7 +48,7 @@ export function useAutoBackupToDrive() {
 
     runningRef.current = true
     try {
-      const token = await getToken(false)
+      const token = await ensureDriveToken()
       if (!token) {
         s.setLastAutoBackup({ at: new Date().toISOString(), status: 'error', reason: 'auth' })
         return
@@ -160,7 +146,7 @@ export function useAutoBackupToDrive() {
     const s = useStore.getState()
     if (s.driveToken && !getValidDriveToken(s)) s.setDriveToken(null)
     if (s.settings.autoBackupToDrive && s.settings.googleDriveClientId && !getValidDriveToken(s)) {
-      void getToken(false).then(token => {
+      void ensureDriveToken().then(token => {
         if (token) void runBackup()
       })
     }
