@@ -1,69 +1,32 @@
 import { useState, useRef, useEffect } from 'react'
 import { useStore } from '../store/useStore'
-import { CATEGORIES, CATEGORY_MAP, getActiveCategories } from '../data/categories'
-import type { CustomCategoryDef, AppSettings } from '../models/types'
-import { v4 as uuid } from 'uuid'
+import type { AppSettings } from '../models/types'
 import {
   exportJSON, exportCSV, exportXLSX, exportPDF,
   parseJSONBackup, parseCSV,
   getAutoBackupSlots, downloadAutoBackup, formatRelativeTime,
 } from '../utils/backup'
 import type { AutoBackupSlot } from '../utils/backup'
-import {
-  requestDriveToken, uploadToDrive, listDriveBackups, listDriveFolders, downloadFromDrive, createDriveFolder,
-} from '../utils/googleDrive'
-import type { DriveFile, DriveFolder } from '../utils/googleDrive'
-import { storeApiKey, clearApiKey } from '../utils/secureStorage'
 import TrashSheet from '../components/TrashSheet'
 import AppearanceSection from '../components/settings/AppearanceSection'
 import HouseholdSection from '../components/settings/HouseholdSection'
 import CurrencySection from '../components/settings/CurrencySection'
+import CategoriesSection from '../components/settings/CategoriesSection'
+import AIAssistantSection from '../components/settings/AIAssistantSection'
+import AboutSection from '../components/settings/AboutSection'
+import GoogleDriveSection from '../components/settings/GoogleDriveSection'
 import type { PendingImport } from '../components/settings/types'
-import { useRegisterSW } from 'virtual:pwa-register/react'
 
 interface Props {
   onShowHelp?: () => void
 }
 
-const EMOJI_GROUPS = [
-  { label: 'Logement & Maison', emojis: ['🏠', '🏡', '🏢', '🛋️', '💡', '🔧', '🪴', '🛁', '🚿', '🪑', '🛏️', '🪟'] },
-  { label: 'Nourriture', emojis: ['🍽️', '🛒', '🥘', '🍕', '☕', '🧺', '🍷', '🍰', '🥗', '🌮', '🍣', '🍜'] },
-  { label: 'Transport', emojis: ['🚗', '✈️', '🚂', '⛽', '🛵', '🚌', '🚕', '🛞', '🚴', '🏍️', '⛵', '🚁'] },
-  { label: 'Loisirs & Voyage', emojis: ['🎯', '🎮', '🏖️', '🎬', '🎸', '🎲', '🎨', '🎭', '⛷️', '🏄', '🎃', '🎡'] },
-  { label: 'Travail', emojis: ['💼', '💻', '📊', '📱', '📧', '💰', '📝', '🗃️', '📋', '🖊️', '🔒', '📞'] },
-  { label: 'Santé', emojis: ['💊', '🏥', '🩺', '💉', '🩹', '🧬', '👓', '🦷', '🩻', '🌡️', '🧪', '💆'] },
-  { label: 'Mode', emojis: ['👔', '👗', '💄', '👠', '👟', '🧳', '💍', '👜', '🎩', '👒', '🧣', '🥿'] },
-  { label: 'Sport', emojis: ['🏋️', '🏊', '⚽', '🎾', '🚴', '🏃', '🥊', '⛷️', '🤸', '🧘', '🎿', '🏇'] },
-  { label: 'Beauté', emojis: ['💇', '💅', '🧴', '🪒', '🪭', '🧖', '🌸', '✨', '💐', '🌺', '🌹', '💋'] },
-  { label: 'Famille & Cadeaux', emojis: ['👨‍👩‍👧', '🎁', '💝', '🎂', '👶', '🐾', '🎀', '🧸', '🎈', '🥳', '🎉', '💌'] },
-  { label: 'Finance', emojis: ['💳', '🏦', '💸', '💎', '🪙', '💵', '📈', '🧾', '📑', '🏧', '💹', '🔐'] },
-  { label: 'Tech', emojis: ['📱', '💻', '📺', '🎧', '📷', '🕹️', '🖥️', '⌚', '🔋', '📡', '🤖', '🖨️'] },
-  { label: 'Divers', emojis: ['⭐', '🌟', '✨', '🔖', '📌', '🗓️', '🏷️', '📦', '🗝️', '🔑', '🎗️', '🌈'] },
-]
-
 export default function SettingsScreen({ onShowHelp }: Props) {
   const {
-    settings, updateSettings, recategorizeExpenses, loadDemoData, expenses, recurring, budgets,
-    importData, clearData, driveToken, setDriveToken, lastAutoBackup, lastSync, claudeApiKey, setClaudeApiKey,
-    trashedExpenses, trashedRecurring, purgeExpiredTrash,
+    settings, updateSettings, loadDemoData, expenses, recurring, budgets,
+    importData, clearData, trashedExpenses, trashedRecurring, purgeExpiredTrash,
   } = useStore()
-  const {
-    needRefresh: [needRefresh],
-    updateServiceWorker,
-  } = useRegisterSW()
-  const [newCatEmoji, setNewCatEmoji] = useState('📦')
-  const [newCatLabel, setNewCatLabel] = useState('')
-  const [newCatFixed, setNewCatFixed] = useState(false)
-  const [showEmojiPicker, setShowEmojiPicker] = useState(false)
-  // Category edit modal
-  const [editingCat, setEditingCat] = useState<{ id: string; isBuiltin: boolean } | null>(null)
-  const [editCatLabel, setEditCatLabel] = useState('')
-  const [editCatEmoji, setEditCatEmoji] = useState('📦')
-  const [showEditEmojiPicker, setShowEditEmojiPicker] = useState(false)
-  const emojiTarget = useRef<'add' | 'edit'>('add')
   const [showConfirmDemo, setShowConfirmDemo] = useState(false)
-  const [showClearCacheConfirm, setShowClearCacheConfirm] = useState(false)
-  const [clearingCache, setClearingCache] = useState(false)
   const [backupSlots, setBackupSlots] = useState<AutoBackupSlot[]>([])
   const [pending, setPending] = useState<PendingImport | null>(null)
   const [showClearConfirm, setShowClearConfirm] = useState(false)
@@ -73,77 +36,11 @@ export default function SettingsScreen({ onShowHelp }: Props) {
   const [showExportSheet, setShowExportSheet] = useState(false)
   const [showTrash, setShowTrash] = useState(false)
 
-  // Update check status
-  const [updateStatus, setUpdateStatus] = useState<'idle' | 'checking' | 'none' | 'available'>('idle')
-  const [availableVersion, setAvailableVersion] = useState<string | null>(null)
-
-  // Google Drive state (driveToken lives in store — shared with auto-backup hook)
-  const [driveFiles, setDriveFiles] = useState<DriveFile[]>([])
-  const [driveFolders, setDriveFolders] = useState<DriveFolder[]>([])
-  const [showFolderPicker, setShowFolderPicker] = useState(false)
-  const [newFolderName, setNewFolderName] = useState('')
-  const [creatingFolder, setCreatingFolder] = useState(false)
-  const [driveLoading, setDriveLoading] = useState(false)
-  const [driveError, setDriveError] = useState('')
-  const [driveClientIdInput, setDriveClientIdInput] = useState(settings.googleDriveClientId)
-  const [showDriveSetup, setShowDriveSetup] = useState(false)
-
   const fileRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
     setBackupSlots(getAutoBackupSlots())
   }, [expenses])
-
-  function addCustomCategory() {
-    const label = newCatLabel.trim()
-    if (!label) return
-    const custom = settings.customCategories ?? []
-    const newCat: CustomCategoryDef = { id: `custom_${uuid().slice(0, 8)}`, label, emoji: newCatEmoji, isFixed: newCatFixed }
-    updateSettings({ customCategories: [...custom, newCat] })
-    setNewCatLabel('')
-    setNewCatEmoji('📦')
-    setNewCatFixed(false)
-  }
-
-  function removeCustomCategory(id: string) {
-    recategorizeExpenses(id, 'a_classer')
-    updateSettings({ customCategories: (settings.customCategories ?? []).filter(c => c.id !== id) })
-  }
-
-  function deleteBuiltinCategory(id: string) {
-    recategorizeExpenses(id, 'a_classer')
-    // Remove any custom override and mark as deleted
-    const cleanedCustom = (settings.customCategories ?? []).filter(c => c.id !== id)
-    const deletedBuiltins = [...new Set([...(settings.deletedBuiltinCategories ?? []), id])]
-    updateSettings({ customCategories: cleanedCustom, deletedBuiltinCategories: deletedBuiltins })
-  }
-
-  function openEditCategory(id: string) {
-    const custom = settings.customCategories ?? []
-    const override = custom.find(c => c.id === id)
-    const builtin = CATEGORY_MAP[id]
-    const isBuiltin = !!builtin
-    const current = override ?? builtin
-    if (!current) return
-    setEditingCat({ id, isBuiltin })
-    setEditCatLabel(current.label)
-    setEditCatEmoji(current.emoji)
-  }
-
-  function saveEditCategory() {
-    if (!editingCat || !editCatLabel.trim()) return
-    const custom = settings.customCategories ?? []
-    const withoutThis = custom.filter(c => c.id !== editingCat.id)
-    const isFixed = editingCat.isBuiltin
-      ? (CATEGORY_MAP[editingCat.id]?.isFixed ?? false)
-      : (custom.find(c => c.id === editingCat.id)?.isFixed ?? false)
-    updateSettings({ customCategories: [...withoutThis, { id: editingCat.id, label: editCatLabel.trim(), emoji: editCatEmoji, isFixed }] })
-    setEditingCat(null)
-  }
-
-  function resetBuiltinCategory(id: string) {
-    updateSettings({ customCategories: (settings.customCategories ?? []).filter(c => c.id !== id) })
-  }
 
   function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]
@@ -197,153 +94,6 @@ export default function SettingsScreen({ onShowHelp }: Props) {
     else if (format === 'pdf') exportPDF(expenses, settings.baseCurrency, budgets)
   }
 
-  // ── Update helpers ────────────────────────────────────────────────────────
-
-  async function applyUpdate() {
-    try {
-      const reg = await navigator.serviceWorker.getRegistration()
-      if (reg?.waiting) {
-        reg.waiting.postMessage({ type: 'SKIP_WAITING' })
-      } else {
-        await updateServiceWorker(false)
-      }
-    } catch { /* ignore */ }
-    setTimeout(() => window.location.reload(), 300)
-  }
-
-  // Force-removes the service worker + all Cache Storage entries, then reloads.
-  // Does NOT touch localStorage (expenses, settings, exchange rate caches).
-  async function clearAppCache() {
-    setClearingCache(true)
-    try {
-      if ('serviceWorker' in navigator) {
-        const regs = await navigator.serviceWorker.getRegistrations()
-        await Promise.all(regs.map(r => r.unregister()))
-      }
-      if ('caches' in window) {
-        const keys = await caches.keys()
-        await Promise.all(keys.map(k => caches.delete(k)))
-      }
-    } catch { /* ignore */ }
-    window.location.reload()
-  }
-
-  async function checkUpdates() {
-    if (needRefresh || updateStatus === 'available') {
-      applyUpdate()
-      return
-    }
-    setUpdateStatus('checking')
-    try {
-      // Trigger the SW to check for a new service worker
-      navigator.serviceWorker?.getRegistration().then(reg => reg?.update())
-      // Fetch version.json from the server (bypassing cache) to read the latest version number
-      const res = await fetch(import.meta.env.BASE_URL + 'version.json', { cache: 'no-store' })
-      const json: { version: string } = await res.json()
-      if (json.version !== __APP_VERSION__) {
-        setAvailableVersion(json.version)
-        setUpdateStatus('available')
-      } else {
-        setUpdateStatus('none')
-      }
-    } catch {
-      setUpdateStatus(needRefresh ? 'available' : 'none')
-    }
-  }
-
-  // ── Google Drive helpers ──────────────────────────────────────────────────
-
-  async function connectDrive() {
-    const clientId = settings.googleDriveClientId.trim()
-    if (!clientId) { setShowDriveSetup(true); return }
-    setDriveLoading(true)
-    setDriveError('')
-    try {
-      // Try the silent flow first (no consent screen on reconnection);
-      // fall back to the full consent prompt for first-time connections.
-      const { token, expiresIn } = await requestDriveToken(clientId, { silent: true })
-        .catch(() => requestDriveToken(clientId))
-      setDriveToken(token, expiresIn)
-      const folderId = settings.driveBackupFolder?.id
-      const files = await listDriveBackups(token, folderId)
-      setDriveFiles(files)
-    } catch (err: any) {
-      setDriveError(err?.message ?? 'Connexion échouée')
-    } finally {
-      setDriveLoading(false)
-    }
-  }
-
-  async function openFolderPicker() {
-    if (!driveToken) return
-    setDriveLoading(true)
-    setDriveError('')
-    try {
-      const folders = await listDriveFolders(driveToken)
-      setDriveFolders(folders)
-      setShowFolderPicker(true)
-    } catch (err: any) {
-      setDriveError(err?.message ?? 'Impossible de lister les dossiers')
-    } finally {
-      setDriveLoading(false)
-    }
-  }
-
-  async function selectFolder(folder: DriveFolder) {
-    setShowFolderPicker(false)
-    setNewFolderName('')
-    // Reset auto-backup file ID when switching folders (new file will be created)
-    updateSettings({ driveBackupFolder: { id: folder.id, name: folder.name }, autoBackupFileId: undefined })
-    if (!driveToken) return
-    setDriveLoading(true)
-    try {
-      const files = await listDriveBackups(driveToken, folder.id)
-      setDriveFiles(files)
-    } catch { /* ignore */ } finally {
-      setDriveLoading(false)
-    }
-  }
-
-  async function uploadDrive() {
-    if (!driveToken) return
-    setDriveLoading(true)
-    setDriveError('')
-    try {
-      const folderId = settings.driveBackupFolder?.id
-      const { claudeApiKey: _k, ...cleanSettings } = settings
-      await uploadToDrive(driveToken, {
-        version: 3,
-        exportedAt: new Date().toISOString(),
-        settings: cleanSettings,
-        expenses,
-        recurring,
-        budgets,
-      }, folderId)
-      const files = await listDriveBackups(driveToken, folderId)
-      setDriveFiles(files)
-    } catch (err: any) {
-      setDriveError(err?.message ?? 'Échec de l\'envoi')
-    } finally {
-      setDriveLoading(false)
-    }
-  }
-
-  async function restoreFromDrive(fileId: string) {
-    if (!driveToken) return
-    setDriveLoading(true)
-    setDriveError('')
-    try {
-      const text = await downloadFromDrive(driveToken, fileId)
-      const backup = parseJSONBackup(text)
-      if (!backup) { setDriveError('Fichier invalide'); return }
-      setPending({ expenses: backup.expenses, recurring: backup.recurring ?? [], budgets: backup.budgets ?? [], settings: backup.settings, label: `${backup.expenses.length} dépenses depuis Drive` })
-    } catch (err: any) {
-      setDriveError(err?.message ?? 'Échec du téléchargement')
-    } finally {
-      setDriveLoading(false)
-    }
-  }
-
   return (
     <div className="flex flex-col h-full"
          style={{ paddingTop: 'env(safe-area-inset-top, 0px)' }}>
@@ -357,150 +107,9 @@ export default function SettingsScreen({ onShowHelp }: Props) {
         <HouseholdSection />
         <CurrencySection />
 
-        {/* All categories — built-in (editable + deletable) + custom, sorted alphabetically */}
-        <p className="section-header">Catégories</p>
-        <div className="card mx-4 overflow-hidden">
-          {(() => {
-            const customMap = Object.fromEntries((settings.customCategories ?? []).map(c => [c.id, c]))
-            const deleted = new Set(settings.deletedBuiltinCategories ?? [])
-            const allRows = getActiveCategories(settings.customCategories, settings.deletedBuiltinCategories)
-              .map(cat => ({
-                ...cat,
-                isBuiltin: !!CATEGORY_MAP[cat.id],
-                isOverridden: !!CATEGORY_MAP[cat.id] && !!customMap[cat.id],
-                isDeletable: cat.id !== 'a_classer',
-              }))
-            return allRows.map((cat, i) => (
-              <div key={cat.id}
-                className={`flex items-center gap-3 px-4 py-3 ${i < allRows.length - 1 ? 'border-b border-gray-100 dark:border-gray-700' : ''}`}>
-                <span className="text-xl w-8 text-center">{cat.emoji}</span>
-                <div className="flex-1 min-w-0">
-                  <p className="text-[15px] dark:text-white truncate">{cat.label}</p>
-                  <p className="text-[11px] text-gray-400 dark:text-gray-500">
-                    {cat.isFixed ? '🔒 Incompressible' : cat.isBuiltin ? 'Prédéfinie' : 'Personnalisée'}
-                    {cat.isOverridden && ' · modifiée'}
-                  </p>
-                </div>
-                <div className="flex items-center gap-2">
-                  {cat.isOverridden && (
-                    <button onClick={() => resetBuiltinCategory(cat.id)}
-                      className="text-[12px] text-orange-400 font-medium">
-                      Réinitialiser
-                    </button>
-                  )}
-                  <button onClick={() => openEditCategory(cat.id)}
-                    className="text-blue-500 text-[13px] font-medium px-2 py-1 rounded-lg bg-blue-50 dark:bg-blue-950/40">
-                    Modifier
-                  </button>
-                  {cat.isDeletable && (
-                    <button onClick={() => {
-                      if (!window.confirm(`Supprimer "${cat.label}" ? Les transactions seront déplacées dans "À classer".`)) return
-                      cat.isBuiltin ? deleteBuiltinCategory(cat.id) : removeCustomCategory(cat.id)
-                    }}
-                      className="text-red-400 text-xl leading-none">×</button>
-                  )}
-                </div>
-              </div>
-            ))
-          })()}
-          {/* Add new custom category */}
-          <div className="border-t border-gray-100 dark:border-gray-700 px-4 py-3">
-            <div className="flex items-center gap-2 mb-2.5">
-              <button
-                type="button"
-                onClick={() => { emojiTarget.current = 'add'; setShowEmojiPicker(true) }}
-                className="w-12 h-12 rounded-xl bg-gray-100 dark:bg-gray-700 flex items-center justify-center text-[26px] border-2 border-dashed border-gray-300 dark:border-gray-600 flex-shrink-0">
-                {newCatEmoji}
-              </button>
-              <input
-                type="text"
-                placeholder="Nouvelle catégorie…"
-                value={newCatLabel}
-                onChange={e => setNewCatLabel(e.target.value)}
-                onKeyDown={e => e.key === 'Enter' && addCustomCategory()}
-                className="flex-1 text-[15px] outline-none bg-transparent dark:text-white dark:placeholder-gray-500 py-1"
-              />
-            </div>
-            <div className="flex items-center justify-between">
-              <label className="flex items-center gap-2">
-                <input type="checkbox" checked={newCatFixed} onChange={e => setNewCatFixed(e.target.checked)}
-                  className="w-4 h-4 accent-red-500" />
-                <span className="text-[13px] text-gray-500 dark:text-gray-400">Charge incompressible</span>
-              </label>
-              <button
-                onClick={addCustomCategory}
-                disabled={!newCatLabel.trim()}
-                className="px-4 py-1.5 bg-blue-600 text-white rounded-xl text-[14px] font-semibold disabled:opacity-30 transition-opacity">
-                Ajouter
-              </button>
-            </div>
-          </div>
-        </div>
+        <CategoriesSection />
 
-        {/* Claude API */}
-        <p className="section-header">Assistant IA</p>
-        <div className="card mx-4 overflow-hidden">
-          <div className="px-4 py-3 border-b border-gray-100 dark:border-gray-700">
-            <div className="flex items-center justify-between">
-              <p className="text-[15px] font-medium dark:text-white">Clé API Claude</p>
-              <span className="text-[11px] text-gray-400 dark:text-gray-500 flex items-center gap-1">🔒 Chiffrée localement</span>
-            </div>
-            <p className="text-[12px] text-gray-400 dark:text-gray-500 mt-0.5">Obtenez une clé sur console.anthropic.com</p>
-          </div>
-          <div className="px-4 py-3 border-b border-gray-100 dark:border-gray-700">
-            <input
-              type="password"
-              placeholder="sk-ant-…"
-              value={claudeApiKey}
-              onChange={async e => {
-                const key = e.target.value
-                setClaudeApiKey(key)
-                if (settings.storeApiKeyLocally !== false && key.length > 10) {
-                  await storeApiKey(key)
-                } else if (key.length === 0) {
-                  await clearApiKey()
-                }
-              }}
-              className="w-full text-[14px] outline-none bg-transparent dark:text-white dark:placeholder-gray-500 font-mono"
-              autoComplete="off"
-              autoCorrect="off"
-              spellCheck={false}
-            />
-          </div>
-          <div className="flex items-center justify-between px-4 py-3">
-            <div>
-              <p className="text-[15px] dark:text-white">Conserver la clé sur l'appareil</p>
-              <p className="text-[11px] text-gray-400 dark:text-gray-500 mt-0.5">
-                {settings.storeApiKeyLocally !== false
-                  ? 'Chiffrée (AES) — jamais envoyée dans les sauvegardes'
-                  : 'Session uniquement — à ressaisir à chaque ouverture'}
-              </p>
-            </div>
-            <button
-              role="switch"
-              aria-checked={settings.storeApiKeyLocally !== false}
-              onClick={async () => {
-                const keep = !(settings.storeApiKeyLocally !== false)
-                updateSettings({ storeApiKeyLocally: keep })
-                if (keep) {
-                  if (claudeApiKey.length > 10) await storeApiKey(claudeApiKey)
-                } else {
-                  await clearApiKey()
-                }
-              }}
-              className={`relative w-11 h-6 rounded-full transition-colors flex-shrink-0 ${settings.storeApiKeyLocally !== false ? 'bg-green-500' : 'bg-gray-300 dark:bg-gray-600'}`}
-            >
-              <span className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform ${settings.storeApiKeyLocally !== false ? 'translate-x-5' : 'translate-x-0'}`} />
-            </button>
-          </div>
-          {claudeApiKey.startsWith('sk-') && (
-            <div className="px-4 pb-3 flex items-center gap-2">
-              <p className="text-[12px] text-green-600 dark:text-green-400">
-                ✓ Clé configurée{settings.storeApiKeyLocally !== false ? ' — stockée chiffrée sur cet appareil' : ' — pour cette session uniquement'}
-              </p>
-            </div>
-          )}
-        </div>
+        <AIAssistantSection />
 
         {/* Backup & Data */}
         <p className="section-header">Sauvegarde & Données</p>
@@ -530,128 +139,7 @@ export default function SettingsScreen({ onShowHelp }: Props) {
           </button>
         </div>
 
-        {/* Google Drive */}
-        <p className="section-header">Google Drive</p>
-        <div className="card mx-4 overflow-hidden">
-          {!settings.googleDriveClientId ? (
-            <button onClick={() => setShowDriveSetup(true)}
-              className="w-full flex items-center justify-between px-4 py-3 text-left">
-              <span className="text-[15px] text-blue-600">Configurer Google Drive…</span>
-              <span className="text-gray-400 dark:text-gray-500 text-[13px]">›</span>
-            </button>
-          ) : !driveToken ? (
-            <>
-              {settings.autoBackupToDrive && (
-                <p className="px-4 pt-3 pb-1 text-[12px] text-orange-500">
-                  ⚠️ Sauvegarde automatique en pause — reconnexion requise
-                  {lastAutoBackup?.status === 'ok' && ` (dernière sauvegarde : ${formatRelativeTime(lastAutoBackup.at)})`}
-                </p>
-              )}
-              <button onClick={connectDrive} disabled={driveLoading}
-                className="w-full flex items-center justify-between px-4 py-3 text-left">
-                <span className="text-[15px] text-blue-600">
-                  {driveLoading ? 'Connexion…' : 'Connecter Google Drive'}
-                </span>
-                <span className="text-[20px]">☁️</span>
-              </button>
-            </>
-          ) : (
-            <>
-              {/* Auto-backup toggle */}
-              <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100 dark:border-gray-700">
-                <div>
-                  <p className="text-[15px] dark:text-white">Sauvegarde automatique</p>
-                  {settings.autoBackupToDrive && lastAutoBackup && (
-                    <p className={`text-[11px] mt-0.5 ${lastAutoBackup.status === 'ok' ? 'text-green-500' : 'text-red-400'}`}>
-                      {lastAutoBackup.status === 'ok'
-                        ? `✓ Sauvegardé ${formatRelativeTime(lastAutoBackup.at)}`
-                        : lastAutoBackup.reason === 'auth'
-                          ? '✗ Échec — reconnexion Google requise'
-                          : `✗ Échec ${formatRelativeTime(lastAutoBackup.at)} — réessaiera à la prochaine modification`}
-                    </p>
-                  )}
-                  {settings.autoBackupToDrive && !lastAutoBackup && (
-                    <p className="text-[11px] text-gray-400 mt-0.5">Active — synchro après chaque modification</p>
-                  )}
-                </div>
-                <button
-                  role="switch"
-                  aria-checked={!!settings.autoBackupToDrive}
-                  onClick={() => updateSettings({ autoBackupToDrive: !settings.autoBackupToDrive })}
-                  className={`relative w-11 h-6 rounded-full transition-colors flex-shrink-0 ${settings.autoBackupToDrive ? 'bg-green-500' : 'bg-gray-300 dark:bg-gray-600'}`}
-                >
-                  <span className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform ${settings.autoBackupToDrive ? 'translate-x-5' : 'translate-x-0'}`} />
-                </button>
-              </div>
-
-              {/* Household sync toggle */}
-              <div className="px-4 py-3 border-b border-gray-100 dark:border-gray-700">
-                <div className="flex items-center justify-between">
-                  <div className="pr-3">
-                    <p className="text-[15px] dark:text-white">Synchronisation du foyer</p>
-                    <p className="text-[11px] text-gray-400 dark:text-gray-500 mt-0.5">
-                      Les 2 téléphones connectés au même compte Google partagent les mêmes
-                      données (fusion automatique, sans doublons ni écrasement)
-                    </p>
-                    {settings.driveSyncEnabled && lastSync && (
-                      <p className={`text-[11px] mt-0.5 ${lastSync.status === 'ok' ? 'text-green-500' : 'text-red-400'}`}>
-                        {lastSync.status === 'ok'
-                          ? `✓ Synchronisé ${formatRelativeTime(lastSync.at)}`
-                          : lastSync.reason === 'auth'
-                            ? '✗ Échec — reconnexion Google requise'
-                            : `✗ Échec ${formatRelativeTime(lastSync.at)} — nouvel essai automatique`}
-                      </p>
-                    )}
-                  </div>
-                  <button
-                    role="switch"
-                    aria-checked={!!settings.driveSyncEnabled}
-                    onClick={() => updateSettings({ driveSyncEnabled: !settings.driveSyncEnabled })}
-                    className={`relative w-11 h-6 rounded-full transition-colors flex-shrink-0 ${settings.driveSyncEnabled ? 'bg-green-500' : 'bg-gray-300 dark:bg-gray-600'}`}
-                  >
-                    <span className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform ${settings.driveSyncEnabled ? 'translate-x-5' : 'translate-x-0'}`} />
-                  </button>
-                </div>
-              </div>
-
-              <button onClick={uploadDrive} disabled={driveLoading}
-                className="w-full flex items-center justify-between px-4 py-3 border-b border-gray-100 dark:border-gray-700 text-left">
-                <span className="text-[15px] text-blue-600">
-                  {driveLoading ? 'En cours…' : '↑ Sauvegarder maintenant'}
-                </span>
-                <span className="text-[13px] text-gray-400 dark:text-gray-500">{expenses.length} dépenses</span>
-              </button>
-              <button onClick={openFolderPicker} disabled={driveLoading}
-                className="w-full flex items-center justify-between px-4 py-3 border-b border-gray-100 dark:border-gray-700 text-left">
-                <span className="text-[15px] text-blue-600">Dossier de sauvegarde</span>
-                <span className="text-[13px] text-gray-400 dark:text-gray-500 truncate max-w-[140px] text-right">
-                  {settings.driveBackupFolder?.name ?? 'Budget Foyer Backups'}
-                </span>
-              </button>
-              {driveFiles.length > 0 && driveFiles.slice(0, 5).map((f, i) => (
-                <div key={f.id} className={`flex items-center justify-between px-4 py-3 ${i < Math.min(driveFiles.length, 5) - 1 ? 'border-b border-gray-100 dark:border-gray-700' : ''}`}>
-                  <div>
-                    <p className="text-[14px] dark:text-white">{f.name.replace('budget-backup-', '').replace('.json', '')}</p>
-                    <p className="text-[11px] text-gray-400 dark:text-gray-500">{new Date(f.createdTime).toLocaleString('fr-FR', { dateStyle: 'short', timeStyle: 'short' })}</p>
-                  </div>
-                  <button onClick={() => restoreFromDrive(f.id)}
-                    className="text-blue-600 text-[13px] font-medium">↓ Restaurer</button>
-                </div>
-              ))}
-              <button onClick={() => {
-                  setDriveToken(null)
-                  setDriveFiles([])
-                  updateSettings({ autoBackupFileId: undefined })
-                }}
-                className="w-full px-4 py-3 text-left text-red-400 dark:text-red-500 text-[14px] border-t border-gray-100 dark:border-gray-700">
-                Déconnecter
-              </button>
-            </>
-          )}
-          {driveError && (
-            <p className="px-4 py-2 text-[13px] text-red-500 border-t border-gray-100 dark:border-gray-700">{driveError}</p>
-          )}
-        </div>
+        <GoogleDriveSection onRestore={setPending} />
 
         {/* Auto-backup slots */}
         {backupSlots.length > 0 && (
@@ -699,145 +187,8 @@ export default function SettingsScreen({ onShowHelp }: Props) {
           )}
         </div>
 
-        {/* About */}
-        <p className="section-header">À propos</p>
-        <div className="card mx-4 overflow-hidden mb-8">
-          {onShowHelp && (
-            <button onClick={onShowHelp}
-              className="w-full flex items-center justify-between px-4 py-3 border-b border-gray-100 dark:border-gray-700 text-left">
-              <span className="text-[15px] text-blue-600">❓ Aide &amp; Guide</span>
-              <span className="text-gray-400 dark:text-gray-500">›</span>
-            </button>
-          )}
-          {/* Version row */}
-          <div className="px-4 py-3 border-b border-gray-100 dark:border-gray-700">
-            <div className="flex items-center justify-between">
-              <span className="text-[15px] text-gray-600 dark:text-gray-300">Version installée</span>
-              <span className="text-[15px] font-medium text-gray-500 dark:text-gray-400">{__APP_VERSION__}</span>
-            </div>
-            {(needRefresh || updateStatus === 'available') && (
-              <div className="flex items-center justify-between mt-2">
-                <div>
-                  <span className="text-[12px] font-semibold text-orange-500">🔄 Mise à jour disponible</span>
-                  {availableVersion && (
-                    <span className="text-[12px] text-orange-400 ml-1">— v{availableVersion}</span>
-                  )}
-                </div>
-                <button
-                  onClick={applyUpdate}
-                  className="px-3 py-1 bg-orange-500 text-white text-[12px] font-bold rounded-lg">
-                  Installer
-                </button>
-              </div>
-            )}
-            {updateStatus === 'none' && !needRefresh && (
-              <p className="text-[12px] text-green-600 dark:text-green-400 mt-1">✓ Vous avez la dernière version</p>
-            )}
-          </div>
-          <button
-            onClick={checkUpdates}
-            disabled={updateStatus === 'checking'}
-            className="w-full flex items-center justify-between px-4 py-3 border-b border-gray-100 dark:border-gray-700 text-left">
-            <span className="text-[15px] text-blue-600">
-              {updateStatus === 'checking' ? 'Vérification…' : 'Vérifier les mises à jour'}
-            </span>
-            {updateStatus === 'checking' && (
-              <span className="text-gray-400 text-[13px]">…</span>
-            )}
-          </button>
-          <button
-            onClick={() => setShowClearCacheConfirm(true)}
-            className="w-full flex items-center justify-between px-4 py-3 border-b border-gray-100 dark:border-gray-700 text-left">
-            <span className="text-[15px] text-orange-500">🧹 Vider le cache de l'app</span>
-            <span className="text-gray-400 dark:text-gray-500 text-[13px]">›</span>
-          </button>
-          <div className="px-4 py-3 flex justify-between">
-            <span className="text-[15px] text-gray-600 dark:text-gray-300">Données</span>
-            <span className="text-[15px] text-gray-400 dark:text-gray-500">Stockées localement</span>
-          </div>
-        </div>
+        <AboutSection onShowHelp={onShowHelp} />
       </div>
-
-      {/* Emoji picker sheet */}
-      {showEmojiPicker && (
-        <div className="fixed inset-0 z-50 flex flex-col"
-             style={{ paddingTop: 'env(safe-area-inset-top, 0px)' }}>
-          <div className="flex-1 bg-black/40" onClick={() => setShowEmojiPicker(false)} />
-          <div className="bg-white dark:bg-gray-900 rounded-t-3xl flex flex-col"
-               style={{ maxHeight: '70vh' }}>
-            <div className="flex items-center justify-between px-5 pt-4 pb-2 flex-shrink-0">
-              <span className="text-[17px] font-semibold dark:text-white">Choisir une icône</span>
-              <button onClick={() => setShowEmojiPicker(false)}
-                className="text-blue-600 font-medium text-[15px]">Fermer</button>
-            </div>
-            <div className="overflow-y-auto scroll-ios pb-6 px-4">
-              {EMOJI_GROUPS.map(group => (
-                <div key={group.label} className="mb-4">
-                  <p className="text-[11px] font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wide mb-2">
-                    {group.label}
-                  </p>
-                  <div className="grid grid-cols-6 gap-2">
-                    {group.emojis.map(emoji => {
-                      const activeEmoji = emojiTarget.current === 'edit' ? editCatEmoji : newCatEmoji
-                      return (
-                        <button
-                          key={emoji}
-                          onClick={() => {
-                            if (emojiTarget.current === 'edit') setEditCatEmoji(emoji)
-                            else setNewCatEmoji(emoji)
-                            setShowEmojiPicker(false)
-                          }}
-                          className={`h-12 rounded-xl text-[24px] flex items-center justify-center transition-colors
-                            ${activeEmoji === emoji
-                              ? 'bg-blue-100 dark:bg-blue-900/40 ring-2 ring-blue-500'
-                              : 'bg-gray-100 dark:bg-gray-800 active:bg-gray-200 dark:active:bg-gray-700'}`}>
-                          {emoji}
-                        </button>
-                      )
-                    })}
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Category edit modal */}
-      {editingCat && (
-        <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/40">
-          <div className="bg-white dark:bg-gray-800 rounded-t-3xl w-full p-6"
-               style={{ paddingBottom: 'calc(1.5rem + env(safe-area-inset-bottom, 0px))' }}>
-            <p className="text-[17px] font-bold text-center mb-4 dark:text-white">
-              {editingCat.isBuiltin ? 'Modifier la catégorie' : 'Renommer'}
-            </p>
-            <div className="flex items-center gap-3 mb-5">
-              <button
-                type="button"
-                onClick={() => { emojiTarget.current = 'edit'; setShowEmojiPicker(true) }}
-                className="w-14 h-14 rounded-2xl bg-gray-100 dark:bg-gray-700 flex items-center justify-center text-[30px] border-2 border-dashed border-gray-300 dark:border-gray-600 flex-shrink-0">
-                {editCatEmoji}
-              </button>
-              <input
-                type="text"
-                placeholder="Nom de la catégorie…"
-                value={editCatLabel}
-                onChange={e => setEditCatLabel(e.target.value)}
-                className="flex-1 text-[17px] outline-none bg-gray-100 dark:bg-gray-700 rounded-xl px-4 py-3 dark:text-white dark:placeholder-gray-500"
-                autoFocus
-              />
-            </div>
-            <button onClick={saveEditCategory} disabled={!editCatLabel.trim()}
-              className="w-full py-3.5 bg-blue-600 text-white rounded-xl font-semibold text-[16px] mb-3 disabled:opacity-30">
-              Enregistrer
-            </button>
-            <button onClick={() => setEditingCat(null)}
-              className="w-full py-3.5 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 rounded-xl font-medium text-[16px]">
-              Annuler
-            </button>
-          </div>
-        </div>
-      )}
 
       {/* ── Modals ── */}
 
@@ -875,28 +226,6 @@ export default function SettingsScreen({ onShowHelp }: Props) {
             </button>
             <button onClick={() => setShowClearConfirm(false)}
               className="w-full py-3.5 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 rounded-xl font-medium text-[16px]">
-              Annuler
-            </button>
-          </div>
-        </div>
-      )}
-
-      {showClearCacheConfirm && (
-        <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/40">
-          <div className="bg-white dark:bg-gray-800 rounded-t-3xl w-full p-6"
-               style={{ paddingBottom: 'calc(1.5rem + env(safe-area-inset-bottom, 0px))' }}>
-            <p className="text-[17px] font-bold text-center mb-2 dark:text-white">Vider le cache de l'app ?</p>
-            <p className="text-[14px] text-gray-500 dark:text-gray-400 text-center mb-6">
-              Supprime les fichiers de l'application mis en cache et force le téléchargement de la dernière version.
-              Vos dépenses, réglages et catégories ne sont pas touchés.
-              L'application va se recharger.
-            </p>
-            <button onClick={clearAppCache} disabled={clearingCache}
-              className="w-full py-3.5 bg-orange-500 text-white rounded-xl font-semibold text-[16px] mb-3 disabled:opacity-50">
-              {clearingCache ? 'Nettoyage…' : 'Vider le cache et recharger'}
-            </button>
-            <button onClick={() => setShowClearCacheConfirm(false)} disabled={clearingCache}
-              className="w-full py-3.5 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 rounded-xl font-medium text-[16px] disabled:opacity-50">
               Annuler
             </button>
           </div>
@@ -955,110 +284,6 @@ export default function SettingsScreen({ onShowHelp }: Props) {
       )}
 
       {showTrash && <TrashSheet onClose={() => setShowTrash(false)} />}
-
-      {/* Drive folder picker */}
-      {showFolderPicker && (
-        <div className="fixed inset-0 z-50 flex flex-col bg-[#f2f2f7] dark:bg-[#1c1c1e]"
-             style={{ paddingTop: 'env(safe-area-inset-top, 0px)' }}>
-          <div className="bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-700 px-4 py-3 flex items-center gap-3 flex-shrink-0">
-            <button onClick={() => { setShowFolderPicker(false); setNewFolderName('') }}
-              className="text-blue-600 font-medium text-[15px]">Annuler</button>
-            <p className="flex-1 text-center font-semibold text-[16px] dark:text-white">Choisir un dossier</p>
-            <div className="w-16" />
-          </div>
-          <div className="flex-1 overflow-y-auto scroll-ios">
-            {/* Create new folder */}
-            <p className="section-header">Nouveau dossier</p>
-            <div className="card mx-4 overflow-hidden">
-              <div className="flex items-center gap-2 px-4 py-3">
-                <input
-                  type="text"
-                  placeholder="Nom du dossier…"
-                  value={newFolderName}
-                  onChange={e => setNewFolderName(e.target.value)}
-                  className="flex-1 text-[14px] outline-none bg-transparent dark:text-white dark:placeholder-gray-500"
-                />
-                <button
-                  disabled={!newFolderName.trim() || creatingFolder || !driveToken}
-                  onClick={async () => {
-                    if (!driveToken || !newFolderName.trim()) return
-                    setCreatingFolder(true)
-                    try {
-                      const folder = await createDriveFolder(driveToken, newFolderName.trim())
-                      setDriveFolders(prev => [folder, ...prev])
-                      setNewFolderName('')
-                      await selectFolder(folder)
-                    } catch (err: any) {
-                      setDriveError(err?.message ?? 'Création échouée')
-                    } finally {
-                      setCreatingFolder(false)
-                    }
-                  }}
-                  className="px-3 py-1.5 bg-blue-600 text-white text-[13px] font-semibold rounded-lg disabled:bg-gray-300 dark:disabled:bg-gray-600">
-                  {creatingFolder ? '…' : 'Créer'}
-                </button>
-              </div>
-            </div>
-
-            {/* Existing folders */}
-            <p className="section-header">Dossiers existants</p>
-            <div className="card mx-4 overflow-hidden">
-              {driveFolders.length === 0 ? (
-                <p className="px-4 py-3 text-[14px] text-gray-400 dark:text-gray-500">Aucun dossier trouvé</p>
-              ) : driveFolders.map((f, i) => (
-                <button key={f.id} onClick={() => selectFolder(f)}
-                  className={`w-full flex items-center justify-between px-4 py-3 text-left
-                    ${i < driveFolders.length - 1 ? 'border-b border-gray-100 dark:border-gray-700' : ''}
-                    ${settings.driveBackupFolder?.id === f.id ? 'bg-blue-50 dark:bg-blue-950/30' : ''}`}>
-                  <span className="text-[15px] dark:text-white">📁 {f.name}</span>
-                  {settings.driveBackupFolder?.id === f.id && (
-                    <span className="text-blue-600 text-[14px]">✓</span>
-                  )}
-                </button>
-              ))}
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Google Drive setup sheet */}
-      {showDriveSetup && (
-        <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/40">
-          <div className="bg-white dark:bg-gray-800 rounded-t-3xl w-full p-6"
-               style={{ paddingBottom: 'calc(1.5rem + env(safe-area-inset-bottom, 0px))' }}>
-            <p className="text-[17px] font-bold text-center mb-2 dark:text-white">Configurer Google Drive</p>
-            <p className="text-[13px] text-gray-500 dark:text-gray-400 mb-4">
-              Pour activer la sauvegarde Drive, créez un projet sur{' '}
-              <span className="font-medium text-blue-600">console.cloud.google.com</span>,
-              activez l'API Drive, créez un identifiant OAuth 2.0 (application Web) et ajoutez
-              l'origine de cette app dans les origines autorisées.
-            </p>
-            <div className="bg-gray-50 dark:bg-gray-700 rounded-xl px-4 py-3 mb-4">
-              <p className="text-[11px] font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wide mb-1">OAuth Client ID</p>
-              <input
-                type="text"
-                placeholder="xxxxxxxx.apps.googleusercontent.com"
-                value={driveClientIdInput}
-                onChange={e => setDriveClientIdInput(e.target.value)}
-                className="w-full text-[14px] bg-transparent outline-none dark:text-white dark:placeholder-gray-500"
-              />
-            </div>
-            <button
-              onClick={() => {
-                updateSettings({ googleDriveClientId: driveClientIdInput.trim() })
-                setShowDriveSetup(false)
-              }}
-              disabled={!driveClientIdInput.trim()}
-              className="w-full py-3.5 bg-blue-600 text-white rounded-xl font-semibold text-[16px] mb-3 disabled:bg-gray-200 dark:disabled:bg-gray-600">
-              Enregistrer
-            </button>
-            <button onClick={() => setShowDriveSetup(false)}
-              className="w-full py-3.5 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 rounded-xl font-medium text-[16px]">
-              Annuler
-            </button>
-          </div>
-        </div>
-      )}
     </div>
   )
 }
