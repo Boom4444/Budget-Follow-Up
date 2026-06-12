@@ -5,7 +5,8 @@ import { CATEGORY_MAP, getCategoryMeta, getActiveCategories } from '../data/cate
 import { CURRENCIES, CURRENCY_MAP } from '../data/currencies'
 import { formatAmount, formatPercent } from '../utils/formatters'
 import { currentYear, shortMonth, longMonth } from '../utils/dates'
-import { householdRatioForMonth, personShareFraction } from '../utils/split'
+import { personShareFraction } from '../utils/split'
+import { computeBudgetTracking } from '../utils/budgetTracking'
 import type { Expense, CurrencyCode } from '../models/types'
 import AddExpenseModal from '../components/AddExpenseModal'
 import SummaryStrip from '../components/SummaryStrip'
@@ -188,49 +189,12 @@ export default function DashboardScreen() {
   // in personal views (50/50 or income proration, per settings/expense).
   // Always computed in the base currency — budgets are stored in base.
   const budgetTracking = useMemo(() => {
-    const months = month !== null ? [month] : Array.from({ length: 12 }, (_, i) => i + 1)
-    const budgeted: Record<string, number> = {}
-    for (const m of months) {
-      const ratio = householdRatioForMonth(budgets, settings, year, m)
-      for (const b of budgets.filter(b => b.year === year && b.month === m)) {
-        for (const it of b.items) {
-          let amt = 0
-          if (filterPerson === 'all') amt = it.amount
-          else if (filterPerson === 'shared') amt = b.person === 'shared' ? it.amount : 0
-          else if (b.person === filterPerson) amt = it.amount
-          else if (b.person === 'shared') amt = it.amount * ratio[filterPerson] / 100
-          if (amt > 0) budgeted[it.categoryId] = (budgeted[it.categoryId] ?? 0) + amt
-        }
-      }
+    const tracking = computeBudgetTracking(expenses, budgets, settings, year, month, filterPerson)
+    if (!tracking) return null
+    return {
+      ...tracking,
+      rows: tracking.rows.map(r => ({ ...r, meta: getCategoryMeta(r.id, customCategories) })),
     }
-    if (Object.keys(budgeted).length === 0) return null
-
-    const actual: Record<string, number> = {}
-    for (const e of expenses) {
-      if (e.type !== 'debit') continue
-      if (parseInt(e.date.slice(0, 4)) !== year) continue
-      if (month !== null && parseInt(e.date.slice(5, 7)) !== month) continue
-      let w = 1
-      if (filterPerson === 'shared') w = e.person === 'shared' ? 1 : 0
-      else if (filterPerson !== 'all') w = personShareFraction(e, filterPerson, budgets, settings)
-      const amt = e.amountInBase * w
-      if (amt > 0) actual[e.category] = (actual[e.category] ?? 0) + amt
-    }
-
-    const rows = Object.keys(budgeted)
-      .map(id => ({
-        id,
-        meta: getCategoryMeta(id, customCategories),
-        budgeted: budgeted[id],
-        actual: actual[id] ?? 0,
-      }))
-      .sort((a, b) => b.budgeted - a.budgeted)
-    const totalBudgeted = rows.reduce((s, r) => s + r.budgeted, 0)
-    const totalActual   = rows.reduce((s, r) => s + r.actual, 0)
-    const offBudget = Object.entries(actual)
-      .filter(([id]) => !budgeted[id] && id !== 'a_classer')
-      .reduce((s, [, v]) => s + v, 0)
-    return { rows, totalBudgeted, totalActual, offBudget }
   }, [expenses, budgets, settings, year, month, filterPerson, customCategories])
 
   const fmt = (v: number) => v === 0 ? '' : v >= 1000 ? `${(v / 1000).toFixed(0)}k` : String(v)

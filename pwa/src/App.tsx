@@ -33,6 +33,11 @@ export default function App() {
   useAutoBackupToDrive()
   useDriveSync()
 
+  // Items deleted more than 30 days ago leave the trash permanently
+  useEffect(() => {
+    useStore.getState().purgeExpiredTrash()
+  }, [])
+
   // Load Claude API key from secure storage; migrate old plaintext key if present
   useEffect(() => {
     loadApiKey().then(stored => {

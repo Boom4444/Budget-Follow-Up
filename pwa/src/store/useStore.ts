@@ -5,6 +5,10 @@ import type { Expense, RecurringExpense, AppSettings, CurrencyCode, HouseholdMem
 import { convertToBase } from '../data/currencies'
 import { autoSave } from '../utils/backup'
 import { budgetKey, emptyTombstones, type Tombstones } from '../utils/sync'
+import { purgeExpired } from '../utils/trash'
+
+export type TrashedExpense = Expense & { deletedAt: number }
+export type TrashedRecurring = RecurringExpense & { deletedAt: number }
 
 export interface AutoBackupStatus {
   at: string
@@ -46,6 +50,16 @@ interface AppState {
   setDriveToken: (token: string | null, expiresInSeconds?: number) => void
   lastAutoBackup: AutoBackupStatus | null
   setLastAutoBackup: (b: AutoBackupStatus | null) => void
+
+  // Trash — deleted items kept 30 days on this device before final purge
+  trashedExpenses: TrashedExpense[]
+  trashedRecurring: TrashedRecurring[]
+  restoreExpense: (id: string) => void
+  restoreRecurring: (id: string) => void
+  deleteTrashedExpense: (id: string) => void
+  deleteTrashedRecurring: (id: string) => void
+  emptyTrash: () => void
+  purgeExpiredTrash: () => void
 
   // Household sync (shared Drive file between the two phones)
   tombstones: Tombstones
@@ -129,10 +143,16 @@ export const useStore = create<AppState>()(
       },
 
       deleteExpense(id) {
-        set(s => ({
-          expenses: s.expenses.filter(e => e.id !== id),
-          tombstones: { ...s.tombstones, expenses: { ...s.tombstones.expenses, [id]: Date.now() } },
-        }))
+        set(s => {
+          const item = s.expenses.find(e => e.id === id)
+          return {
+            expenses: s.expenses.filter(e => e.id !== id),
+            trashedExpenses: item
+              ? [{ ...item, deletedAt: Date.now() }, ...purgeExpired(s.trashedExpenses)]
+              : s.trashedExpenses,
+            tombstones: { ...s.tombstones, expenses: { ...s.tombstones.expenses, [id]: Date.now() } },
+          }
+        })
       },
 
       addRecurring(r) {
@@ -146,10 +166,16 @@ export const useStore = create<AppState>()(
       },
 
       deleteRecurring(id) {
-        set(s => ({
-          recurring: s.recurring.filter(r => r.id !== id),
-          tombstones: { ...s.tombstones, recurring: { ...s.tombstones.recurring, [id]: Date.now() } },
-        }))
+        set(s => {
+          const item = s.recurring.find(r => r.id === id)
+          return {
+            recurring: s.recurring.filter(r => r.id !== id),
+            trashedRecurring: item
+              ? [{ ...item, deletedAt: Date.now() }, ...purgeExpired(s.trashedRecurring)]
+              : s.trashedRecurring,
+            tombstones: { ...s.tombstones, recurring: { ...s.tombstones.recurring, [id]: Date.now() } },
+          }
+        })
       },
 
       updateSettings(patch) {
@@ -356,7 +382,7 @@ export const useStore = create<AppState>()(
       },
 
       clearData() {
-        set({ expenses: [], recurring: [] })
+        set({ expenses: [], recurring: [], trashedExpenses: [], trashedRecurring: [] })
       },
 
       setBudgetItem(year, month, person, categoryId, amount) {
@@ -417,6 +443,60 @@ export const useStore = create<AppState>()(
       lastAutoBackup: null,
       setLastAutoBackup: (b) => set({ lastAutoBackup: b }),
 
+      trashedExpenses: [],
+      trashedRecurring: [],
+
+      restoreExpense(id) {
+        set(s => {
+          const t = s.trashedExpenses.find(e => e.id === id)
+          if (!t) return {}
+          const { deletedAt: _d, ...item } = t
+          // Stamp the restore so the household sync resurrects the item
+          // (an edit newer than the deletion tombstone wins the merge)
+          const expTombs = { ...s.tombstones.expenses }
+          delete expTombs[id]
+          return {
+            trashedExpenses: s.trashedExpenses.filter(e => e.id !== id),
+            expenses: [...s.expenses, { ...item, updatedAt: Date.now() }],
+            tombstones: { ...s.tombstones, expenses: expTombs },
+          }
+        })
+      },
+
+      restoreRecurring(id) {
+        set(s => {
+          const t = s.trashedRecurring.find(r => r.id === id)
+          if (!t) return {}
+          const { deletedAt: _d, ...item } = t
+          const recTombs = { ...s.tombstones.recurring }
+          delete recTombs[id]
+          return {
+            trashedRecurring: s.trashedRecurring.filter(r => r.id !== id),
+            recurring: [...s.recurring, { ...item, updatedAt: Date.now() }],
+            tombstones: { ...s.tombstones, recurring: recTombs },
+          }
+        })
+      },
+
+      deleteTrashedExpense(id) {
+        set(s => ({ trashedExpenses: s.trashedExpenses.filter(e => e.id !== id) }))
+      },
+
+      deleteTrashedRecurring(id) {
+        set(s => ({ trashedRecurring: s.trashedRecurring.filter(r => r.id !== id) }))
+      },
+
+      emptyTrash() {
+        set({ trashedExpenses: [], trashedRecurring: [] })
+      },
+
+      purgeExpiredTrash() {
+        set(s => ({
+          trashedExpenses: purgeExpired(s.trashedExpenses),
+          trashedRecurring: purgeExpired(s.trashedRecurring),
+        }))
+      },
+
       tombstones: emptyTombstones(),
       lastSync: null,
       setLastSync: (st) => set({ lastSync: st }),
@@ -453,6 +533,8 @@ export const useStore = create<AppState>()(
           lastAutoBackup: state.lastAutoBackup,
           tombstones: state.tombstones,
           lastSync: state.lastSync,
+          trashedExpenses: state.trashedExpenses,
+          trashedRecurring: state.trashedRecurring,
         }
       },
       migrate(persistedState, version) {

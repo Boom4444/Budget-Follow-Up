@@ -1,0 +1,65 @@
+{
+  "version": 3,
+  "exportedAt": "2026-06-12T12:00:00.000Z",
+  "_readme": "Jeu de données de test à 2 personnes (Alex & Sam, CHF). Montants ronds vérifiables à la main. Juin 2026 : revenus 6000/4000 → prorata 60/40 ; loyer 2000 au prorata = 1200/800. Mai 2026 : revenus 5000/5000 → 50/50 ; loyer = 1000/1000. Totaux juin : foyer 3300, Alex 1890, Sam 1410. Budgets juin : foyer 4000, Alex 2430, Sam 1570. Importer via Réglages → Importer un fichier → Remplacer.",
+  "settings": {
+    "person1Name": "Alex",
+    "person2Name": "Sam",
+    "baseCurrency": "CHF",
+    "banks": ["UBS", "Revolut"],
+    "theme": "system",
+    "googleDriveClientId": "",
+    "customCategories": [],
+    "sharedSplitMode": "income"
+  },
+  "expenses": [
+    { "id": "demo-e01", "title": "Loyer", "amount": 2000, "currency": "CHF", "amountInBase": 2000, "date": "2026-06-01", "category": "logement", "subCategory": "Loyer + Charges", "type": "debit", "isFixed": true, "bank": "UBS", "person": "shared", "splitMode": "income", "notes": "Prorata des revenus : Alex 60% (1200) / Sam 40% (800)" },
+    { "id": "demo-e02", "title": "Courses Migros", "amount": 350, "currency": "CHF", "amountInBase": 350, "date": "2026-06-05", "category": "nourriture", "subCategory": "Courses", "type": "debit", "isFixed": false, "bank": "UBS", "person": "shared", "splitRatio": { "person1": 50, "person2": 50 }, "notes": "50/50 : 175 chacun" },
+    { "id": "demo-e03", "title": "Courses Coop", "amount": 250, "currency": "CHF", "amountInBase": 250, "date": "2026-06-12", "category": "nourriture", "subCategory": "Courses", "type": "debit", "isFixed": false, "bank": "UBS", "person": "shared", "splitRatio": { "person1": 50, "person2": 50 }, "notes": "50/50 : 125 chacun" },
+    { "id": "demo-e04", "title": "Meubles IKEA", "amount": 200, "currency": "CHF", "amountInBase": 200, "date": "2026-06-08", "category": "maison", "subCategory": "Meubles", "type": "debit", "isFixed": false, "bank": "Revolut", "person": "shared", "splitRatio": { "person1": 70, "person2": 30 }, "notes": "Personnalisé 70/30 : Alex 140 / Sam 60" },
+    { "id": "demo-e05", "title": "Restaurant Le Lac", "amount": 120, "currency": "CHF", "amountInBase": 120, "date": "2026-06-07", "category": "nourriture", "subCategory": "Restaurant", "type": "debit", "isFixed": false, "bank": "UBS", "person": "person1", "notes": "Perso Alex" },
+    { "id": "demo-e06", "title": "Essence", "amount": 80, "currency": "CHF", "amountInBase": 80, "date": "2026-06-10", "category": "transport", "subCategory": "Essence", "type": "debit", "isFixed": false, "bank": "UBS", "person": "person1", "notes": "Perso Alex" },
+    { "id": "demo-e07", "title": "Cinéma", "amount": 50, "currency": "CHF", "amountInBase": 50, "date": "2026-06-11", "category": "loisirs", "subCategory": "Activité / Sortie", "type": "debit", "isFixed": false, "bank": "Revolut", "person": "person1", "notes": "Perso Alex" },
+    { "id": "demo-e08", "title": "Vêtements Zara", "amount": 100, "currency": "CHF", "amountInBase": 100, "date": "2026-06-09", "category": "habillement", "subCategory": "Vêtements", "type": "debit", "isFixed": false, "bank": "Revolut", "person": "person2", "notes": "Perso Sam" },
+    { "id": "demo-e09", "title": "Courses perso", "amount": 150, "currency": "CHF", "amountInBase": 150, "date": "2026-06-06", "category": "nourriture", "subCategory": "Courses", "type": "debit", "isFixed": false, "bank": "Revolut", "person": "person2", "notes": "Perso Sam" },
+    { "id": "demo-e10", "title": "Salaire Alex", "amount": 6000, "currency": "CHF", "amountInBase": 6000, "date": "2026-06-01", "category": "revenus", "subCategory": "Salaire", "type": "credit", "isFixed": false, "bank": "UBS", "person": "person1", "notes": "" },
+    { "id": "demo-e11", "title": "Salaire Sam", "amount": 4000, "currency": "CHF", "amountInBase": 4000, "date": "2026-06-01", "category": "revenus", "subCategory": "Salaire", "type": "credit", "isFixed": false, "bank": "UBS", "person": "person2", "notes": "" },
+
+    { "id": "demo-e12", "title": "Loyer", "amount": 2000, "currency": "CHF", "amountInBase": 2000, "date": "2026-05-01", "category": "logement", "subCategory": "Loyer + Charges", "type": "debit", "isFixed": true, "bank": "UBS", "person": "shared", "splitMode": "income", "notes": "Prorata mai (50/50) : 1000 chacun" },
+    { "id": "demo-e13", "title": "Courses Migros", "amount": 400, "currency": "CHF", "amountInBase": 400, "date": "2026-05-10", "category": "nourriture", "subCategory": "Courses", "type": "debit", "isFixed": false, "bank": "UBS", "person": "shared", "splitRatio": { "person1": 50, "person2": 50 }, "notes": "50/50 : 200 chacun" },
+    { "id": "demo-e14", "title": "Brunch", "amount": 100, "currency": "CHF", "amountInBase": 100, "date": "2026-05-15", "category": "nourriture", "subCategory": "Restaurant", "type": "debit", "isFixed": false, "bank": "UBS", "person": "person1", "notes": "Perso Alex" },
+    { "id": "demo-e15", "title": "Salaire Alex", "amount": 5000, "currency": "CHF", "amountInBase": 5000, "date": "2026-05-01", "category": "revenus", "subCategory": "Salaire", "type": "credit", "isFixed": false, "bank": "UBS", "person": "person1", "notes": "" },
+    { "id": "demo-e16", "title": "Salaire Sam", "amount": 5000, "currency": "CHF", "amountInBase": 5000, "date": "2026-05-01", "category": "revenus", "subCategory": "Salaire", "type": "credit", "isFixed": false, "bank": "UBS", "person": "person2", "notes": "" }
+  ],
+  "recurring": [
+    { "id": "demo-r01", "title": "Loyer", "amount": 2000, "currency": "CHF", "category": "logement", "subCategory": "Loyer + Charges", "isFixed": true, "bank": "UBS", "person": "shared", "frequency": "monthly" },
+    { "id": "demo-r02", "title": "Netflix", "amount": 17.9, "currency": "CHF", "category": "abonnements", "subCategory": "Streaming", "isFixed": false, "bank": "Revolut", "person": "person1", "frequency": "monthly" }
+  ],
+  "budgets": [
+    { "year": 2026, "month": 5, "person": "person1", "estimatedIncome": 5000, "items": [
+      { "categoryId": "nourriture", "amount": 400 },
+      { "categoryId": "transport", "amount": 150 }
+    ]},
+    { "year": 2026, "month": 5, "person": "person2", "estimatedIncome": 5000, "items": [
+      { "categoryId": "nourriture", "amount": 300 }
+    ]},
+    { "year": 2026, "month": 5, "person": "shared", "items": [
+      { "categoryId": "logement", "amount": 2000 },
+      { "categoryId": "nourriture", "amount": 600 }
+    ]},
+    { "year": 2026, "month": 6, "person": "person1", "estimatedIncome": 6000, "items": [
+      { "categoryId": "nourriture", "amount": 400 },
+      { "categoryId": "transport", "amount": 150 },
+      { "categoryId": "loisirs", "amount": 200 }
+    ]},
+    { "year": 2026, "month": 6, "person": "person2", "estimatedIncome": 4000, "items": [
+      { "categoryId": "nourriture", "amount": 300 },
+      { "categoryId": "habillement", "amount": 150 }
+    ]},
+    { "year": 2026, "month": 6, "person": "shared", "items": [
+      { "categoryId": "logement", "amount": 2000 },
+      { "categoryId": "nourriture", "amount": 600 },
+      { "categoryId": "maison", "amount": 200 }
+    ]}
+  ]
+}
