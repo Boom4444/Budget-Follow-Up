@@ -72,7 +72,7 @@ function num(s: string): number {
 
 function resolveCategory(raw: string): CategoryId {
   const key = raw.trim().toLowerCase()
-  return CSV_CAT_MAP[key] ?? 'nourriture'
+  return CSV_CAT_MAP[key] ?? 'a_classer'
 }
 
 function resolveSubCategory(catId: CategoryId, raw: string): string {
