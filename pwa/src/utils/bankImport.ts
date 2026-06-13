@@ -141,7 +141,7 @@ function classify(description: string): { category: string; subCategory: string;
       return { category: rule.category, subCategory: rule.subCategory, needsReview: false }
     }
   }
-  return { category: 'autre', subCategory: 'Divers', needsReview: true }
+  return { category: 'a_classer', subCategory: 'Non classé', needsReview: true }
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
