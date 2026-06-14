@@ -1,6 +1,6 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { useStore } from '../store/useStore'
-import { FIXED_CATEGORIES, VARIABLE_CATEGORIES, REVENUS_CATEGORY, getCategoryMeta } from '../data/categories'
+import { getActiveCategories, getCategoryMeta } from '../data/categories'
 import { CURRENCIES, prefetchRateForDate, getHistoricalConversionRate } from '../data/currencies'
 import { today } from '../utils/dates'
 import { incomeRatioForMonth } from '../utils/split'
@@ -31,7 +31,17 @@ type SplitChoice = 'equal' | 'income' | 'custom'
 export default function AddExpenseModal({ onClose, editId, prefill }: Props) {
   const { expenses, recurring, budgets, settings, addExpense, updateExpense } = useStore()
   const customCategories = settings.customCategories ?? []
-  const deletedBuiltins = new Set(settings.deletedBuiltinCategories ?? [])
+
+  // Categories for the picker, alphabetically sorted with Réglages overrides
+  // applied (renames/emojis/deletions) and custom categories included.
+  const activeCategories = useMemo(
+    () => getActiveCategories(customCategories, settings.deletedBuiltinCategories)
+      .map(c => getCategoryMeta(c.id, customCategories)!),
+    [customCategories, settings.deletedBuiltinCategories]
+  )
+  const revenusCategory = activeCategories.find(c => c.id === 'revenus')!
+  const fixedPickerCats = activeCategories.filter(c => c.isFixed)
+  const variablePickerCats = activeCategories.filter(c => !c.isFixed && c.id !== 'revenus' && c.id !== 'a_classer')
 
   // Initial split choice: explicit prefill wins, else the household default
   const initialSplit: SplitChoice = prefill?.splitMode === 'income'
@@ -361,19 +371,20 @@ export default function AddExpenseModal({ onClose, editId, prefill }: Props) {
             {/* Revenus — always shown first */}
             <p className="section-header">Revenus</p>
             <div className="card mx-4 overflow-hidden">
-              <button type="button" onClick={() => { setCategory(REVENUS_CATEGORY.id); setShowCatPicker(false) }}
+              <button type="button" onClick={() => { setCategory(revenusCategory.id); setShowCatPicker(false) }}
                 className="w-full flex items-center gap-3 px-4 py-3 active:bg-gray-50 dark:active:bg-gray-700">
-                <span className="text-2xl">{REVENUS_CATEGORY.emoji}</span>
+                <span className="text-2xl">{revenusCategory.emoji}</span>
                 <div className="flex-1 text-left">
-                  <p className="text-[15px] dark:text-white">{REVENUS_CATEGORY.label}</p>
+                  <p className="text-[15px] dark:text-white">{revenusCategory.label}</p>
                   <p className="text-xs text-green-600 dark:text-green-400">Salaire, prime, don, remboursement global…</p>
                 </div>
-                {category === REVENUS_CATEGORY.id && <span className="text-blue-600 text-lg font-bold">✓</span>}
+                {category === revenusCategory.id && <span className="text-blue-600 text-lg font-bold">✓</span>}
               </button>
             </div>
+            {/* Catégories par ordre alphabétique (avec les personnalisations de Réglages) */}
             <p className="section-header">Charges incompressibles</p>
             <div className="card mx-4 overflow-hidden">
-              {FIXED_CATEGORIES.filter(c => !deletedBuiltins.has(c.id)).map((c, i, arr) => (
+              {fixedPickerCats.map((c, i, arr) => (
                 <button key={c.id} type="button" onClick={() => { setCategory(c.id); setShowCatPicker(false) }}
                   className={`w-full flex items-center gap-3 px-4 py-3 active:bg-gray-50 dark:active:bg-gray-700
                     ${i < arr.length - 1 ? 'border-b border-gray-100 dark:border-gray-700' : ''}`}>
@@ -387,8 +398,8 @@ export default function AddExpenseModal({ onClose, editId, prefill }: Props) {
               ))}
             </div>
             <p className="section-header">Charges courantes</p>
-            <div className="card mx-4 overflow-hidden">
-              {VARIABLE_CATEGORIES.filter(c => !deletedBuiltins.has(c.id)).map((c, i, arr) => (
+            <div className="card mx-4 overflow-hidden mb-8">
+              {variablePickerCats.map((c, i, arr) => (
                 <button key={c.id} type="button" onClick={() => { setCategory(c.id); setShowCatPicker(false) }}
                   className={`w-full flex items-center gap-3 px-4 py-3 active:bg-gray-50 dark:active:bg-gray-700
                     ${i < arr.length - 1 ? 'border-b border-gray-100 dark:border-gray-700' : ''}`}>
@@ -398,23 +409,6 @@ export default function AddExpenseModal({ onClose, editId, prefill }: Props) {
                 </button>
               ))}
             </div>
-            {customCategories.length > 0 && (
-              <>
-                <p className="section-header">Mes catégories</p>
-                <div className="card mx-4 overflow-hidden mb-8">
-                  {customCategories.map((c, i) => (
-                    <button key={c.id} type="button" onClick={() => { setCategory(c.id); setShowCatPicker(false) }}
-                      className={`w-full flex items-center gap-3 px-4 py-3 active:bg-gray-50 dark:active:bg-gray-700
-                        ${i < customCategories.length - 1 ? 'border-b border-gray-100 dark:border-gray-700' : ''}`}>
-                      <span className="text-2xl">{c.emoji}</span>
-                      <p className="flex-1 text-[15px] text-left dark:text-white">{c.label}</p>
-                      {category === c.id && <span className="text-blue-600 text-lg font-bold">✓</span>}
-                    </button>
-                  ))}
-                </div>
-              </>
-            )}
-            {customCategories.length === 0 && <div className="h-8" />}
           </div>
         </div>
       )}

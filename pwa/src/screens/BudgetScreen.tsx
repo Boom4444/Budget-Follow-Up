@@ -3,7 +3,7 @@ import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Legend, Cell,
 } from 'recharts'
 import { useStore } from '../store/useStore'
-import { CATEGORIES, CATEGORY_MAP, getCategoryMeta } from '../data/categories'
+import { getActiveCategories, getCategoryMeta } from '../data/categories'
 import { convertToBase } from '../data/currencies'
 import { formatAmount } from '../utils/formatters'
 import { currentYear, currentMonth, longMonth } from '../utils/dates'
@@ -23,20 +23,15 @@ export default function BudgetScreen() {
   const { expenses, recurring, budgets, settings, setBudgetItem, setBudgetItems, copyBudget, setIncome } = useStore()
   const base = settings.baseCurrency
 
-  // Built-in categories minus the ones deleted in Réglages, with custom
-  // label/emoji overrides applied, plus any user-defined custom categories.
+  // Categories shown across Budget, alphabetically sorted with Réglages
+  // overrides applied (renames/emojis/deletions) and custom categories included.
   const customCategories = settings.customCategories ?? []
   const deletedBuiltinCategories = settings.deletedBuiltinCategories ?? []
-  const activeCategories = useMemo(() => {
-    const deletedSet = new Set(deletedBuiltinCategories)
-    const builtins = CATEGORIES
-      .filter(c => !deletedSet.has(c.id))
-      .map(c => getCategoryMeta(c.id, customCategories)!)
-    const customOnly = customCategories
-      .filter(c => !CATEGORY_MAP[c.id])
-      .map(c => getCategoryMeta(c.id, customCategories)!)
-    return [...builtins, ...customOnly]
-  }, [customCategories, deletedBuiltinCategories])
+  const activeCategories = useMemo(
+    () => getActiveCategories(customCategories, deletedBuiltinCategories)
+      .map(c => getCategoryMeta(c.id, customCategories)!),
+    [customCategories, deletedBuiltinCategories]
+  )
   const categoryById = useMemo(
     () => Object.fromEntries(activeCategories.map(c => [c.id, c])),
     [activeCategories]

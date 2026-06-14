@@ -191,11 +191,6 @@ export const CATEGORY_MAP = Object.fromEntries(
   CATEGORIES.map(c => [c.id, c])
 ) as Record<string, CategoryMeta>
 
-export const FIXED_CATEGORIES   = CATEGORIES.filter(c => c.isFixed)
-// Expense categories only — excludes the income 'revenus' category and system 'a_classer'
-export const VARIABLE_CATEGORIES = CATEGORIES.filter(c => !c.isFixed && c.id !== 'revenus' && c.id !== 'a_classer')
-export const REVENUS_CATEGORY    = CATEGORIES.find(c => c.id === 'revenus')!
-
 export function getCategoryMeta(
   id: string,
   customCategories: CustomCategoryDef[] = [],

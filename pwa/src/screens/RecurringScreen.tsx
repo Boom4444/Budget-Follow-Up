@@ -1,6 +1,6 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { useStore } from '../store/useStore'
-import { CATEGORIES, CATEGORY_MAP, FIXED_CATEGORIES, VARIABLE_CATEGORIES } from '../data/categories'
+import { getActiveCategories, getCategoryMeta } from '../data/categories'
 import { CURRENCIES } from '../data/currencies'
 import type { RecurringExpense, CurrencyCode, HouseholdMember, RecurrenceFrequency } from '../models/types'
 
@@ -97,7 +97,7 @@ export default function RecurringScreen() {
 function RecurringRow({ r, settings, i, total, onEdit, onDelete }: {
   r: RecurringExpense; settings: any; i: number; total: number; onEdit: () => void; onDelete: () => void
 }) {
-  const cat = CATEGORY_MAP[r.category as keyof typeof CATEGORY_MAP]
+  const cat = getCategoryMeta(r.category, settings.customCategories ?? [])
   const personName = r.person === 'person1' ? settings.person1Name : r.person === 'person2' ? settings.person2Name : 'Commun'
 
   return (
@@ -142,15 +142,27 @@ function RecurringFormModal({ editItem, settings, onClose, onSave }: {
   const [frequency, setFrequency]   = useState<RecurrenceFrequency>(editItem?.frequency ?? 'monthly')
   const [showCatPicker, setShowCatPicker] = useState(false)
 
+  const customCategories = settings.customCategories ?? []
+
+  // Categories for the picker, alphabetically sorted with Réglages overrides
+  // applied (renames/emojis/deletions) and custom categories included.
+  const activeCategories = useMemo(
+    () => getActiveCategories(customCategories, settings.deletedBuiltinCategories)
+      .map(c => getCategoryMeta(c.id, customCategories)!),
+    [customCategories, settings.deletedBuiltinCategories]
+  )
+  const fixedPickerCats = activeCategories.filter(c => c.isFixed)
+  const variablePickerCats = activeCategories.filter(c => !c.isFixed && c.id !== 'revenus' && c.id !== 'a_classer')
+
   useEffect(() => {
-    const cat = CATEGORIES.find(c => c.id === category)
+    const cat = getCategoryMeta(category, customCategories)
     if (cat) {
       setIsFixed(cat.isFixed)
       if (!editItem) setSubCategory(cat.subCategories[0] ?? '')
     }
   }, [category])
 
-  const cat = CATEGORY_MAP[category]
+  const cat = getCategoryMeta(category, customCategories)
   const subCategories = cat?.subCategories ?? []
   const isValid = title.trim() && !isNaN(parseFloat(amount.replace(',', '.')))
 
@@ -202,10 +214,10 @@ function RecurringFormModal({ editItem, settings, onClose, onSave }: {
         <div className="card mx-4">
           <button type="button" onClick={() => setShowCatPicker(true)}
             className="w-full flex items-center gap-3 px-4 py-3">
-            <span className="text-2xl">{cat.emoji}</span>
+            <span className="text-2xl">{cat?.emoji ?? '📦'}</span>
             <div className="flex-1 text-left">
-              <p className="text-[15px] font-medium dark:text-white">{cat.label}</p>
-              {cat.isFixed && <p className="text-xs text-red-500">🔒 Incompressible</p>}
+              <p className="text-[15px] font-medium dark:text-white">{cat?.label ?? category}</p>
+              {cat?.isFixed && <p className="text-xs text-red-500">🔒 Incompressible</p>}
             </div>
             <span className="text-gray-300 dark:text-gray-600 text-lg">›</span>
           </button>
@@ -283,9 +295,9 @@ function RecurringFormModal({ editItem, settings, onClose, onSave }: {
           <div className="flex-1 overflow-y-auto scroll-ios">
             <p className="section-header">Incompressibles</p>
             <div className="card mx-4 overflow-hidden">
-              {FIXED_CATEGORIES.map((c, i) => (
+              {fixedPickerCats.map((c, i, arr) => (
                 <button key={c.id} type="button" onClick={() => { setCategory(c.id); setIsFixed(true); setShowCatPicker(false) }}
-                  className={`w-full flex items-center gap-3 px-4 py-3 ${i < FIXED_CATEGORIES.length - 1 ? 'border-b border-gray-100 dark:border-gray-700' : ''}`}>
+                  className={`w-full flex items-center gap-3 px-4 py-3 ${i < arr.length - 1 ? 'border-b border-gray-100 dark:border-gray-700' : ''}`}>
                   <span className="text-2xl">{c.emoji}</span>
                   <div className="flex-1 text-left">
                     <p className="text-[15px] dark:text-white">{c.label}</p>
@@ -297,9 +309,9 @@ function RecurringFormModal({ editItem, settings, onClose, onSave }: {
             </div>
             <p className="section-header">Courantes</p>
             <div className="card mx-4 overflow-hidden mb-8">
-              {VARIABLE_CATEGORIES.map((c, i) => (
+              {variablePickerCats.map((c, i, arr) => (
                 <button key={c.id} type="button" onClick={() => { setCategory(c.id); setShowCatPicker(false) }}
-                  className={`w-full flex items-center gap-3 px-4 py-3 ${i < VARIABLE_CATEGORIES.length - 1 ? 'border-b border-gray-100 dark:border-gray-700' : ''}`}>
+                  className={`w-full flex items-center gap-3 px-4 py-3 ${i < arr.length - 1 ? 'border-b border-gray-100 dark:border-gray-700' : ''}`}>
                   <span className="text-2xl">{c.emoji}</span>
                   <div className="flex-1 text-left">
                     <p className="text-[15px] dark:text-white">{c.label}</p>
