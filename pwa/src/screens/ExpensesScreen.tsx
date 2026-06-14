@@ -6,7 +6,7 @@ import { currentYear, currentMonth, shortMonth, dateYear, dateMonth } from '../u
 import type { Expense, HouseholdMember, CurrencyCode } from '../models/types'
 import AddExpenseModal from '../components/AddExpenseModal'
 import TransactionRow from '../components/TransactionRow'
-import { importFromCSV, importFromXLSX, importFromPDF, importFromJSON } from '../utils/bankImport'
+import { importFromCSV, importFromXLSX, importFromPDF, importFromJSON, deriveImportKeyword } from '../utils/bankImport'
 import type { BankImportResult, ImportedTransaction } from '../utils/bankImport'
 import { prefetchHistoricalRates, getHistoricalConversionRate } from '../data/currencies'
 
@@ -17,9 +17,10 @@ function dayLabel(d: string): string {
 }
 
 export default function ExpensesScreen() {
-  const { expenses, settings, deleteExpense, addExpense, addBatchExpenses } = useStore()
+  const { expenses, settings, deleteExpense, addExpense, addBatchExpenses, addImportRule } = useStore()
   const base = settings.baseCurrency
   const customCategories = settings.customCategories ?? []
+  const importRules = settings.importRules ?? []
 
   // All active (non-deleted) categories for the import select, sorted alphabetically
   const sortedCategoriesForSelect = useMemo(
@@ -111,16 +112,16 @@ export default function ExpensesScreen() {
 
       if (isExcel) {
         const buf = await file.arrayBuffer()
-        result = await importFromXLSX(buf, file.name)
+        result = await importFromXLSX(buf, file.name, importRules)
       } else if (isPDF) {
         const buf = await file.arrayBuffer()
-        result = await importFromPDF(buf, file.name)
+        result = await importFromPDF(buf, file.name, importRules)
       } else if (isJSON) {
         const text = await file.text()
-        result = importFromJSON(text, file.name)
+        result = importFromJSON(text, file.name, importRules)
       } else {
         const text = await file.text()
-        result = importFromCSV(text, file.name)
+        result = importFromCSV(text, file.name, importRules)
       }
 
       if (result.transactions.length === 0) {
@@ -148,6 +149,32 @@ export default function ExpensesScreen() {
 
   function updateTxnField(id: string, patch: Partial<ImportedTransaction>) {
     setImportTxns(ts => ts.map(t => t.id === id ? { ...t, ...patch } : t))
+  }
+
+  /**
+   * User manually picked a category for a transaction during review. Apply it
+   * to this row, immediately propagate to every other same-merchant row of the
+   * same direction in this import, and remember the mapping for future imports.
+   */
+  function reclassifyTxn(txn: ImportedTransaction, newCat: string) {
+    const newMeta = getCategoryMeta(newCat, customCategories)
+    const newSub = newMeta?.subCategories[0] ?? ''
+    const keyword = deriveImportKeyword(txn.title)
+
+    setImportTxns(ts => ts.map(t => {
+      const sameMerchant = keyword.length >= 3
+        && t.type === txn.type
+        && deriveImportKeyword(t.title).includes(keyword)
+      if (t.id === txn.id || sameMerchant) {
+        return { ...t, suggestedCategory: newCat, suggestedSubCategory: newSub, needsReview: false }
+      }
+      return t
+    }))
+
+    // Don't memorise the catch-all bucket as a rule
+    if (newCat !== 'a_classer') {
+      addImportRule({ keyword, category: newCat, subCategory: newSub, type: txn.type })
+    }
   }
 
   function removeTxn(id: string) {
@@ -488,15 +515,7 @@ export default function ExpensesScreen() {
                               }
                               <select
                                 value={t.suggestedCategory}
-                                onChange={e => {
-                                  const newCat = e.target.value
-                                  const newMeta = getCategoryMeta(newCat, customCategories)
-                                  updateTxnField(t.id, {
-                                    suggestedCategory: newCat,
-                                    suggestedSubCategory: newMeta?.subCategories[0] ?? '',
-                                    needsReview: false,
-                                  })
-                                }}
+                                onChange={e => reclassifyTxn(t, e.target.value)}
                                 className="text-[13px] font-medium outline-none bg-transparent dark:text-white"
                                 style={{ color: catMeta?.color ?? '#6b7280' }}>
                                 {sortedCategoriesForSelect.map(c => (

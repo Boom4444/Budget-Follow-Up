@@ -8,7 +8,9 @@ import {
   importFromJSON,
   parsePDFTransactions,
   extractPdfText,
+  deriveImportKeyword,
 } from '../utils/bankImport'
+import type { ImportRule } from '../models/types'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
 const fixture = (name: string) => join(__dirname, 'fixtures', name)
@@ -116,6 +118,75 @@ describe('importFromJSON', () => {
 
   it('returns empty for malformed JSON without throwing', () => {
     expect(importFromJSON('{not json', 'x.json').transactions).toHaveLength(0)
+  })
+})
+
+// ── Pictet (employer) built-in rule — debit-only ─────────────────────────────
+describe('Pictet built-in classification', () => {
+  const json = (desc: string, amount: number, type: 'debit' | 'credit') =>
+    importFromJSON(JSON.stringify([{ date: '2026-01-05', description: desc, amount, type }]), 'x.json')
+      .transactions[0]
+
+  it('classifies "Restaurant Pictet" debits as Entreprise / Repas Travail', () => {
+    const t = json('Restaurant Pictet', -12, 'debit')
+    expect(t.suggestedCategory).toBe('entreprise')
+    expect(t.suggestedSubCategory).toBe('Repas Travail')
+    expect(t.needsReview).toBe(false)
+  })
+
+  it('classifies a bare "Pictet" debit the same way', () => {
+    const t = json('Pictet', -8, 'debit')
+    expect(t.suggestedCategory).toBe('entreprise')
+    expect(t.needsReview).toBe(false)
+  })
+
+  it('does NOT tag a "Pictet" credit (salary) as a work meal', () => {
+    const t = json('Pictet', 7814, 'credit')
+    expect(t.suggestedCategory).not.toBe('entreprise')
+    expect(t.suggestedCategory).toBe('a_classer')
+    expect(t.needsReview).toBe(true)
+  })
+})
+
+// ── User-taught import rules ──────────────────────────────────────────────────
+describe('user-taught import rules', () => {
+  const rule = (keyword: string, category: string, subCategory: string, type: 'debit' | 'credit'): ImportRule =>
+    ({ keyword, category, subCategory, type })
+  const classifyVia = (desc: string, type: 'debit' | 'credit', rules: ImportRule[]) =>
+    importFromJSON(JSON.stringify([{ date: '2026-01-05', description: desc, amount: type === 'debit' ? -10 : 10, type }]), 'x.json', rules)
+      .transactions[0]
+
+  it('applies a learned rule to a matching merchant (and clears needsReview)', () => {
+    const t = classifyVia('Le Bouchon Lyonnais', 'debit', [rule('le bouchon lyonnais', 'nourriture', 'Restaurant', 'debit')])
+    expect(t.suggestedCategory).toBe('nourriture')
+    expect(t.suggestedSubCategory).toBe('Restaurant')
+    expect(t.needsReview).toBe(false)
+  })
+
+  it('matches as a substring across noisy descriptions', () => {
+    const t = classifyVia('CB LE BOUCHON LYONNAIS 12/05 LYON', 'debit', [rule('le bouchon lyonnais', 'nourriture', 'Restaurant', 'debit')])
+    expect(t.suggestedCategory).toBe('nourriture')
+  })
+
+  it('is type-scoped: a debit rule does not touch a credit', () => {
+    const t = classifyVia('Le Bouchon Lyonnais', 'credit', [rule('le bouchon lyonnais', 'nourriture', 'Restaurant', 'debit')])
+    expect(t.suggestedCategory).toBe('a_classer')
+    expect(t.needsReview).toBe(true)
+  })
+
+  it('wins over a conflicting built-in rule', () => {
+    const t = classifyVia('Spotify', 'debit', [rule('spotify', 'loisirs', 'Jeux / Jeux vidéo', 'debit')])
+    expect(t.suggestedCategory).toBe('loisirs')
+  })
+})
+
+// ── deriveImportKeyword ───────────────────────────────────────────────────────
+describe('deriveImportKeyword', () => {
+  it('strips bank noise, digits, punctuation and accents', () => {
+    expect(deriveImportKeyword('CB PICTET 12/05 GENÈVE')).toBe('pictet geneve')
+  })
+  it('lowercases and collapses whitespace', () => {
+    expect(deriveImportKeyword('  Le   Bouchon  ')).toBe('le bouchon')
   })
 })
 

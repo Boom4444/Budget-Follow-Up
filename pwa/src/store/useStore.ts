@@ -1,7 +1,7 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 import { v4 as uuid } from 'uuid'
-import type { Expense, RecurringExpense, AppSettings, CurrencyCode, HouseholdMember, MonthlyBudget, BudgetItem } from '../models/types'
+import type { Expense, RecurringExpense, AppSettings, CurrencyCode, HouseholdMember, MonthlyBudget, BudgetItem, ImportRule } from '../models/types'
 import { convertToBase } from '../data/currencies'
 import { autoSave } from '../utils/backup'
 import { budgetKey, emptyTombstones, type Tombstones } from '../utils/sync'
@@ -32,6 +32,9 @@ interface AppState {
   deleteRecurring: (id: string) => void
 
   updateSettings: (patch: Partial<AppSettings>) => void
+  /** Remember a merchant → category mapping taught during bank-import review,
+   *  upserting by (keyword, type) so the latest classification wins. */
+  addImportRule: (rule: ImportRule) => void
   recategorizeExpenses: (fromCategoryId: string, toCategoryId: string) => void
   loadDemoData: () => void
   importData: (expenses: Expense[], recurring: RecurringExpense[], budgets: MonthlyBudget[], merge?: boolean) => void
@@ -102,6 +105,7 @@ export const useStore = create<AppState>()(
         theme: 'system',
         googleDriveClientId: '',
         customCategories: [],
+        importRules: [],
         claudeApiKey: '',
       },
 
@@ -180,6 +184,16 @@ export const useStore = create<AppState>()(
 
       updateSettings(patch) {
         set(s => ({ settings: { ...s.settings, ...patch } }))
+      },
+
+      addImportRule(rule) {
+        if (!rule.keyword || rule.keyword.length < 3) return
+        set(s => {
+          const existing = s.settings.importRules ?? []
+          // Upsert by keyword+type — re-classifying the same merchant updates it
+          const kept = existing.filter(r => !(r.keyword === rule.keyword && r.type === rule.type))
+          return { settings: { ...s.settings, importRules: [...kept, rule] } }
+        })
       },
 
       recategorizeExpenses(fromCategoryId, toCategoryId) {

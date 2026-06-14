@@ -32,6 +32,20 @@ export interface CustomCategoryDef {
   isFixed: boolean
 }
 
+/** A merchant → category rule taught by the user while reviewing a bank import.
+ *  Applied on future imports (and immediately to similar rows in the same
+ *  import). Type-scoped so a merchant that both bills *and* pays you
+ *  (e.g. an employer) keeps its debits and credits classified separately. */
+export interface ImportRule {
+  /** Normalized merchant keyword (see deriveImportKeyword), matched as a
+   *  substring of the normalized transaction description. */
+  keyword: string
+  category: string
+  subCategory: string
+  /** Only applies to transactions of this direction. */
+  type: 'debit' | 'credit'
+}
+
 export interface Expense {
   id: string
   title: string
@@ -109,6 +123,9 @@ export interface AppSettings {
   syncFileId?: string         // Drive file ID of the shared sync file
   customCategories: CustomCategoryDef[]
   deletedBuiltinCategories?: string[]   // built-in category IDs the user has removed
+  /** Merchant → category rules learned during bank-statement review.
+   *  Device-local (not synced), like other import preferences. */
+  importRules?: ImportRule[]
   /** Keep the Claude API key encrypted on this device (AES-GCM / IndexedDB).
    *  When false the key only lives in memory for the current session. */
   storeApiKeyLocally?: boolean

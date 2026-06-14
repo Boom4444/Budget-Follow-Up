@@ -1,5 +1,5 @@
 import { v4 as uuid } from 'uuid'
-import type { CurrencyCode } from '../models/types'
+import type { CurrencyCode, ImportRule } from '../models/types'
 
 export type BankFormat = 'revolut' | 'cic' | 'caisse_epargne' | 'ubs' | 'generic'
 
@@ -25,7 +25,7 @@ export interface BankImportResult {
 
 // ── Keyword → category classifier ────────────────────────────────────────────
 
-const KEYWORD_RULES: Array<{ keywords: string[]; category: string; subCategory: string }> = [
+const KEYWORD_RULES: Array<{ keywords: string[]; category: string; subCategory: string; debitOnly?: boolean }> = [
   // Abonnements
   { keywords: ['spotify'], category: 'abonnements', subCategory: 'Spotify' },
   { keywords: ['netflix'], category: 'abonnements', subCategory: 'Streaming' },
@@ -117,6 +117,11 @@ const KEYWORD_RULES: Array<{ keywords: string[]; category: string; subCategory: 
   // Sport
   { keywords: ['basic fit', 'basicfit', 'keep cool', 'neoness', 'fitness park', 'orange bleue', 'moving '], category: 'sport', subCategory: 'Inscription / Abonnement' },
   { keywords: ['decathlon', 'sport 2000', 'go sport', 'intersport'], category: 'sport', subCategory: 'Équipement' },
+
+  // Entreprise / Pro — Pictet is the user's employer: meals on site are work
+  // expenses. `debitOnly` because the monthly salary is *also* paid by "Pictet"
+  // and must not be mistagged as a work meal (it stays "À classer" → revenus).
+  { keywords: ['pictet'], category: 'entreprise', subCategory: 'Repas Travail', debitOnly: true },
 ]
 
 const EXCHANGE_PATTERNS = [
@@ -134,13 +139,50 @@ function isCurrencyExchange(desc: string, txnType?: string): boolean {
   return EXCHANGE_PATTERNS.some(p => p.test(desc.trim()))
 }
 
-function classify(description: string): { category: string; subCategory: string; needsReview: boolean } {
+/**
+ * Normalize a transaction description into a stable merchant key: lowercased,
+ * accents/punctuation/digits stripped, common bank prefixes removed. Used both
+ * to derive a learned rule's keyword and to match it against future imports, so
+ * "CB PICTET 12/05" and "Pictet" reduce to the same comparable form.
+ */
+export function deriveImportKeyword(title: string): string {
+  return title
+    .toLowerCase()
+    .normalize('NFD').replace(/[̀-ͯ]/g, '')   // strip accents
+    .replace(/[0-9]+/g, ' ')                            // drop dates/refs/amounts
+    .replace(/[^a-z ]+/g, ' ')                          // drop punctuation/symbols
+    .replace(/\b(cb|carte|paiement|vir|virement|prlv|sepa|achat)\b/g, ' ')  // bank noise
+    .replace(/\s+/g, ' ')
+    .trim()
+}
+
+function classify(
+  description: string,
+  userRules: ImportRule[] = [],
+  type: 'debit' | 'credit' = 'debit',
+): { category: string; subCategory: string; needsReview: boolean } {
   const lower = description.toLowerCase()
+
+  // 1. User-taught rules win over the built-ins. Longest keyword first so a more
+  //    specific merchant beats a shorter, broader one. Type-scoped.
+  if (userRules.length) {
+    const descKey = deriveImportKeyword(description)
+    const matches = userRules
+      .filter(r => r.type === type && r.keyword && descKey.includes(r.keyword))
+      .sort((a, b) => b.keyword.length - a.keyword.length)
+    if (matches.length) {
+      return { category: matches[0].category, subCategory: matches[0].subCategory, needsReview: false }
+    }
+  }
+
+  // 2. Built-in keyword rules.
   for (const rule of KEYWORD_RULES) {
+    if (rule.debitOnly && type === 'credit') continue
     if (rule.keywords.some(k => lower.includes(k))) {
       return { category: rule.category, subCategory: rule.subCategory, needsReview: false }
     }
   }
+
   return { category: 'a_classer', subCategory: 'Non classé', needsReview: true }
 }
 
@@ -220,7 +262,7 @@ function splitLine(line: string, sep: string): string[] {
 // Handles both the English and French Revolut CSV exports.
 // EN: Type,Product,Started Date,Completed Date,Description,Amount,Fee,Currency,State,Balance
 // FR: Type,Produit,Date de début,Date de fin,Description,Montant,Frais,Devise,État,Solde
-function parseRevolutCSV(lines: string[]): ImportedTransaction[] {
+function parseRevolutCSV(lines: string[], userRules: ImportRule[] = []): ImportedTransaction[] {
   const sep = detectSep(lines[0])
   const header = lines[0].split(sep).map(h => h.trim().toLowerCase().replace(/['"]/g, ''))
   // Find a column whose name contains any of the given substrings
@@ -260,14 +302,15 @@ function parseRevolutCSV(lines: string[]): ImportedTransaction[] {
     const fee    = feeIdx >= 0 ? parseAmount(cols[feeIdx] ?? '') : 0
 
     if (amount !== 0) {
-      const { category, subCategory, needsReview } = classify(description)
+      const type = amount < 0 ? 'debit' : 'credit'
+      const { category, subCategory, needsReview } = classify(description, userRules, type)
       out.push({
         id: uuid(),
         date,
         title: description,
         amount: Math.abs(amount),
         currency,
-        type: amount < 0 ? 'debit' : 'credit',
+        type,
         bank: 'Revolut',
         suggestedCategory: category,
         suggestedSubCategory: subCategory,
@@ -297,7 +340,7 @@ function parseRevolutCSV(lines: string[]): ImportedTransaction[] {
   return out
 }
 
-function parseCICCSV(lines: string[]): ImportedTransaction[] {
+function parseCICCSV(lines: string[], userRules: ImportRule[] = []): ImportedTransaction[] {
   const sep = detectSep(lines[0])
   const header = lines[0].split(sep).map(h => h.trim().toLowerCase().replace(/['"]/g, ''))
 
@@ -316,7 +359,8 @@ function parseCICCSV(lines: string[]): ImportedTransaction[] {
 
     const description = cols[labelIdx >= 0 ? labelIdx : 3] ?? ''
     if (isCurrencyExchange(description)) continue
-    const { category, subCategory, needsReview } = classify(description)
+    const type = amount < 0 ? 'debit' : 'credit'
+    const { category, subCategory, needsReview } = classify(description, userRules, type)
 
     out.push({
       id: uuid(),
@@ -324,7 +368,7 @@ function parseCICCSV(lines: string[]): ImportedTransaction[] {
       title: description,
       amount: Math.abs(amount),
       currency: 'EUR',
-      type: amount < 0 ? 'debit' : 'credit',
+      type,
       bank: 'CIC',
       suggestedCategory: category,
       suggestedSubCategory: subCategory,
@@ -335,7 +379,7 @@ function parseCICCSV(lines: string[]): ImportedTransaction[] {
   return out
 }
 
-function parseCaisseEpargneCSV(lines: string[]): ImportedTransaction[] {
+function parseCaisseEpargneCSV(lines: string[], userRules: ImportRule[] = []): ImportedTransaction[] {
   const sep = detectSep(lines[0])
   const header = lines[0].split(sep).map(h => h.trim().toLowerCase().replace(/['"]/g, ''))
 
@@ -354,7 +398,8 @@ function parseCaisseEpargneCSV(lines: string[]): ImportedTransaction[] {
 
     const description = cols[labelIdx >= 0 ? labelIdx : 3] ?? ''
     if (isCurrencyExchange(description)) continue
-    const { category, subCategory, needsReview } = classify(description)
+    const type = amount < 0 ? 'debit' : 'credit'
+    const { category, subCategory, needsReview } = classify(description, userRules, type)
 
     out.push({
       id: uuid(),
@@ -362,7 +407,7 @@ function parseCaisseEpargneCSV(lines: string[]): ImportedTransaction[] {
       title: description,
       amount: Math.abs(amount),
       currency: 'EUR',
-      type: amount < 0 ? 'debit' : 'credit',
+      type,
       bank: "Caisse d'Épargne",
       suggestedCategory: category,
       suggestedSubCategory: subCategory,
@@ -373,7 +418,7 @@ function parseCaisseEpargneCSV(lines: string[]): ImportedTransaction[] {
   return out
 }
 
-function parseUBSLines(lines: string[]): ImportedTransaction[] {
+function parseUBSLines(lines: string[], userRules: ImportRule[] = []): ImportedTransaction[] {
   const sep = detectSep(lines[0])
   const header = lines[0].split(sep).map(h => h.trim().toLowerCase().replace(/['"]/g, ''))
 
@@ -394,7 +439,8 @@ function parseUBSLines(lines: string[]): ImportedTransaction[] {
 
     const description = cols[descIdx >= 0 ? descIdx : 2] ?? ''
     if (isCurrencyExchange(description)) continue
-    const { category, subCategory, needsReview } = classify(description)
+    const type = debit > 0 ? 'debit' : 'credit'
+    const { category, subCategory, needsReview } = classify(description, userRules, type)
 
     out.push({
       id: uuid(),
@@ -402,7 +448,7 @@ function parseUBSLines(lines: string[]): ImportedTransaction[] {
       title: description,
       amount: debit > 0 ? debit : credit,
       currency: 'CHF',
-      type: debit > 0 ? 'debit' : 'credit',
+      type,
       bank: 'UBS',
       suggestedCategory: category,
       suggestedSubCategory: subCategory,
@@ -413,7 +459,7 @@ function parseUBSLines(lines: string[]): ImportedTransaction[] {
   return out
 }
 
-function parseGenericLines(lines: string[], bankName: string): ImportedTransaction[] {
+function parseGenericLines(lines: string[], bankName: string, userRules: ImportRule[] = []): ImportedTransaction[] {
   const sep = detectSep(lines[0])
   const header = lines[0].split(sep).map(h => h.trim().toLowerCase().replace(/['"]/g, ''))
 
@@ -434,7 +480,8 @@ function parseGenericLines(lines: string[], bankName: string): ImportedTransacti
 
     const description = labelIdx >= 0 ? (cols[labelIdx] ?? '') : (cols[1] ?? '')
     if (isCurrencyExchange(description)) continue
-    const { category, subCategory, needsReview } = classify(description)
+    const type = amount < 0 ? 'debit' : 'credit'
+    const { category, subCategory, needsReview } = classify(description, userRules, type)
 
     out.push({
       id: uuid(),
@@ -442,7 +489,7 @@ function parseGenericLines(lines: string[], bankName: string): ImportedTransacti
       title: description,
       amount: Math.abs(amount),
       currency: 'EUR',
-      type: amount < 0 ? 'debit' : 'credit',
+      type,
       bank: bankName,
       suggestedCategory: category,
       suggestedSubCategory: subCategory,
@@ -455,19 +502,19 @@ function parseGenericLines(lines: string[], bankName: string): ImportedTransacti
 
 // ── Public API ────────────────────────────────────────────────────────────────
 
-export function importFromCSV(text: string, fileName: string): BankImportResult {
+export function importFromCSV(text: string, fileName: string, userRules: ImportRule[] = []): BankImportResult {
   const lines = text.split(/\r?\n/).filter(l => l.trim())
   if (lines.length < 2) return { bank: 'generic', bankName: 'Import', transactions: [] }
 
   const format = detectFormat(lines[0])
   switch (format) {
-    case 'revolut':       return { bank: format, bankName: 'Revolut',             transactions: parseRevolutCSV(lines) }
-    case 'cic':           return { bank: format, bankName: 'CIC',                 transactions: parseCICCSV(lines) }
-    case 'caisse_epargne':return { bank: format, bankName: "Caisse d'Épargne",    transactions: parseCaisseEpargneCSV(lines) }
-    case 'ubs':           return { bank: format, bankName: 'UBS',                 transactions: parseUBSLines(lines) }
+    case 'revolut':       return { bank: format, bankName: 'Revolut',             transactions: parseRevolutCSV(lines, userRules) }
+    case 'cic':           return { bank: format, bankName: 'CIC',                 transactions: parseCICCSV(lines, userRules) }
+    case 'caisse_epargne':return { bank: format, bankName: "Caisse d'Épargne",    transactions: parseCaisseEpargneCSV(lines, userRules) }
+    case 'ubs':           return { bank: format, bankName: 'UBS',                 transactions: parseUBSLines(lines, userRules) }
     default: {
       const name = fileName.replace(/\.(csv|tsv|txt)$/i, '')
-      return { bank: format, bankName: name, transactions: parseGenericLines(lines, name) }
+      return { bank: format, bankName: name, transactions: parseGenericLines(lines, name, userRules) }
     }
   }
 }
@@ -477,7 +524,7 @@ export function importFromCSV(text: string, fileName: string): BankImportResult 
 // wraps the array under a common key (transactions / expenses / data / items).
 // Field names are matched flexibly (EN/FR), so it ingests both the app's own
 // export and generic third-party JSON dumps.
-export function importFromJSON(text: string, fileName: string): BankImportResult {
+export function importFromJSON(text: string, fileName: string, userRules: ImportRule[] = []): BankImportResult {
   let parsed: any
   try {
     parsed = JSON.parse(text)
@@ -522,13 +569,14 @@ export function importFromJSON(text: string, fileName: string): BankImportResult
     if (isCurrencyExchange(description, typeof rawType === 'string' ? rawType : undefined)) continue
 
     const currency = (String(rawCurrency ?? 'EUR').trim().toUpperCase() || 'EUR') as CurrencyCode
-    const { category, subCategory, needsReview } = classify(description)
 
     // Type: explicit debit/credit string wins, otherwise sign of the amount
     let txType: 'debit' | 'credit'
     const t = String(rawType ?? '').toLowerCase()
     if (t === 'debit' || t === 'credit') txType = t
     else txType = amountNum < 0 ? 'debit' : 'credit'
+
+    const { category, subCategory, needsReview } = classify(description, userRules, txType)
 
     out.push({
       id: uuid(),
@@ -634,7 +682,7 @@ async function getPdfjs(): Promise<any> {
   return pdfjsLibPromise
 }
 
-export async function importFromPDF(buffer: ArrayBuffer, fileName: string): Promise<BankImportResult> {
+export async function importFromPDF(buffer: ArrayBuffer, fileName: string, userRules: ImportRule[] = []): Promise<BankImportResult> {
   const pdfjsLib = await getPdfjs()
   console.log('[pdf] start | buffer:', buffer.byteLength, 'bytes')
 
@@ -668,15 +716,15 @@ export async function importFromPDF(buffer: ArrayBuffer, fileName: string): Prom
 
   // Try to detect bank from text content
   const lower = fullText.toLowerCase()
-  if (lower.includes('revolut')) return parsePDFTransactions(fullText, 'Revolut')
-  if (lower.includes('cic') || lower.includes('crédit industriel')) return parsePDFTransactions(fullText, 'CIC')
-  if (lower.includes('caisse d\'épargne') || lower.includes('caisse d epargne')) return parsePDFTransactions(fullText, "Caisse d'Épargne")
-  if (lower.includes('ubs')) return parsePDFTransactions(fullText, 'UBS')
-  if (lower.includes('lcl') || lower.includes('le crédit lyonnais')) return parsePDFTransactions(fullText, 'LCL')
-  if (lower.includes('bnp') || lower.includes('banque nationale de paris')) return parsePDFTransactions(fullText, 'BNP')
-  if (lower.includes('société générale') || lower.includes('societe generale')) return parsePDFTransactions(fullText, 'Société Générale')
+  if (lower.includes('revolut')) return parsePDFTransactions(fullText, 'Revolut', userRules)
+  if (lower.includes('cic') || lower.includes('crédit industriel')) return parsePDFTransactions(fullText, 'CIC', userRules)
+  if (lower.includes('caisse d\'épargne') || lower.includes('caisse d epargne')) return parsePDFTransactions(fullText, "Caisse d'Épargne", userRules)
+  if (lower.includes('ubs')) return parsePDFTransactions(fullText, 'UBS', userRules)
+  if (lower.includes('lcl') || lower.includes('le crédit lyonnais')) return parsePDFTransactions(fullText, 'LCL', userRules)
+  if (lower.includes('bnp') || lower.includes('banque nationale de paris')) return parsePDFTransactions(fullText, 'BNP', userRules)
+  if (lower.includes('société générale') || lower.includes('societe generale')) return parsePDFTransactions(fullText, 'Société Générale', userRules)
 
-  return parsePDFTransactions(fullText, bankName)
+  return parsePDFTransactions(fullText, bankName, userRules)
 }
 
 // A line is a candidate transaction if it starts with (optional tiny prefix then) a date.
@@ -695,7 +743,7 @@ const TRAILING_DATE_RE = /\s+\d{2}[\/.\-]\d{2}[\/.\-]\d{4}\s*$/
 // Matches any date-like token — used without anchor to locate dates inside a line.
 const DATE_TOKEN_RE = /\d{1,2}[\/.\-]\d{1,2}(?:[\/.\-]\d{2,4})?|\d{4}-\d{2}-\d{2}/
 
-export function parsePDFTransactions(text: string, bankName: string): BankImportResult {
+export function parsePDFTransactions(text: string, bankName: string, userRules: ImportRule[] = []): BankImportResult {
   const lines = text.split('\n').map(l => l.trim()).filter(Boolean)
   const transactions: ImportedTransaction[] = []
 
@@ -733,7 +781,7 @@ export function parsePDFTransactions(text: string, bankName: string): BankImport
         if (cont && /[a-zA-Zà-ÿ]/.test(cont) && !/^(IBAN|QXBAN|R[ée]f\b|SOLDE|TOTAL|N°)/i.test(cont)) {
           const combined = `${lastTxn.title} ${cont}`.trim()
           lastTxn.title = combined
-          const c = classify(combined)
+          const c = classify(combined, userRules, lastTxn.type)
           lastTxn.suggestedCategory = c.category
           lastTxn.suggestedSubCategory = c.subCategory
           lastTxn.needsReview = c.needsReview
@@ -771,7 +819,6 @@ export function parsePDFTransactions(text: string, bankName: string): BankImport
       lastTxn = null
       continue
     }
-    const { category, subCategory, needsReview } = classify(description)
 
     // CIC: unsigned amounts — infer debit/credit from description prefix
     // UBS: amounts are already signed (negative = debit)
@@ -784,6 +831,8 @@ export function parsePDFTransactions(text: string, bankName: string): BankImport
     } else {
       txType = amount < 0 ? 'debit' : 'credit'
     }
+
+    const { category, subCategory, needsReview } = classify(description, userRules, txType)
 
     const txn: ImportedTransaction = {
       id: uuid(),
@@ -806,7 +855,7 @@ export function parsePDFTransactions(text: string, bankName: string): BankImport
   return { bank: 'generic', bankName, transactions }
 }
 
-export async function importFromXLSX(buffer: ArrayBuffer, fileName: string): Promise<BankImportResult> {
+export async function importFromXLSX(buffer: ArrayBuffer, fileName: string, userRules: ImportRule[] = []): Promise<BankImportResult> {
   const XLSX = await import('xlsx')
   const wb = XLSX.read(buffer, { type: 'array' })
   const ws = wb.Sheets[wb.SheetNames[0]]
@@ -820,9 +869,9 @@ export async function importFromXLSX(buffer: ArrayBuffer, fileName: string): Pro
   const bankName = fileName.replace(/\.xlsx?$/i, '')
 
   switch (format) {
-    case 'revolut':       return { bank: format, bankName: 'Revolut',             transactions: parseRevolutCSV(lines) }
-    case 'ubs':           return { bank: format, bankName: 'UBS',                 transactions: parseUBSLines(lines) }
-    case 'caisse_epargne':return { bank: format, bankName: "Caisse d'Épargne",    transactions: parseCaisseEpargneCSV(lines) }
-    default:              return { bank: format, bankName,                         transactions: parseGenericLines(lines, bankName) }
+    case 'revolut':       return { bank: format, bankName: 'Revolut',             transactions: parseRevolutCSV(lines, userRules) }
+    case 'ubs':           return { bank: format, bankName: 'UBS',                 transactions: parseUBSLines(lines, userRules) }
+    case 'caisse_epargne':return { bank: format, bankName: "Caisse d'Épargne",    transactions: parseCaisseEpargneCSV(lines, userRules) }
+    default:              return { bank: format, bankName,                         transactions: parseGenericLines(lines, bankName, userRules) }
   }
 }
