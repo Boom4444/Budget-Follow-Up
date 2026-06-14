@@ -3,7 +3,7 @@ import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Legend, Cell,
 } from 'recharts'
 import { useStore } from '../store/useStore'
-import { CATEGORIES, CATEGORY_MAP } from '../data/categories'
+import { CATEGORIES, CATEGORY_MAP, getCategoryMeta } from '../data/categories'
 import { convertToBase } from '../data/currencies'
 import { formatAmount } from '../utils/formatters'
 import { currentYear, currentMonth, longMonth } from '../utils/dates'
@@ -22,6 +22,25 @@ type ActiveTab = 'planifier' | 'suivi' | 'ecarts' | 'graphique'
 export default function BudgetScreen() {
   const { expenses, recurring, budgets, settings, setBudgetItem, setBudgetItems, copyBudget, setIncome } = useStore()
   const base = settings.baseCurrency
+
+  // Built-in categories minus the ones deleted in Réglages, with custom
+  // label/emoji overrides applied, plus any user-defined custom categories.
+  const customCategories = settings.customCategories ?? []
+  const deletedBuiltinCategories = settings.deletedBuiltinCategories ?? []
+  const activeCategories = useMemo(() => {
+    const deletedSet = new Set(deletedBuiltinCategories)
+    const builtins = CATEGORIES
+      .filter(c => !deletedSet.has(c.id))
+      .map(c => getCategoryMeta(c.id, customCategories)!)
+    const customOnly = customCategories
+      .filter(c => !CATEGORY_MAP[c.id])
+      .map(c => getCategoryMeta(c.id, customCategories)!)
+    return [...builtins, ...customOnly]
+  }, [customCategories, deletedBuiltinCategories])
+  const categoryById = useMemo(
+    () => Object.fromEntries(activeCategories.map(c => [c.id, c])),
+    [activeCategories]
+  )
 
   const [year, setYear]     = useState(currentYear())
   const [month, setMonth]   = useState(currentMonth())
@@ -102,7 +121,7 @@ export default function BudgetScreen() {
 
   // ── Rows ─────────────────────────────────────────────────────────────────
   const rows = useMemo(() =>
-    CATEGORIES.map(cat => {
+    activeCategories.map(cat => {
       const budgetItem = budget?.items.find(i => i.categoryId === cat.id)
       const foyerPart = foyerShareFor(cat.id)
       const budgeted = (budgetItem?.amount ?? 0) + foyerPart
@@ -113,7 +132,7 @@ export default function BudgetScreen() {
       const pct = budgeted > 0 ? Math.min((actual / budgeted) * 100, 999) : null
       return { cat, budgeted, actual, fixed, variable, deviation, pct, foyerPart }
     }).filter(r => r.budgeted > 0 || r.actual > 0),
-    [budget, actualByCategory, fixedByCategory, foyerBudget, householdRatio]  // eslint-disable-line react-hooks/exhaustive-deps
+    [budget, actualByCategory, fixedByCategory, foyerBudget, householdRatio, activeCategories]  // eslint-disable-line react-hooks/exhaustive-deps
   )
 
   const totalBudgeted = rows.reduce((s, r) => s + r.budgeted, 0)
@@ -231,8 +250,8 @@ export default function BudgetScreen() {
     background: isDark ? '#1f2937' : '#fff', color: isDark ? '#f9fafb' : '#111827',
   }
 
-  const planFixedCats    = CATEGORIES.filter(c => fixedByCategory[c.id] > 0)
-  const planVariableCats = CATEGORIES.filter(c => !fixedByCategory[c.id] && c.id !== 'entreprise')
+  const planFixedCats    = activeCategories.filter(c => fixedByCategory[c.id] > 0)
+  const planVariableCats = activeCategories.filter(c => !fixedByCategory[c.id] && c.id !== 'entreprise')
 
   // ── Render ────────────────────────────────────────────────────────────────
   return (
@@ -670,7 +689,7 @@ export default function BudgetScreen() {
 
                 {/* Unbudgeted actual */}
                 {(() => {
-                  const unbudgeted = CATEGORIES.filter(c =>
+                  const unbudgeted = activeCategories.filter(c =>
                     (actualByCategory[c.id] ?? 0) > 0 && !(budget?.items.some(i => i.categoryId === c.id))
                   )
                   if (!unbudgeted.length) return null
@@ -910,7 +929,7 @@ export default function BudgetScreen() {
           <div className="bg-white dark:bg-gray-800 rounded-t-3xl w-full p-6"
             style={{ paddingBottom: 'calc(1.5rem + env(safe-area-inset-bottom, 0px))' }}>
             {(() => {
-              const cat       = CATEGORY_MAP[editCat]
+              const cat       = categoryById[editCat]
               const actual    = actualByCategory[editCat] ?? 0
               const suggested = fixedByCategory[editCat] ?? 0
               const lines     = fixedLinesByCategory[editCat] ?? []

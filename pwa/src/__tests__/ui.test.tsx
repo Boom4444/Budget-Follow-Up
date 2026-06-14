@@ -165,4 +165,24 @@ describe('Écran Budget — juin 2026 (mois courant)', () => {
     const rowText = row!.textContent!.replace(/[\s  ]+/g, ' ')
     expect(rowText).toContain('1 200,00 Fr / 1 200,00 Fr')
   })
+
+  it('catégories de Réglages (ajout, renommage, suppression) reflétées dans Planifier', () => {
+    useStore.setState(s => ({
+      settings: {
+        ...s.settings,
+        customCategories: [
+          ...(s.settings.customCategories ?? []),
+          { id: 'custom_animaux', label: 'Animaux', emoji: '🐾', isFixed: false },
+          { id: 'loisirs', label: 'Sorties', emoji: '🎊', isFixed: false },
+        ],
+        deletedBuiltinCategories: [...(s.settings.deletedBuiltinCategories ?? []), 'sport'],
+      },
+    }))
+    const r = render(<BudgetScreen />)
+    const page = txt(r)
+    expect(page).toContain('Animaux')             // nouvelle catégorie personnalisée
+    expect(page).toContain('Sorties')             // libellé personnalisé pour "loisirs"
+    expect(page).not.toContain('Loisirs')         // ancien libellé masqué
+    expect(page).not.toContain('Sport & Fitness') // catégorie supprimée absente
+  })
 })
