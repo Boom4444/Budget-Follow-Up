@@ -286,8 +286,8 @@ export default function BudgetScreen() {
               <div className={`h-full rounded-full transition-all ${pctColor(totalBudgeted > 0 ? (totalActual / totalBudgeted) * 100 : null)}`}
                 style={{ width: `${globalPct}%` }} />
             </div>
-            {/* Income + balance row */}
-            {(estimatedIncome > 0 || actualIncome > 0) && (
+            {/* Income + balance row — not shown for "Foyer": income is per-person */}
+            {person !== 'shared' && (estimatedIncome > 0 || actualIncome > 0) && (
               <div className="flex justify-between items-center pt-2 border-t border-gray-100 dark:border-gray-700 mt-1">
                 <div>
                   <p className="text-[11px] text-gray-400 dark:text-gray-500">Revenus prévus</p>
@@ -354,51 +354,55 @@ export default function BudgetScreen() {
         ══════════════════════════════════════════════════════════════════ */}
         {activeTab === 'planifier' && (
           <>
-            {/* Income section */}
-            <p className="section-header">💰 Revenus prévus</p>
-            {estimatedIncome === 0 ? (
-              <button
-                onClick={() => { setIncomeInput(''); setEditingIncome(true) }}
-                className="mx-4 w-[calc(100%-2rem)] bg-amber-50 dark:bg-amber-900/25 border-2 border-amber-300 dark:border-amber-600/70 rounded-2xl p-4 flex items-center gap-3 text-left">
-                <div className="w-10 h-10 rounded-xl bg-amber-100 dark:bg-amber-800/60 flex items-center justify-center flex-shrink-0">
-                  <span className="text-xl">💰</span>
-                </div>
-                <div className="flex-1 min-w-0">
-                  <p className="text-[15px] font-semibold text-amber-800 dark:text-amber-200">Renseigner mon salaire</p>
-                  <p className="text-[12px] text-amber-600 dark:text-amber-400 mt-0.5">
-                    Requis pour calculer votre solde prévisionnel
-                  </p>
-                </div>
-                <span className="text-amber-400 text-[22px] font-light flex-shrink-0">›</span>
-              </button>
-            ) : (
-              <div className="card mx-4 overflow-hidden">
-                <button
-                  onClick={() => { setIncomeInput(String(estimatedIncome)); setEditingIncome(true) }}
-                  className="w-full flex items-center justify-between px-4 py-3 text-left">
-                  <div>
-                    <p className="text-[14px] font-medium dark:text-white">
-                      {personTabs.find(p2 => p2.id === person)?.label}
-                    </p>
-                    {actualIncome > 0 && (
-                      <p className="text-[11px] text-gray-400 dark:text-gray-500">
-                        Réel ce mois : {formatAmount(actualIncome, base)}
+            {/* Income section — not for "Foyer": each person has their own salary */}
+            {person !== 'shared' && (
+              <>
+                <p className="section-header">💰 Revenus prévus</p>
+                {estimatedIncome === 0 ? (
+                  <button
+                    onClick={() => { setIncomeInput(''); setEditingIncome(true) }}
+                    className="mx-4 w-[calc(100%-2rem)] bg-amber-50 dark:bg-amber-900/25 border-2 border-amber-300 dark:border-amber-600/70 rounded-2xl p-4 flex items-center gap-3 text-left">
+                    <div className="w-10 h-10 rounded-xl bg-amber-100 dark:bg-amber-800/60 flex items-center justify-center flex-shrink-0">
+                      <span className="text-xl">💰</span>
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-[15px] font-semibold text-amber-800 dark:text-amber-200">Renseigner mon salaire</p>
+                      <p className="text-[12px] text-amber-600 dark:text-amber-400 mt-0.5">
+                        Requis pour calculer votre solde prévisionnel
                       </p>
+                    </div>
+                    <span className="text-amber-400 text-[22px] font-light flex-shrink-0">›</span>
+                  </button>
+                ) : (
+                  <div className="card mx-4 overflow-hidden">
+                    <button
+                      onClick={() => { setIncomeInput(String(estimatedIncome)); setEditingIncome(true) }}
+                      className="w-full flex items-center justify-between px-4 py-3 text-left">
+                      <div>
+                        <p className="text-[14px] font-medium dark:text-white">
+                          {personTabs.find(p2 => p2.id === person)?.label}
+                        </p>
+                        {actualIncome > 0 && (
+                          <p className="text-[11px] text-gray-400 dark:text-gray-500">
+                            Réel ce mois : {formatAmount(actualIncome, base)}
+                          </p>
+                        )}
+                      </div>
+                      <div className="text-right">
+                        <p className="text-[16px] font-bold text-green-600">{formatAmount(estimatedIncome, base)}</p>
+                      </div>
+                    </button>
+                    {totalBudgeted > 0 && (
+                      <div className="px-4 py-2 bg-gray-50 dark:bg-gray-700/50 border-t border-gray-100 dark:border-gray-700 flex justify-between items-center">
+                        <span className="text-[12px] text-gray-500 dark:text-gray-400">Balance prévisionnelle</span>
+                        <span className={`text-[13px] font-bold ${plannedBalance >= 0 ? 'text-green-600' : 'text-red-500'}`}>
+                          {plannedBalance >= 0 ? '+' : ''}{formatAmount(plannedBalance, base)}
+                        </span>
+                      </div>
                     )}
                   </div>
-                  <div className="text-right">
-                    <p className="text-[16px] font-bold text-green-600">{formatAmount(estimatedIncome, base)}</p>
-                  </div>
-                </button>
-                {totalBudgeted > 0 && (
-                  <div className="px-4 py-2 bg-gray-50 dark:bg-gray-700/50 border-t border-gray-100 dark:border-gray-700 flex justify-between items-center">
-                    <span className="text-[12px] text-gray-500 dark:text-gray-400">Balance prévisionnelle</span>
-                    <span className={`text-[13px] font-bold ${plannedBalance >= 0 ? 'text-green-600' : 'text-red-500'}`}>
-                      {plannedBalance >= 0 ? '+' : ''}{formatAmount(plannedBalance, base)}
-                    </span>
-                  </div>
                 )}
-              </div>
+              </>
             )}
 
             {/* Pre-fill banner */}
@@ -544,7 +548,7 @@ export default function BudgetScreen() {
             {/* Planning total */}
             {budget && (
               <div className="card mx-4 mt-4 overflow-hidden">
-                {estimatedIncome > 0 && (
+                {person !== 'shared' && estimatedIncome > 0 && (
                   <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100 dark:border-gray-700">
                     <span className="text-[13px] text-gray-500 dark:text-gray-400">💰 Revenus prévus</span>
                     <span className="text-[14px] font-medium text-green-600">+{formatAmount(estimatedIncome, base)}</span>
@@ -562,7 +566,7 @@ export default function BudgetScreen() {
                   <span className="text-[13px] font-semibold dark:text-white">Total dépenses prévues</span>
                   <span className="text-[15px] font-bold text-blue-600">{formatAmount(totalBudgeted, base)}</span>
                 </div>
-                {estimatedIncome > 0 && (
+                {person !== 'shared' && estimatedIncome > 0 && (
                   <div className="flex items-center justify-between px-4 py-3">
                     <span className="text-[14px] font-bold dark:text-white">Balance prévisionnelle</span>
                     <span className={`text-[16px] font-bold ${plannedBalance >= 0 ? 'text-green-600' : 'text-red-500'}`}>
