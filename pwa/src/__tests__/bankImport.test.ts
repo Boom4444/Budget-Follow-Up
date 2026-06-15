@@ -69,6 +69,15 @@ describe('importFromCSV — Revolut FR', () => {
     expect(sbb?.type).toBe('debit')
   })
 
+  it('dates transactions by "Date de fin" (completed), not "Date de début" (started)', () => {
+    // SBB CFF FFS: Date de début = 2026-04-02, Date de fin = 2026-04-03
+    const sbb = txns.find(t => t.title === 'SBB CFF FFS')
+    expect(sbb?.date).toBe('2026-04-03')
+    // Canal+: Date de début = 2026-04-02, Date de fin = 2026-04-06
+    const canal = txns.find(t => t.title === 'Canal+')
+    expect(canal?.date).toBe('2026-04-06')
+  })
+
   it('auto-classifies known merchants', () => {
     expect(txns.find(t => /canal/i.test(t.title))?.suggestedCategory).toBe('abonnements')
     expect(txns.find(t => t.title === 'Lidl')?.suggestedCategory).toBe('nourriture')
