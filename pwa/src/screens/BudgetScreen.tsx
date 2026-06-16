@@ -42,6 +42,7 @@ export default function BudgetScreen() {
   const [person, setPerson] = useState<HouseholdMember>('person1')
   const [editCat, setEditCat]             = useState<string | null>(null)
   const [editAmount, setEditAmount]       = useState('')
+  const [showCopyPicker, setShowCopyPicker] = useState(false)
   const [editingIncome, setEditingIncome] = useState(false)
   const [incomeInput, setIncomeInput]     = useState('')
   const [activeTab, setActiveTab]         = useState<ActiveTab>('planifier')
@@ -336,13 +337,13 @@ export default function BudgetScreen() {
           </div>
         )}
 
-        {/* Copy from prev month */}
+        {/* Copy from another month */}
         {budget && prevMonthWithBudget && (
           <div className="mx-4 mt-1.5 flex justify-end">
             <button
-              onClick={() => copyBudget(prevMonthWithBudget.year, prevMonthWithBudget.month, person, year, month, person)}
+              onClick={() => setShowCopyPicker(true)}
               className="text-[12px] text-blue-600 dark:text-blue-400 py-1">
-              📋 Copier depuis {longMonth(prevMonthWithBudget.month)}
+              📋 Copier depuis un autre mois…
             </button>
           </div>
         )}
@@ -455,9 +456,9 @@ export default function BudgetScreen() {
                 </p>
                 {prevMonthWithBudget && (
                   <button
-                    onClick={() => copyBudget(prevMonthWithBudget.year, prevMonthWithBudget.month, person, year, month, person)}
+                    onClick={() => setShowCopyPicker(true)}
                     className="w-full py-2.5 bg-blue-600 text-white rounded-xl font-medium text-[14px]">
-                    📋 Copier depuis {longMonth(prevMonthWithBudget.month)} {prevMonthWithBudget.year}
+                    📋 Copier depuis un autre mois…
                   </button>
                 )}
                 <p className="text-[12px] text-gray-400 dark:text-gray-500 text-center mt-3">
@@ -972,6 +973,66 @@ export default function BudgetScreen() {
           </div>
         </div>
       )}
+
+      {/* ── Copy from month picker ──────────────────────────────────────────── */}
+      {showCopyPicker && (() => {
+        // All months that already have a budget for this person, excluding the
+        // current month, sorted newest-first (any year, past or future).
+        const available = budgets
+          .filter(b => b.person === person && !(b.year === year && b.month === month))
+          .map(b => ({ year: b.year, month: b.month }))
+          .sort((a, b) => b.year !== a.year ? b.year - a.year : b.month - a.month)
+          // Deduplicate (multiple items per budget are stored in one entry, but guard anyway)
+          .filter((v, i, arr) => i === 0 || !(arr[i - 1].year === v.year && arr[i - 1].month === v.month))
+        return (
+          <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/40"
+            onClick={e => e.target === e.currentTarget && setShowCopyPicker(false)}>
+            <div className="bg-white dark:bg-gray-800 rounded-t-3xl w-full"
+              style={{ paddingBottom: 'env(safe-area-inset-bottom, 0px)', maxHeight: '70vh' }}>
+              <div className="flex items-center justify-between px-6 pt-5 pb-3">
+                <p className="text-[17px] font-bold dark:text-white">Copier un budget</p>
+                <button onClick={() => setShowCopyPicker(false)}
+                  className="text-blue-600 font-medium text-[15px]">Annuler</button>
+              </div>
+              <p className="px-6 pb-2 text-[12px] text-gray-400 dark:text-gray-500">
+                Vers {personTabs.find(p2 => p2.id === person)?.label} · {longMonth(month)} {year}
+              </p>
+              {available.length === 0 ? (
+                <p className="px-6 py-8 text-[14px] text-gray-400 dark:text-gray-500 text-center">
+                  Aucun budget enregistré pour les autres mois
+                </p>
+              ) : (
+                <div className="overflow-y-auto" style={{ maxHeight: 'calc(70vh - 100px)' }}>
+                  {available.map((src, i) => {
+                    const srcBudget = budgets.find(b => b.year === src.year && b.month === src.month && b.person === person)!
+                    const total = srcBudget.items.reduce((s, it) => s + it.amount, 0)
+                    return (
+                      <button key={`${src.year}-${src.month}`}
+                        onClick={() => {
+                          copyBudget(src.year, src.month, person, year, month, person)
+                          setShowCopyPicker(false)
+                        }}
+                        className={`w-full flex items-center justify-between px-6 py-3.5 text-left
+                          ${i > 0 ? 'border-t border-gray-100 dark:border-gray-700' : ''}`}>
+                        <div>
+                          <p className="text-[15px] font-medium dark:text-white">
+                            {longMonth(src.month)} {src.year}
+                          </p>
+                          <p className="text-[12px] text-gray-400 dark:text-gray-500">
+                            {srcBudget.items.length} catégorie{srcBudget.items.length !== 1 ? 's' : ''}
+                            {total > 0 && ` · ${formatAmount(total, base)}`}
+                          </p>
+                        </div>
+                        <span className="text-gray-300 dark:text-gray-600 text-[18px]">›</span>
+                      </button>
+                    )
+                  })}
+                </div>
+              )}
+            </div>
+          </div>
+        )
+      })()}
     </div>
   )
 }
