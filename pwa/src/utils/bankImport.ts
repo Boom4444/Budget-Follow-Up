@@ -502,6 +502,21 @@ function parseGenericLines(lines: string[], bankName: string, userRules: ImportR
 
 // ── Public API ────────────────────────────────────────────────────────────────
 
+/**
+ * True when `text` is the start of a Revolut CSV/Excel export (FR or EN
+ * header). Lets the import screen route Revolut files whose filename carries a
+ * misleading numeric suffix (e.g. "Revolut_04.2026", read as a ".2026"
+ * extension) to the CSV parser instead of the PDF parser. Content-based on
+ * purpose, so it never affects the real UBS/CIC PDF statements.
+ */
+export function looksLikeRevolutCsv(text: string): boolean {
+  const firstLine = (text.split(/\r?\n/, 1)[0] ?? '').toLowerCase()
+  const hasCompletedDate = firstLine.includes('date de fin') || firstLine.includes('completed date')
+  const hasAmount = firstLine.includes('montant') || firstLine.includes('amount')
+  const hasCurrency = firstLine.includes('devise') || firstLine.includes('currency')
+  return hasCompletedDate && hasAmount && hasCurrency
+}
+
 export function importFromCSV(text: string, fileName: string, userRules: ImportRule[] = []): BankImportResult {
   const lines = text.split(/\r?\n/).filter(l => l.trim())
   if (lines.length < 2) return { bank: 'generic', bankName: 'Import', transactions: [] }

@@ -9,6 +9,7 @@ import {
   parsePDFTransactions,
   extractPdfText,
   deriveImportKeyword,
+  looksLikeRevolutCsv,
 } from '../utils/bankImport'
 import type { ImportRule } from '../models/types'
 
@@ -90,6 +91,30 @@ describe('importFromCSV — Revolut FR', () => {
       expect(t.id).toBeTruthy()
       expect(['debit', 'credit']).toContain(t.type)
     }
+  })
+})
+
+// ── Revolut content detection (filename has a misleading numeric suffix) ──────
+describe('looksLikeRevolutCsv', () => {
+  it('recognises the French Revolut header', () => {
+    const fr = 'Type,Produit,Date de début,Date de fin,Description,Montant,Frais,Devise,État,Solde'
+    expect(looksLikeRevolutCsv(fr)).toBe(true)
+  })
+
+  it('recognises the English Revolut header', () => {
+    const en = 'Type,Product,Started Date,Completed Date,Description,Amount,Fee,Currency,State,Balance'
+    expect(looksLikeRevolutCsv(en)).toBe(true)
+  })
+
+  it('matches on just the first line of a multi-line export', () => {
+    const text = readFileSync(fixture('revolut_fr_sample.csv'), 'utf-8')
+    expect(looksLikeRevolutCsv(text)).toBe(true)
+  })
+
+  it('rejects non-Revolut text and binary/PDF gibberish', () => {
+    expect(looksLikeRevolutCsv('Date,Libellé,Débit,Crédit')).toBe(false)        // CIC-ish
+    expect(looksLikeRevolutCsv('%PDF-1.4\n%âãÏÓ\n1 0 obj')).toBe(false)          // PDF header
+    expect(looksLikeRevolutCsv('')).toBe(false)
   })
 })
 

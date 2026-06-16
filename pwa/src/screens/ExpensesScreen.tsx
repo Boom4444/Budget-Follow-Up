@@ -6,7 +6,7 @@ import { currentYear, currentMonth, shortMonth, dateYear, dateMonth } from '../u
 import type { Expense, HouseholdMember, CurrencyCode } from '../models/types'
 import AddExpenseModal from '../components/AddExpenseModal'
 import TransactionRow from '../components/TransactionRow'
-import { importFromCSV, importFromXLSX, importFromPDF, importFromJSON, deriveImportKeyword } from '../utils/bankImport'
+import { importFromCSV, importFromXLSX, importFromPDF, importFromJSON, deriveImportKeyword, looksLikeRevolutCsv } from '../utils/bankImport'
 import type { BankImportResult, ImportedTransaction } from '../utils/bankImport'
 import { prefetchHistoricalRates, getHistoricalConversionRate } from '../data/currencies'
 
@@ -86,8 +86,9 @@ export default function ExpensesScreen() {
       const lastDot = nameLower.lastIndexOf('.')
       const ext = lastDot >= 0 ? nameLower.slice(lastDot + 1) : ''
 
-      // Read magic bytes for reliable format detection regardless of extension/MIME
-      const headerBuf = await file.slice(0, 8).arrayBuffer()
+      // Read a header chunk for reliable format detection regardless of
+      // extension/MIME (magic bytes + a text sniff for delimited exports).
+      const headerBuf = await file.slice(0, 1024).arrayBuffer()
       const hb = new Uint8Array(headerBuf)
       // %PDF = 0x25 0x50 0x44 0x46
       const hasPDFMagic  = hb[0] === 0x25 && hb[1] === 0x50 && hb[2] === 0x44 && hb[3] === 0x46
@@ -98,16 +99,23 @@ export default function ExpensesScreen() {
       // First non-whitespace char — JSON starts with { or [
       const firstChar = String.fromCharCode(hb[0]).trim() || String.fromCharCode(hb[1])
 
+      // Dedicated Revolut detection: its CSV/Excel exports are named like
+      // "Revolut_04.2026", whose ".2026" suffix the numeric-suffix rule below
+      // would otherwise misroute to the PDF parser. Sniff the header line for a
+      // Revolut signature (binary PDFs never match) and treat it as CSV.
+      const headText = new TextDecoder('utf-8', { fatal: false }).decode(hb)
+      const isRevolutCsv = !hasPDFMagic && !hasXLSXMagic && !hasXLSMagic && looksLikeRevolutCsv(headText)
+
       // A purely-numeric suffix like ".2026" or absent extension → treat as PDF
       const hasNoRealExt = ext === '' || /^\d+$/.test(ext)
 
       const isExcel = ext === 'xls' || ext === 'xlsx' || hasXLSXMagic || hasXLSMagic
       const isJSON  = !isExcel && (ext === 'json' || ((firstChar === '{' || firstChar === '[') && ext !== 'pdf'))
-      const isPDF   = !isExcel && !isJSON && (hasPDFMagic || ext === 'pdf' ||
+      const isPDF   = !isExcel && !isJSON && !isRevolutCsv && (hasPDFMagic || ext === 'pdf' ||
                       file.type === 'application/pdf' || hasNoRealExt)
 
       console.log('[import]', file.name, '| ext:', ext || '(none)', '| mime:', file.type,
-        '| magic PDF:', hasPDFMagic, 'XLSX:', hasXLSXMagic,
+        '| magic PDF:', hasPDFMagic, 'XLSX:', hasXLSXMagic, '| revolutCsv:', isRevolutCsv,
         '| decision:', isExcel ? 'excel' : isJSON ? 'json' : isPDF ? 'pdf' : 'csv')
 
       if (isExcel) {
