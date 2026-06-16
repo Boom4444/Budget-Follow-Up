@@ -39,9 +39,12 @@ export default function AddExpenseModal({ onClose, editId, prefill }: Props) {
       .map(c => getCategoryMeta(c.id, customCategories)!),
     [customCategories, settings.deletedBuiltinCategories]
   )
-  const revenusCategory = activeCategories.find(c => c.id === 'revenus')!
   const fixedPickerCats = activeCategories.filter(c => c.isFixed)
-  const variablePickerCats = activeCategories.filter(c => !c.isFixed && c.id !== 'revenus' && c.id !== 'a_classer')
+  // Revenus is included here and re-sorted so it appears in its alphabetical
+  // position (getActiveCategories pins it first, which we don't want in the picker).
+  const variablePickerCats = activeCategories
+    .filter(c => !c.isFixed && c.id !== 'a_classer')
+    .sort((a, b) => a.label.localeCompare(b.label, 'fr'))
 
   // Initial split choice: explicit prefill wins, else the household default
   const initialSplit: SplitChoice = prefill?.splitMode === 'income'
@@ -368,20 +371,6 @@ export default function AddExpenseModal({ onClose, editId, prefill }: Props) {
             <div className="w-16" />
           </div>
           <div className="flex-1 overflow-y-auto scroll-ios">
-            {/* Revenus — always shown first */}
-            <p className="section-header">Revenus</p>
-            <div className="card mx-4 overflow-hidden">
-              <button type="button" onClick={() => { setCategory(revenusCategory.id); setShowCatPicker(false) }}
-                className="w-full flex items-center gap-3 px-4 py-3 active:bg-gray-50 dark:active:bg-gray-700">
-                <span className="text-2xl">{revenusCategory.emoji}</span>
-                <div className="flex-1 text-left">
-                  <p className="text-[15px] dark:text-white">{revenusCategory.label}</p>
-                  <p className="text-xs text-green-600 dark:text-green-400">Salaire, prime, don, remboursement global…</p>
-                </div>
-                {category === revenusCategory.id && <span className="text-blue-600 text-lg font-bold">✓</span>}
-              </button>
-            </div>
-            {/* Catégories par ordre alphabétique (avec les personnalisations de Réglages) */}
             <p className="section-header">Charges incompressibles</p>
             <div className="card mx-4 overflow-hidden">
               {fixedPickerCats.map((c, i, arr) => (
@@ -404,7 +393,12 @@ export default function AddExpenseModal({ onClose, editId, prefill }: Props) {
                   className={`w-full flex items-center gap-3 px-4 py-3 active:bg-gray-50 dark:active:bg-gray-700
                     ${i < arr.length - 1 ? 'border-b border-gray-100 dark:border-gray-700' : ''}`}>
                   <span className="text-2xl">{c.emoji}</span>
-                  <p className="flex-1 text-[15px] text-left dark:text-white">{c.label}</p>
+                  <div className="flex-1 text-left">
+                    <p className="text-[15px] dark:text-white">{c.label}</p>
+                    {c.id === 'revenus' && (
+                      <p className="text-xs text-green-600 dark:text-green-400">Salaire, prime, don, remboursement global…</p>
+                    )}
+                  </div>
                   {category === c.id && <span className="text-blue-600 text-lg font-bold">✓</span>}
                 </button>
               ))}
