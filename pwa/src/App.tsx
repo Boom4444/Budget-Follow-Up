@@ -12,6 +12,7 @@ import OutilsScreen from './screens/OutilsScreen'
 import UpdatePrompt from './components/UpdatePrompt'
 import { useAutoBackupToDrive } from './hooks/useAutoBackupToDrive'
 import { useDriveSync } from './hooks/useDriveSync'
+import { useDriveTokenKeepAlive } from './hooks/useDriveTokenKeepAlive'
 import { loadApiKey, storeApiKey } from './utils/secureStorage'
 
 type Tab = 'dashboard' | 'expenses' | 'budget' | 'recurring' | 'outils' | 'ai' | 'settings'
@@ -30,6 +31,7 @@ export default function App() {
   const [tab, setTab] = useState<Tab>('dashboard')
   const [showHelp, setShowHelp] = useState(false)
   const { settings, updateSettings, setClaudeApiKey } = useStore()
+  useDriveTokenKeepAlive()
   useAutoBackupToDrive()
   useDriveSync()
 

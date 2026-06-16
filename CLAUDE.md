@@ -28,7 +28,7 @@ npm run test     # vitest (118 tests) — DOIT passer avant commit
 | Sujet | Fichier |
 |---|---|
 | Types du domaine (Expense, MonthlyBudget, AppSettings…) | `src/models/types.ts` |
-| Store Zustand : actions, persistance (clé `budget-app-store`, version 7), migrations, corbeille, tombstones, données démo | `src/store/useStore.ts` |
+| Store Zustand : actions, persistance (clé `budget-app-store`, version 8), migrations, corbeille, tombstones, données démo | `src/store/useStore.ts` |
 | Catégories intégrées + sous-catégories + tri | `src/data/categories.ts` |
 | Devises, taux, conversion historique | `src/data/currencies.ts` |
 | Répartition personne/foyer (50/50, prorata des revenus, part d'une personne) | `src/utils/split.ts` |
@@ -61,7 +61,7 @@ npm run test     # vitest (118 tests) — DOIT passer avant commit
   deletedBuiltinCategories) ; `currentUser` jamais restauré d'un backup.
 - Un fichier distant corrompu ne doit jamais écraser les données locales
   (`parseSyncData`/`parseJSONBackup` retournent null → on ignore).
-- `budget-app-store` version 7 : nouvelle clé persistée = l'ajouter au
+- `budget-app-store` version 8 : nouvelle clé persistée = l'ajouter au
   `partialize` ; champ obligatoire nouveau = migration + bump de version.
 
 ## Données de test & tests

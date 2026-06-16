@@ -14,7 +14,7 @@ interface Props {
 export default function GoogleDriveSection({ onRestore }: Props) {
   const {
     settings, updateSettings, expenses, recurring, budgets,
-    driveToken, setDriveToken, lastAutoBackup, lastSync,
+    driveToken, setDriveToken, disconnectDrive, lastAutoBackup, lastSync,
   } = useStore()
   const [driveFiles, setDriveFiles] = useState<DriveFile[]>([])
   const [driveFolders, setDriveFolders] = useState<DriveFolder[]>([])
@@ -227,7 +227,7 @@ export default function GoogleDriveSection({ onRestore }: Props) {
               </div>
             ))}
             <button onClick={() => {
-                setDriveToken(null)
+                disconnectDrive()
                 setDriveFiles([])
                 updateSettings({ autoBackupFileId: undefined })
               }}

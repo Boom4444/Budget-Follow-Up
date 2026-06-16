@@ -50,7 +50,12 @@ interface AppState {
   // (Google access tokens last ~1h; expiry is checked before each use)
   driveToken: string | null
   driveTokenExpiresAt: number | null
+  // Persisted "connection intent": true once the user connects Drive, false
+  // only on an explicit disconnect. Survives token expiry (which merely clears
+  // driveToken) so the connection can be silently re-granted on the next launch.
+  driveConnected: boolean
   setDriveToken: (token: string | null, expiresInSeconds?: number) => void
+  disconnectDrive: () => void
   lastAutoBackup: AutoBackupStatus | null
   setLastAutoBackup: (b: AutoBackupStatus | null) => void
 
@@ -450,10 +455,16 @@ export const useStore = create<AppState>()(
 
       driveToken: null,
       driveTokenExpiresAt: null,
+      driveConnected: false,
       setDriveToken: (token, expiresInSeconds) => set({
         driveToken: token,
         driveTokenExpiresAt: token && expiresInSeconds ? Date.now() + expiresInSeconds * 1000 : null,
+        // Obtaining a token (interactive connect OR silent re-grant) marks the
+        // connection live. Clearing a token (expiry / 401) leaves the intent
+        // untouched, so it can be silently re-granted on the next launch.
+        ...(token ? { driveConnected: true } : null),
       }),
+      disconnectDrive: () => set({ driveToken: null, driveTokenExpiresAt: null, driveConnected: false }),
       lastAutoBackup: null,
       setLastAutoBackup: (b) => set({ lastAutoBackup: b }),
 
@@ -533,7 +544,7 @@ export const useStore = create<AppState>()(
     }),
     {
       name: 'budget-app-store',
-      version: 7,
+      version: 8,
       partialize: (state) => {
         // eslint-disable-next-line @typescript-eslint/no-unused-vars
         const { claudeApiKey: _dep, ...cleanSettings } = state.settings as AppSettings & { claudeApiKey?: string }
@@ -544,6 +555,7 @@ export const useStore = create<AppState>()(
           settings: cleanSettings,
           driveToken: state.driveToken,
           driveTokenExpiresAt: state.driveTokenExpiresAt,
+          driveConnected: state.driveConnected,
           lastAutoBackup: state.lastAutoBackup,
           tombstones: state.tombstones,
           lastSync: state.lastSync,
@@ -605,6 +617,11 @@ export const useStore = create<AppState>()(
               wasBanque(r) ? { ...r, category: 'banque', subCategory: fixSub(r.subCategory) } : r
             ),
           }
+        }
+        if (version < 8) {
+          // New explicit connection-intent flag: infer it from a previously
+          // persisted token so already-connected devices stay connected.
+          state = { ...state, driveConnected: !!state.driveToken }
         }
         return state
       },
