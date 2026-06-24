@@ -729,8 +729,12 @@ export async function importFromPDF(buffer: ArrayBuffer, fileName: string, userR
 
   const bankName = fileName.replace(/\.pdf$/i, '')
 
-  // Try to detect bank from text content
+  // Try to detect bank from text content. Identify the ISSUER from letterhead
+  // markers, not transaction payee names — a UBS statement may list
+  // "Revolut Bank UAB" as a counterparty, which must NOT flip detection to
+  // Revolut (that would mislabel the bank and use EUR instead of CHF).
   const lower = fullText.toLowerCase()
+  if (lower.includes('ubs switzerland') || lower.includes('www.ubs.com')) return parsePDFTransactions(fullText, 'UBS', userRules)
   if (lower.includes('revolut')) return parsePDFTransactions(fullText, 'Revolut', userRules)
   if (lower.includes('cic') || lower.includes('crédit industriel')) return parsePDFTransactions(fullText, 'CIC', userRules)
   if (lower.includes('caisse d\'épargne') || lower.includes('caisse d epargne')) return parsePDFTransactions(fullText, "Caisse d'Épargne", userRules)
@@ -754,6 +758,11 @@ const AMOUNT_RE = /([+-]?\s*\d{1,3}(?:['\s,.]\d{3})*[,.]\d{2})\s*(?:CHF|EUR|USD|
 // Trailing value date found in UBS statements: "Description   -amount   DD.MM.YYYY"
 // We strip this so AMOUNT_RE can find the real amount just before it.
 const TRAILING_DATE_RE = /\s+\d{2}[\/.\-]\d{2}[\/.\-]\d{4}\s*$/
+
+// Money token (Swiss apostrophe thousands, dot/comma decimals), matched
+// globally. UBS full statements list "amount  running-balance" on one line, so
+// we need every token to tell the transaction amount (first) from the balance.
+const UBS_MONEY_RE = /([+-]?\d{1,3}(?:['’]\d{3})*[.,]\d{2})/g
 
 // Matches any date-like token — used without anchor to locate dates inside a line.
 const DATE_TOKEN_RE = /\d{1,2}[\/.\-]\d{1,2}(?:[\/.\-]\d{2,4})?|\d{4}-\d{2}-\d{2}/
@@ -814,21 +823,36 @@ export function parsePDFTransactions(text: string, bankName: string, userRules: 
       ? line.replace(TRAILING_DATE_RE, '')
       : line
 
-    const amountMatch = lineForAmount.match(AMOUNT_RE)
-    if (!amountMatch) continue
-    const amount = parseAmount(amountMatch[1])
-    if (amount === 0) continue
+    let amount: number
+    let description: string
 
-    // Description: text after the first date, before the amount, minus leading value date
-    const afterDate = lineForAmount.slice(dateMatch.index! + dateMatch[0].length)
-    const descRaw = afterDate
-      .replace(AMOUNT_RE, '')
-      // strip leading value date (CIC: "op_date  val_date  Description  amount")
-      .replace(/^\s*\d{1,2}[\/.\-]\d{1,2}(?:[\/.\-]\d{2,4})?\s*/, '')
-      // strip residual "foreign_amount CURRENCY" on cross-currency CIC lines (e.g. "475,04   CHF")
-      .replace(/\s+\d{1,3}(?:[',\s]\d{3})*[,.]\d+\s*(?:CHF|EUR|USD|GBP|€)\s*$/i, '')
-      .trim()
-    const description = descRaw || bankName
+    if (bankName === 'UBS') {
+      // UBS lines: "transDate  description  amount  [running balance]". The FIRST
+      // money token after the date is the transaction amount; any LATER token is
+      // the running balance (Solde) and must be ignored — otherwise the balance
+      // is read as the amount and the real amount leaks into the description.
+      const afterDate = lineForAmount.slice(dateMatch.index! + dateMatch[0].length)
+      const tokens = [...afterDate.matchAll(UBS_MONEY_RE)]
+      if (tokens.length === 0) continue
+      amount = parseAmount(tokens[0][1])
+      if (amount === 0) continue
+      description = afterDate.slice(0, tokens[0].index).trim() || bankName
+    } else {
+      const amountMatch = lineForAmount.match(AMOUNT_RE)
+      if (!amountMatch) continue
+      amount = parseAmount(amountMatch[1])
+      if (amount === 0) continue
+
+      // Description: text after the first date, before the amount, minus leading value date
+      const afterDate = lineForAmount.slice(dateMatch.index! + dateMatch[0].length)
+      description = afterDate
+        .replace(AMOUNT_RE, '')
+        // strip leading value date (CIC: "op_date  val_date  Description  amount")
+        .replace(/^\s*\d{1,2}[\/.\-]\d{1,2}(?:[\/.\-]\d{2,4})?\s*/, '')
+        // strip residual "foreign_amount CURRENCY" on cross-currency CIC lines (e.g. "475,04   CHF")
+        .replace(/\s+\d{1,3}(?:[',\s]\d{3})*[,.]\d+\s*(?:CHF|EUR|USD|GBP|€)\s*$/i, '')
+        .trim() || bankName
+    }
 
     if (isCurrencyExchange(description)) {
       lastTxn = null

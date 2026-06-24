@@ -225,6 +225,39 @@ describe('deriveImportKeyword', () => {
 })
 
 // ── PDF: real statements (skipped in CI when private fixtures are absent) ──────
+// ── UBS full statement with a running-balance column (synthetic, no fixture) ──
+// Reproduces the bug where the balance (Solde) column was read as the amount,
+// leaking the real amount into the title (e.g. "Restaurant Pictet -17" / +10'839).
+describe('parsePDFTransactions — UBS with Solde (balance) column', () => {
+  const text = [
+    'UBS Switzerland AG',
+    'Mouvements de compte',
+    'Date de trans. Date de compt. Description Débit Crédit Solde Date de valeur',
+    "30.01.2026   Restaurant Pictet   -17.00   10'839.52   31.01.2026",
+    "30.01.2026   Restaurant Pictet   -2.30   10'841.82   31.01.2026",
+    "29.01.2026   Migros M Cornavin Gare   -45.50   10'887.32   30.01.2026",
+    "28.01.2026   Salaire Pictet   5'000.00   15'887.32   28.01.2026",
+  ].join('\n')
+  const { transactions } = parsePDFTransactions(text, 'UBS')
+
+  it('reads the transaction amount, never the running balance', () => {
+    expect(transactions).toHaveLength(4)
+    expect(transactions.every(t => t.amount < 6000)).toBe(true)   // no 10'8xx balance leak
+    expect(transactions.map(t => t.amount)).toEqual([17, 2.3, 45.5, 5000])
+  })
+
+  it('keeps the description clean (amount not leaked into the title)', () => {
+    expect(transactions[0].title).toBe('Restaurant Pictet')
+    expect(transactions.every(t => !/\d[.,]\d{2}/.test(t.title))).toBe(true)
+  })
+
+  it('signs debit/credit correctly and stays in CHF', () => {
+    expect(transactions[0].type).toBe('debit')
+    expect(transactions[3].type).toBe('credit')   // Salaire (positive)
+    expect(transactions.every(t => t.currency === 'CHF')).toBe(true)
+  })
+})
+
 const CIC1 = fixture('CIC_01.pdf')
 const CIC2 = fixture('CIC_02.pdf')
 const UBS = fixture('UBS.pdf')
