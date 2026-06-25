@@ -59,7 +59,8 @@ export default function ExpensesScreen() {
   }, [expenses, year, month, search])
 
   const totalDebits  = filtered.filter(e => e.type === 'debit').reduce((s, e) => s + e.amountInBase, 0)
-  const totalCredits = filtered.filter(e => e.type === 'credit').reduce((s, e) => s + e.amountInBase, 0)
+  // Only 'revenus'-category credits count as income (mirrors the dashboard logic)
+  const totalCredits = filtered.filter(e => e.type === 'credit' && e.category === 'revenus').reduce((s, e) => s + e.amountInBase, 0)
 
   const groups = useMemo(() => {
     const map: Record<string, Expense[]> = {}
