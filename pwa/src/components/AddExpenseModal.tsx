@@ -4,6 +4,8 @@ import { getActiveCategories, getCategoryMeta } from '../data/categories'
 import { CURRENCIES, prefetchRateForDate, getHistoricalConversionRate } from '../data/currencies'
 import { today } from '../utils/dates'
 import { incomeRatioForMonth } from '../utils/split'
+import { findSimilarExpenses } from '../utils/merchant'
+import ApplyToSimilarSheet from './ApplyToSimilarSheet'
 import type { CurrencyCode, HouseholdMember } from '../models/types'
 
 interface Props {
@@ -29,7 +31,7 @@ interface Props {
 type SplitChoice = 'equal' | 'income' | 'custom'
 
 export default function AddExpenseModal({ onClose, editId, prefill }: Props) {
-  const { expenses, recurring, budgets, settings, addExpense, updateExpense } = useStore()
+  const { expenses, recurring, budgets, settings, addExpense, updateExpense, setCategoryForExpenses } = useStore()
   const customCategories = settings.customCategories ?? []
 
   // Categories for the picker, alphabetically sorted with Réglages overrides
@@ -70,6 +72,10 @@ export default function AddExpenseModal({ onClose, editId, prefill }: Props) {
   const [splitChoice, setSplitChoice] = useState<SplitChoice>(initialSplit)
   const [splitPct, setSplitPct] = useState(prefill?.splitRatio?.person1 ?? 50)
   const [submitting, setSubmitting] = useState(false)
+  // When editing changes a category and other same-merchant transactions carry a
+  // different one, we ask whether to re-categorize them too (Restaurant Pictet →
+  // all; Apple Pay → just this one). Holds the pending choice until answered.
+  const [similar, setSimilar] = useState<{ ids: string[]; label: string; emoji: string } | null>(null)
 
   const suggestions = title.length === 0
     ? recurring.slice(0, 5)
@@ -127,7 +133,19 @@ export default function AddExpenseModal({ onClose, editId, prefill }: Props) {
       exchangeRate = getHistoricalConversionRate(date, currency, base)
     }
     if (editId) {
+      const original = expenses.find(e => e.id === editId)
+      const categoryChanged = !!original && original.category !== category
       updateExpense(editId, { title: title.trim(), amount: num, currency, date, category, subCategory, type, isFixed, bank, person, notes, splitRatio, splitMode, exchangeRate })
+      // If the category changed, offer to apply it to the merchant's other
+      // transactions (those currently in a different category).
+      if (categoryChanged) {
+        const others = findSimilarExpenses(expenses, editId, title.trim(), type, category)
+        if (others.length > 0) {
+          setSimilar({ ids: others.map(e => e.id), label: cat?.label ?? category, emoji: cat?.emoji ?? '📦' })
+          setSubmitting(false)
+          return
+        }
+      }
     } else {
       addExpense({ title: title.trim(), amount: num, currency, date, category, subCategory, type, isFixed, bank, person, notes, splitRatio, splitMode, exchangeRate })
     }
@@ -405,6 +423,17 @@ export default function AddExpenseModal({ onClose, editId, prefill }: Props) {
             </div>
           </div>
         </div>
+      )}
+
+      {similar && (
+        <ApplyToSimilarSheet
+          merchant={title.trim()}
+          count={similar.ids.length}
+          emoji={similar.emoji}
+          categoryLabel={similar.label}
+          onApplyAll={() => { setCategoryForExpenses(similar.ids, { category, subCategory, isFixed }); onClose() }}
+          onJustThis={onClose}
+        />
       )}
     </div>
   )

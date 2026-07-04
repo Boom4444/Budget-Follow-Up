@@ -16,6 +16,12 @@ import type { Expense, MonthlyBudget, RecurringExpense, AppSettings } from '../m
 
 // jsdom n'implémente ni ResizeObserver (recharts) ni matchMedia
 beforeEach(() => {
+  // La suite est écrite autour de juin 2026 (mois courant du jeu de démo) :
+  // on fige la date pour que les écrans qui s'ouvrent sur le mois courant
+  // (BudgetScreen) restent déterministes quel que soit le jour réel.
+  // On ne simule que Date — timers/performance intacts pour React/recharts.
+  vi.useFakeTimers({ toFake: ['Date'], now: new Date('2026-06-15T12:00:00Z') })
+
   vi.stubGlobal('ResizeObserver', class {
     observe() {}
     unobserve() {}
@@ -38,6 +44,7 @@ beforeEach(() => {
 afterEach(() => {
   cleanup()
   vi.unstubAllGlobals()
+  vi.useRealTimers()
 })
 
 /** Texte de la page avec espaces normalisées (Intl insère des espaces fines) */

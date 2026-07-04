@@ -7,14 +7,16 @@ import { formatAmount, formatPercent } from '../utils/formatters'
 import { currentYear, shortMonth, longMonth } from '../utils/dates'
 import { personShareFraction } from '../utils/split'
 import { computeBudgetTracking } from '../utils/budgetTracking'
+import { findSimilarExpenses } from '../utils/merchant'
 import type { Expense, CurrencyCode } from '../models/types'
 import AddExpenseModal from '../components/AddExpenseModal'
+import ApplyToSimilarSheet from '../components/ApplyToSimilarSheet'
 import SummaryStrip from '../components/SummaryStrip'
 import type { StripFilter } from '../components/SummaryStrip'
 import CategoryDrillDown from '../components/CategoryDrillDown'
 
 export default function DashboardScreen() {
-  const { expenses, budgets, settings, updateExpense } = useStore()
+  const { expenses, budgets, settings, updateExpense, setCategoryForExpenses } = useStore()
   const customCategories = settings.customCategories ?? []
   const sortedCategories = useMemo(
     () => getActiveCategories(customCategories, settings.deletedBuiltinCategories),
@@ -32,6 +34,11 @@ export default function DashboardScreen() {
   const [selectedCat, setSelectedCat] = useState<string | null>(null)
   const [stripFilter, setStripFilter] = useState<StripFilter>('all')
   const [drillCatId, setDrillCatId] = useState<string | null>(null)
+  // After classifying an "À classer" row, offer to classify the merchant's other
+  // still-unclassified transactions the same way.
+  const [classifySimilar, setClassifySimilar] = useState<
+    { ids: string[]; category: string; subCategory: string; isFixed: boolean; emoji: string; label: string; merchant: string } | null
+  >(null)
 
   const NOW = currentYear()
   const isDark = document.documentElement.classList.contains('dark')
@@ -331,10 +338,22 @@ export default function DashboardScreen() {
                         const newCat = ev.target.value
                         if (!newCat) return
                         const meta = getCategoryMeta(newCat, customCategories)
-                        updateExpense(e.id, {
-                          category: newCat,
-                          subCategory: meta?.subCategories[0] ?? '',
-                        })
+                        const subCat = meta?.subCategories[0] ?? ''
+                        updateExpense(e.id, { category: newCat, subCategory: subCat })
+                        // Offer to classify the merchant's other unclassified rows too
+                        const others = findSimilarExpenses(expenses, e.id, e.title, e.type, newCat)
+                          .filter(x => x.category === 'a_classer')
+                        if (others.length > 0) {
+                          setClassifySimilar({
+                            ids: others.map(o => o.id),
+                            category: newCat,
+                            subCategory: subCat,
+                            isFixed: meta?.isFixed ?? false,
+                            emoji: meta?.emoji ?? '📦',
+                            label: meta?.label ?? newCat,
+                            merchant: e.title,
+                          })
+                        }
                       }}
                       className="text-[12px] text-blue-600 font-medium outline-none bg-transparent shrink-0 max-w-[100px]"
                     >
@@ -599,6 +618,24 @@ export default function DashboardScreen() {
           filterPerson={filterPerson}
           baseCurrency={displayCurr}
           onClose={() => setDrillCatId(null)}
+        />
+      )}
+
+      {classifySimilar && (
+        <ApplyToSimilarSheet
+          merchant={classifySimilar.merchant}
+          count={classifySimilar.ids.length}
+          emoji={classifySimilar.emoji}
+          categoryLabel={classifySimilar.label}
+          onApplyAll={() => {
+            setCategoryForExpenses(classifySimilar.ids, {
+              category: classifySimilar.category,
+              subCategory: classifySimilar.subCategory,
+              isFixed: classifySimilar.isFixed,
+            })
+            setClassifySimilar(null)
+          }}
+          onJustThis={() => setClassifySimilar(null)}
         />
       )}
     </div>

@@ -25,6 +25,9 @@ interface AppState {
   addExpense: (e: Omit<Expense, 'id' | 'amountInBase'>) => void
   addBatchExpenses: (items: Omit<Expense, 'id' | 'amountInBase'>[]) => void
   updateExpense: (id: string, patch: Partial<Expense>) => void
+  /** Apply the same category/sub-category/fixed flag to several expenses at once
+   *  (used to re-categorize every transaction of the same merchant). */
+  setCategoryForExpenses: (ids: string[], patch: Pick<Expense, 'category' | 'subCategory' | 'isFixed'>) => void
   deleteExpense: (id: string) => void
 
   addRecurring: (r: Omit<RecurringExpense, 'id'>) => void
@@ -148,6 +151,17 @@ export const useStore = create<AppState>()(
               : convertToBase(merged.amount, merged.currency, base)
             return merged
           }),
+        }))
+      },
+
+      setCategoryForExpenses(ids, patch) {
+        if (ids.length === 0) return
+        const idSet = new Set(ids)
+        const now = Date.now()
+        set(s => ({
+          expenses: s.expenses.map(e =>
+            idSet.has(e.id) ? { ...e, ...patch, updatedAt: now } : e
+          ),
         }))
       },
 
