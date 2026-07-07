@@ -5,6 +5,7 @@ import { formatAmount } from '../utils/formatters'
 import { currentYear, currentMonth, shortMonth, dateYear, dateMonth } from '../utils/dates'
 import type { Expense, HouseholdMember, CurrencyCode } from '../models/types'
 import AddExpenseModal from '../components/AddExpenseModal'
+import ApplyToSimilarSheet from '../components/ApplyToSimilarSheet'
 import TransactionRow from '../components/TransactionRow'
 import { importFromCSV, importFromXLSX, importFromPDF, importFromJSON, deriveImportKeyword, looksLikeRevolutCsv } from '../utils/bankImport'
 import type { BankImportResult, ImportedTransaction } from '../utils/bankImport'
@@ -43,6 +44,12 @@ export default function ExpensesScreen() {
   const [importError, setImportError] = useState('')
   const [importFilter, setImportFilter] = useState<'all' | 'review'>('all')
   const [importPerson, setImportPerson] = useState<HouseholdMember>(settings.currentUser ?? 'person1')
+  // Pending "apply to the merchant's other rows?" choice during import review
+  const [importSimilar, setImportSimilar] = useState<{
+    ids: string[]; merchant: string; keyword: string
+    category: string; subCategory: string; txnType: 'debit' | 'credit'
+    emoji: string; label: string
+  } | null>(null)
 
   const NOW = currentYear()
 
@@ -162,28 +169,69 @@ export default function ExpensesScreen() {
 
   /**
    * User manually picked a category for a transaction during review. Apply it
-   * to this row, immediately propagate to every other same-merchant row of the
-   * same direction in this import, and remember the mapping for future imports.
+   * to this row only; when the import holds other same-merchant rows of the
+   * same direction still in another category, ask before propagating (a
+   * merchant like Apple Pay legitimately spans several categories). The
+   * mapping is remembered for future imports only when the user confirms
+   * "apply to all" — or when the merchant has no other row in this import.
    */
   function reclassifyTxn(txn: ImportedTransaction, newCat: string) {
     const newMeta = getCategoryMeta(newCat, customCategories)
     const newSub = newMeta?.subCategories[0] ?? ''
     const keyword = deriveImportKeyword(txn.title)
 
-    setImportTxns(ts => ts.map(t => {
-      const sameMerchant = keyword.length >= 3
-        && t.type === txn.type
-        && deriveImportKeyword(t.title).includes(keyword)
-      if (t.id === txn.id || sameMerchant) {
-        return { ...t, suggestedCategory: newCat, suggestedSubCategory: newSub, needsReview: false }
-      }
-      return t
-    }))
+    setImportTxns(ts => ts.map(t =>
+      t.id === txn.id
+        ? { ...t, suggestedCategory: newCat, suggestedSubCategory: newSub, needsReview: false }
+        : t
+    ))
 
-    // Don't memorise the catch-all bucket as a rule
+    const others = keyword.length >= 3
+      ? importTxns.filter(t =>
+          t.id !== txn.id
+          && t.type === txn.type
+          && t.suggestedCategory !== newCat
+          && deriveImportKeyword(t.title).includes(keyword))
+      : []
+
+    if (others.length > 0) {
+      setImportSimilar({
+        ids: others.map(t => t.id),
+        merchant: txn.title,
+        keyword,
+        category: newCat,
+        subCategory: newSub,
+        txnType: txn.type,
+        emoji: newMeta?.emoji ?? '📦',
+        label: newMeta?.label ?? newCat,
+      })
+      return
+    }
+
+    // Single row for this merchant — remember the mapping for future imports
+    // (never memorise the catch-all bucket as a rule)
     if (newCat !== 'a_classer') {
       addImportRule({ keyword, category: newCat, subCategory: newSub, type: txn.type })
     }
+  }
+
+  /** User answered the "apply to similar rows?" sheet during import review. */
+  function resolveImportSimilar(applyAll: boolean) {
+    if (!importSimilar) return
+    const { ids, keyword, category, subCategory, txnType } = importSimilar
+    if (applyAll) {
+      const idSet = new Set(ids)
+      setImportTxns(ts => ts.map(t =>
+        idSet.has(t.id)
+          ? { ...t, suggestedCategory: category, suggestedSubCategory: subCategory, needsReview: false }
+          : t
+      ))
+      // The user confirmed this merchant always maps here → teach the rule
+      if (category !== 'a_classer') {
+        addImportRule({ keyword, category, subCategory, type: txnType })
+      }
+    }
+    setImportSimilar(null)
   }
 
   function removeTxn(id: string) {
@@ -564,6 +612,17 @@ export default function ExpensesScreen() {
               {importLoading ? 'Récupération des taux…' : `Importer ${importTxns.length} transaction${importTxns.length > 1 ? 's' : ''}`}
             </button>
           </div>
+
+          {importSimilar && (
+            <ApplyToSimilarSheet
+              merchant={importSimilar.merchant}
+              count={importSimilar.ids.length}
+              emoji={importSimilar.emoji}
+              categoryLabel={importSimilar.label}
+              onApplyAll={() => resolveImportSimilar(true)}
+              onJustThis={() => resolveImportSimilar(false)}
+            />
+          )}
         </div>
       )}
     </div>
