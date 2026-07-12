@@ -182,6 +182,37 @@ describe('Pictet built-in classification', () => {
   })
 })
 
+// ── Enseignes suisses courantes (règles intégrées) ───────────────────────────
+describe('Swiss merchants built-in classification', () => {
+  const json = (desc: string, amount: number, type: 'debit' | 'credit' = 'debit') =>
+    importFromJSON(JSON.stringify([{ date: '2026-01-05', description: desc, amount, type }]), 'x.json')
+      .transactions[0]
+
+  it.each([
+    ['CFF',                 'transport',         'Transports Publics'],
+    ['EasyPark',            'transport',         'Parking'],
+    ['Salt Mobile SA',      'abonnements',       'Téléphone'],
+    ['Youtube',             'abonnements',       'YouTube'],
+    ['Claude.ai subscription', 'abonnements',    'Claude'],
+    ['Loterie Romande',     'loisirs',           'Autres Loisirs'],
+    ['Comptoir Immobilier', 'logement',          'Loyer + Charges'],
+    ['Etat de Geneve',      'impots',            'Global'],
+    ['MediaMarkt Carouge',  'besoinsPersonnels', 'High-Tech'],
+    ['Coop Carouge',        'nourriture',        'Courses'],
+    ['Pressing D&A',        'entreprise',        'Pressing'],
+    ['Shein',               'habillement',       'Vêtements'],
+  ])('%s → %s / %s', (desc, cat, sub) => {
+    const t = json(desc, -10)
+    expect(t.suggestedCategory).toBe(cat)
+    expect(t.suggestedSubCategory).toBe(sub)
+  })
+
+  it('ne classe plus les prénoms (Alexandre, Nicolas) par erreur', () => {
+    expect(json('Alexandre Keusen', -20).suggestedCategory).toBe('a_classer')
+    expect(json('Nicolas Heynen', -20).suggestedCategory).toBe('a_classer')
+  })
+})
+
 // ── User-taught import rules ──────────────────────────────────────────────────
 describe('user-taught import rules', () => {
   const rule = (keyword: string, category: string, subCategory: string, type: 'debit' | 'credit'): ImportRule =>

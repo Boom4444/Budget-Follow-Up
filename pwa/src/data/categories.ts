@@ -19,7 +19,7 @@ export const CATEGORIES: CategoryMeta[] = [
     color: '#1d4ed8',
     bgColor: '#dbeafe',
     isFixed: true,
-    subCategories: ['Prêt', 'Frais Carte'],
+    subCategories: ['Prêt', 'Frais Carte', 'Frais Bancaires'],
   },
   {
     id: 'impots',
@@ -37,7 +37,7 @@ export const CATEGORIES: CategoryMeta[] = [
     color: '#4f46e5',
     bgColor: '#e0e7ff',
     isFixed: true,
-    subCategories: ['Maladie (Lamal)', 'Maladie (Complémentaire)', 'Habitation', 'Auto', 'Autres Assurance'],
+    subCategories: ['Maladie (Lamal)', 'Maladie (Complémentaire)', 'Habitation', 'Auto', 'Moto', 'Autres Assurance'],
   },
   {
     id: 'logement',
@@ -75,7 +75,7 @@ export const CATEGORIES: CategoryMeta[] = [
     color: '#ea580c',
     bgColor: '#ffedd5',
     isFixed: false,
-    subCategories: ['Péages', 'Essence', 'SNCF / Train', 'Métro / Bus', 'VTC / Taxi', 'Autres Transport'],
+    subCategories: ['Péages', 'Essence', 'Parking', 'SNCF / Train', 'Transports Publics', 'VTC / Taxi', 'Autres Transport'],
   },
   {
     id: 'abonnements',
@@ -84,7 +84,7 @@ export const CATEGORIES: CategoryMeta[] = [
     color: '#7c3aed',
     bgColor: '#ede9fe',
     isFixed: false,
-    subCategories: ['Téléphone', 'Streaming', 'Spotify', 'ChatGPT', 'Canal+', 'Internet', 'Presse', 'Autres Abonnements'],
+    subCategories: ['Téléphone', 'Streaming', 'Spotify', 'ChatGPT', 'Claude', 'YouTube', 'Canal+', 'Internet', 'Presse', 'Autres Abonnements'],
   },
   {
     id: 'sante',
@@ -165,7 +165,7 @@ export const CATEGORIES: CategoryMeta[] = [
     color: '#374151',
     bgColor: '#f3f4f6',
     isFixed: false,
-    subCategories: ['Repas Travail', 'Transport Travail', 'Matériel Pro', 'Autres Pro'],
+    subCategories: ['Repas Travail', 'Transport Travail', 'Pressing', 'Matériel Pro', 'Autres Pro'],
   },
   {
     id: 'autre',

@@ -193,8 +193,8 @@ describe('Catégories', () => {
     expect(CATEGORIES).toHaveLength(19)
   })
 
-  it('banque a les sous-catégories Prêt et Frais Carte', () => {
-    expect(CATEGORY_MAP['banque'].subCategories).toEqual(['Prêt', 'Frais Carte'])
+  it('banque a les sous-catégories Prêt, Frais Carte et Frais Bancaires', () => {
+    expect(CATEGORY_MAP['banque'].subCategories).toEqual(['Prêt', 'Frais Carte', 'Frais Bancaires'])
   })
 
   it('impots a les sous-catégories Global et Acompte', () => {

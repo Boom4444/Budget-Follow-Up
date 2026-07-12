@@ -36,8 +36,12 @@ const KEYWORD_RULES: Array<{ keywords: string[]; category: string; subCategory: 
   { keywords: ['canal+', 'canalplus', 'canal plus'], category: 'abonnements', subCategory: 'Canal+' },
   { keywords: ['sosh', 'sfr ', 'bouygues telecom', 'free mobile', 'lebara', 'lycamobile', 'prlv sepa sosh', 'prlv sepa sfr'], category: 'abonnements', subCategory: 'Téléphone' },
   { keywords: ['orange telecom', 'prlv sepa orange'], category: 'abonnements', subCategory: 'Téléphone' },
+  { keywords: ['salt mobile', 'salt '], category: 'abonnements', subCategory: 'Téléphone' },
+  { keywords: ['anthropic', 'claude.ai'], category: 'abonnements', subCategory: 'Claude' },
+  { keywords: ['youtube'], category: 'abonnements', subCategory: 'YouTube' },
+  { keywords: ['zwift'], category: 'abonnements', subCategory: 'Autres Abonnements' },
   { keywords: ['icloud', 'apple.com/bill', 'apple services'], category: 'abonnements', subCategory: 'Autres Abonnements' },
-  { keywords: ['youtube premium', 'google one', 'google storage'], category: 'abonnements', subCategory: 'Autres Abonnements' },
+  { keywords: ['google one', 'google storage'], category: 'abonnements', subCategory: 'Autres Abonnements' },
   { keywords: ['adobe', 'microsoft 365', 'office 365'], category: 'abonnements', subCategory: 'Autres Abonnements' },
   { keywords: ['prlv sepa free', 'free sas'], category: 'abonnements', subCategory: 'Internet' },
 
@@ -48,21 +52,22 @@ const KEYWORD_RULES: Array<{ keywords: string[]; category: string; subCategory: 
   { keywords: ['auchan', 'e.leclerc', 'leclerc '], category: 'nourriture', subCategory: 'Courses' },
   { keywords: ['super u ', 'systeme u', 'système u'], category: 'nourriture', subCategory: 'Courses' },
   { keywords: ['picard ', 'bio c bon', 'naturalia', 'biocoop'], category: 'nourriture', subCategory: 'Courses' },
-  { keywords: ['migros', 'coop supermarche', 'denner', 'volg '], category: 'nourriture', subCategory: 'Courses' },
+  { keywords: ['migros', 'coop ', 'coop supermarche', 'denner', 'volg '], category: 'nourriture', subCategory: 'Courses' },
   { keywords: ['amazon fresh', 'too good to go', 'frichti'], category: 'nourriture', subCategory: 'Courses' },
   { keywords: ['épicerie', 'epicerie'], category: 'nourriture', subCategory: 'Courses' },
 
   // Nourriture – Restaurant / Livraison
   { keywords: ['mcdonald', 'mcdo', 'kfc ', 'burger king', 'quick resto', 'subway ', 'five guys', 'chipotle', 'popeyes'], category: 'nourriture', subCategory: 'Restaurant' },
   { keywords: ["domino's", 'pizza hut', 'pizza '], category: 'nourriture', subCategory: 'Livraison' },
-  { keywords: ['uber eat', 'ubereats', 'deliveroo', 'just eat', 'doordash'], category: 'nourriture', subCategory: 'Livraison' },
+  { keywords: ['uber eat', 'ubereat', 'ubereats', 'deliveroo', 'just eat', 'doordash'], category: 'nourriture', subCategory: 'Livraison' },
   { keywords: ['starbucks', 'costa coffee', 'starbuck'], category: 'nourriture', subCategory: 'Café / Boulangerie' },
   { keywords: ['boulangerie', 'patisserie', 'pâtisserie', 'boulang'], category: 'nourriture', subCategory: 'Café / Boulangerie' },
 
   // Transport
   { keywords: ['sncf', 'oui.sncf', 'ouigo', 'tgv ', 'eurostar', 'thalys', 'intercités'], category: 'transport', subCategory: 'SNCF / Train' },
-  { keywords: ['cff.ch', 'sbb.ch', ' cff ', ' sbb '], category: 'transport', subCategory: 'SNCF / Train' },
-  { keywords: ['ratp', 'navigo ', 'transilien'], category: 'transport', subCategory: 'Métro / Bus' },
+  { keywords: ['cff', 'sbb.ch', ' sbb ', 'tpg '], category: 'transport', subCategory: 'Transports Publics' },
+  { keywords: ['ratp', 'navigo ', 'transilien'], category: 'transport', subCategory: 'Transports Publics' },
+  { keywords: ['easypark', 'paybyphone', 'parkingpay', 'parking '], category: 'transport', subCategory: 'Parking' },
   { keywords: ['uber ', 'bolt taxi', 'kapten', 'g7 taxi', 'taxi '], category: 'transport', subCategory: 'VTC / Taxi' },
   { keywords: ['shell ', 'total ener', 'bp ', 'esso ', 'eni ', 'q8 ', 'leclerc essence', 'carburant', 'station service'], category: 'transport', subCategory: 'Essence' },
   { keywords: ['aprr', 'area ', 'sanef', 'cofiroute', 'vinci autoroute', 'péage', 'peage', 'autostrade', 'telepeage'], category: 'transport', subCategory: 'Péages' },
@@ -70,16 +75,17 @@ const KEYWORD_RULES: Array<{ keywords: string[]; category: string; subCategory: 
   { keywords: ['velib', 'vélib', 'lime ', 'tier ', 'bird ', 'dott '], category: 'transport', subCategory: 'Autres Transport' },
 
   // Logement
-  { keywords: ['airbnb', 'booking.com', 'hotels.com', 'accorhotels', 'ibis ', 'novotel', 'marriott', 'hilton', 'hyatt'], category: 'logement', subCategory: 'Location Logement' },
-  { keywords: ['edf ', 'engie ', 'vattenfall', 'veolia', 'eau de paris', 'gaz'], category: 'logement', subCategory: 'Eau / Électricité / Gaz' },
+  { keywords: ['airbnb', 'booking', 'hotels.com', 'accorhotels', 'ibis ', 'novotel', 'marriott', 'hilton', 'hyatt'], category: 'logement', subCategory: 'Location Logement' },
+  { keywords: ['edf ', 'engie ', 'vattenfall', 'veolia', 'eau de paris', 'gaz', 'services industriels'], category: 'logement', subCategory: 'Eau / Électricité / Gaz' },
+  { keywords: ['comptoir immobilier'], category: 'logement', subCategory: 'Loyer + Charges' },
 
   // Loisirs
   { keywords: ['ryanair', 'easyjet', 'air france', 'lufthansa', 'transavia', 'vueling', 'british airways', 'iberia', 'tap air'], category: 'loisirs', subCategory: 'Voyage' },
   { keywords: ['ugc ', 'pathé', 'pathe ', 'mk2 ', 'cgr ', 'cinéma ', 'cinema '], category: 'loisirs', subCategory: 'Cinéma' },
   { keywords: ['disneyland', 'puy du fou', 'futuroscope', 'parc asterix'], category: 'loisirs', subCategory: 'Activité / Sortie' },
-  { keywords: ['nicolas ', 'cave à vins', 'vinatis', 'alcool ', 'spirits ', 'whisky', 'whiskey'], category: 'loisirs', subCategory: 'Alcool' },
-  { keywords: ['steam ', 'playstation', 'xbox game', 'nintendo', 'epic games', 'meta quest'], category: 'loisirs', subCategory: 'Jeux / Jeux vidéo' },
-  { keywords: ['fnac ', 'cultura ', 'gibert joseph', 'amazon.fr'], category: 'loisirs', subCategory: 'Autres Loisirs' },
+  { keywords: ['cave à vins', 'vinatis', 'alcool ', 'spirits ', 'whisky', 'whiskey'], category: 'loisirs', subCategory: 'Alcool' },
+  { keywords: ['steam ', 'playstation', 'xbox game', 'nintendo', 'epic games', 'meta quest', 'meta pay'], category: 'loisirs', subCategory: 'Jeux / Jeux vidéo' },
+  { keywords: ['fnac ', 'cultura ', 'gibert joseph', 'amazon.fr', 'loterie romande'], category: 'loisirs', subCategory: 'Autres Loisirs' },
 
   // Assurance
   { keywords: ['axa ', 'maaf ', 'matmut', 'mma ', 'allianz', 'generali', 'groupama', 'macif', 'maif '], category: 'assurance', subCategory: 'Autres Assurance' },
@@ -91,7 +97,7 @@ const KEYWORD_RULES: Array<{ keywords: string[]; category: string; subCategory: 
   { keywords: ['remboursement pret', 'remboursement prêt', 'echeance pret', 'échéance prêt', 'mensualite credit', 'mensualité crédit'], category: 'banque', subCategory: 'Prêt' },
 
   // Impôts
-  { keywords: ['dgfip', 'tresor public', 'trésor public', 'impots.gouv', 'taxe habitation', 'taxe fonciere', 'taxe foncière'], category: 'impots', subCategory: 'Global' },
+  { keywords: ['dgfip', 'tresor public', 'trésor public', 'impots.gouv', 'taxe habitation', 'taxe fonciere', 'taxe foncière', 'etat de geneve', 'etat de genève', 'administration fiscale'], category: 'impots', subCategory: 'Global' },
 
   // Santé
   { keywords: ['pharmacie', 'pharmacien', 'pharma '], category: 'sante', subCategory: 'Pharmacie' },
@@ -101,13 +107,14 @@ const KEYWORD_RULES: Array<{ keywords: string[]; category: string; subCategory: 
   { keywords: ['kinésithérapeute', 'kinesitherapeute', 'kiné', 'ostéopathe', 'osteopathe'], category: 'sante', subCategory: 'Kiné / Ostéo' },
 
   // Habillement
-  { keywords: ['zara ', 'h&m ', 'uniqlo', 'primark', 'mango ', 'bershka', 'pull&bear', 'la redoute', 'zalando', 'asos ', 'jules ', 'kiabi', 'celio', 'promod', 'pimkie', 'jennyfer', 'camaieu', 'bonobo'], category: 'habillement', subCategory: 'Vêtements' },
-  { keywords: ['nike ', 'adidas ', 'puma ', 'new balance', 'skechers', 'timberland', 'chaussures', 'andre '], category: 'habillement', subCategory: 'Chaussures' },
+  { keywords: ['zara ', 'h&m ', 'uniqlo', 'primark', 'mango ', 'bershka', 'pull&bear', 'la redoute', 'zalando', 'asos ', 'jules ', 'kiabi', 'celio', 'promod', 'pimkie', 'jennyfer', 'camaieu', 'bonobo', 'shein'], category: 'habillement', subCategory: 'Vêtements' },
+  { keywords: ['nike ', 'adidas ', 'puma ', 'new balance', 'skechers', 'timberland', 'chaussures'], category: 'habillement', subCategory: 'Chaussures' },
 
   // Maison
   { keywords: ['ikea', 'castorama', 'leroy merlin', 'mr bricolage', 'brico depot', 'bricomarché', 'bricomarche'], category: 'maison', subCategory: 'Bricolage' },
   { keywords: ['maisons du monde', 'conforama', 'but ', 'fly ', 'alinea ', 'habitat '], category: 'maison', subCategory: 'Meubles' },
   { keywords: ['darty', 'boulanger ', 'electro depot', 'samsung ', 'apple store'], category: 'maison', subCategory: 'Électroménager' },
+  { keywords: ['mediamarkt', 'media markt', 'interdiscount'], category: 'besoinsPersonnels', subCategory: 'High-Tech' },
 
   // Beauté
   { keywords: ['coiffeur', 'coiffure', 'barbier', 'barber ', 'salon de coiffure'], category: 'beaute', subCategory: 'Coiffeur' },
@@ -122,6 +129,7 @@ const KEYWORD_RULES: Array<{ keywords: string[]; category: string; subCategory: 
   // expenses. `debitOnly` because the monthly salary is *also* paid by "Pictet"
   // and must not be mistagged as a work meal (it stays "À classer" → revenus).
   { keywords: ['pictet'], category: 'entreprise', subCategory: 'Repas Travail', debitOnly: true },
+  { keywords: ['pressing'], category: 'entreprise', subCategory: 'Pressing' },
 ]
 
 const EXCHANGE_PATTERNS = [
