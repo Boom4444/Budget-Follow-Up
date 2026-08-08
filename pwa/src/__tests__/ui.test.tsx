@@ -58,9 +58,50 @@ function card(r: RenderResult, label: string | RegExp): string {
   return el.closest('.card')!.textContent!.replace(/[\s  ]+/g, ' ')
 }
 
+describe('Tableau de bord — bascule mensuel / annuel', () => {
+  it('s\'ouvre en vue annuelle : pas de puces de mois, libellé « Année »', () => {
+    const r = render(<DashboardScreen />)
+    expect(r.getByRole('button', { name: 'Année' })).toBeTruthy()
+    expect(r.queryByText('Jun')).toBeNull()
+    expect(txt(r)).toContain('Année 2026')
+  })
+
+  it('vue annuelle : cumule tous les mois de l\'année et affiche la moyenne mensuelle', () => {
+    const r = render(<DashboardScreen />)
+    const page = txt(r)
+    // demo-foyer : mai 2 500 + juin 3 300 de dépenses foyer = 5 800 sur 2 mois
+    expect(page).toContain('5 800,00 Fr')
+    expect(page).toContain('20 000,00 Fr')   // revenus de l'année
+    expect(page).toContain('Soit 2 900,00 Fr de dépenses par mois')
+    expect(page).toContain('sur 2 mois avec des données')
+  })
+
+  it('« Mois » révèle les puces et restreint les totaux au mois choisi', () => {
+    const r = render(<DashboardScreen />)
+    fireEvent.click(r.getByRole('button', { name: 'Mois' }))
+    fireEvent.click(r.getByText('Jun'))
+    const page = txt(r)
+    expect(page).toContain('Juin 2026')
+    expect(page).toContain('3 300,00 Fr')
+    expect(page).not.toContain('par mois sur')
+  })
+
+  it('retour à « Année » depuis un mois : les puces disparaissent', () => {
+    const r = render(<DashboardScreen />)
+    fireEvent.click(r.getByRole('button', { name: 'Mois' }))
+    expect(r.getByText('Jun')).toBeTruthy()
+    fireEvent.click(r.getByRole('button', { name: 'Année' }))
+    expect(r.queryByText('Jun')).toBeNull()
+    expect(txt(r)).toContain('Année 2026')
+  })
+})
+
 describe('Tableau de bord — vue Foyer, juin 2026', () => {
   function renderJuin(): RenderResult {
     const r = render(<DashboardScreen />)
+    // Le tableau de bord s'ouvre en vue annuelle : passer en vue mensuelle
+    // fait apparaître les puces de mois.
+    fireEvent.click(r.getByRole('button', { name: 'Mois' }))
     fireEvent.click(r.getByText('Jun'))
     return r
   }
@@ -95,6 +136,7 @@ describe('Tableau de bord — vue Foyer, juin 2026', () => {
 describe('Tableau de bord — filtre par personne, juin 2026', () => {
   function renderFiltre(person: string): RenderResult {
     const r = render(<DashboardScreen />)
+    fireEvent.click(r.getByRole('button', { name: 'Mois' }))
     fireEvent.click(r.getByText('Jun'))
     fireEvent.click(r.getByRole('button', { name: person }))
     return r

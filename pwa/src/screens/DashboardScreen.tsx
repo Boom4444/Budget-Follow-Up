@@ -4,7 +4,7 @@ import { useStore } from '../store/useStore'
 import { CATEGORY_MAP, getCategoryMeta, getActiveCategories } from '../data/categories'
 import { CURRENCIES, CURRENCY_MAP } from '../data/currencies'
 import { formatAmount, formatPercent } from '../utils/formatters'
-import { currentYear, shortMonth, longMonth } from '../utils/dates'
+import { currentYear, currentMonth, shortMonth, longMonth } from '../utils/dates'
 import { personShareFraction } from '../utils/split'
 import { computeBudgetTracking } from '../utils/budgetTracking'
 import { findSimilarExpenses } from '../utils/merchant'
@@ -25,7 +25,10 @@ export default function DashboardScreen() {
   const base = settings.baseCurrency
 
   const [year, setYear] = useState(currentYear())
+  // null = vue annuelle (tous les mois de `year`), sinon le mois affiché.
   const [month, setMonth] = useState<number | null>(null)
+  // Mois à restaurer quand on repasse de la vue annuelle à la vue mensuelle
+  const [lastMonth, setLastMonth] = useState(currentMonth())
   const [filterPerson, setFilterPerson] = useState<'all' | 'person1' | 'person2' | 'shared'>('all')
   const [viewCurrency, setViewCurrency] = useState<'all' | CurrencyCode>('all')
   const [chartRange, setChartRange] = useState<6 | 12 | 24>(12)
@@ -141,14 +144,11 @@ export default function DashboardScreen() {
     : stripFilter === 'debit' ? 'Sorties'
     : 'Total dépenses'
 
-  // Rolling window chart: last chartRange months from today
+  // Chart. Yearly view: the 12 months of the selected year (Jan → Déc).
+  // Monthly view: a rolling window of the last chartRange months from today.
   const monthlyData = useMemo(() => {
-    const result: { name: string; fixed: number; variable: number; revenus: number }[] = []
-    const now = new Date()
-    let y = now.getFullYear()
-    let m = now.getMonth() + 1
-
-    for (let i = 0; i < chartRange; i++) {
+    const a = (e: Expense) => (viewCurrency === 'all' ? e.amountInBase : e.amount) * shareWeight(e)
+    const bucket = (y: number, m: number, name: string) => {
       const mes = expenses.filter(e => {
         const ey = parseInt(e.date.slice(0, 4))
         const em = parseInt(e.date.slice(5, 7))
@@ -158,17 +158,35 @@ export default function DashboardScreen() {
       })
       const debitMes  = mes.filter(e => e.type === 'debit')
       const creditMes = mes.filter(e => e.type === 'credit' && e.category === 'revenus')
-      const a = (e: Expense) => (viewCurrency === 'all' ? e.amountInBase : e.amount) * shareWeight(e)
-      result.unshift({
-        name: chartRange > 12 ? `${shortMonth(m)}'${String(y).slice(2)}` : shortMonth(m),
+      return {
+        name,
         fixed:    Math.round(debitMes.filter(e => e.isFixed).reduce((s, e) => s + a(e), 0)),
         variable: Math.round(debitMes.filter(e => !e.isFixed).reduce((s, e) => s + a(e), 0)),
         revenus:  Math.round(creditMes.reduce((s, e) => s + a(e), 0)),
-      })
+      }
+    }
+
+    if (month === null) {
+      return Array.from({ length: 12 }, (_, i) => bucket(year, i + 1, shortMonth(i + 1)))
+    }
+
+    const result: ReturnType<typeof bucket>[] = []
+    const now = new Date()
+    let y = now.getFullYear()
+    let m = now.getMonth() + 1
+    for (let i = 0; i < chartRange; i++) {
+      result.unshift(bucket(y, m, chartRange > 12 ? `${shortMonth(m)}'${String(y).slice(2)}` : shortMonth(m)))
       if (m === 1) { y--; m = 12 } else { m-- }
     }
     return result
-  }, [expenses, chartRange, filterPerson, viewCurrency, budgets, settings])  // eslint-disable-line react-hooks/exhaustive-deps
+  }, [expenses, chartRange, filterPerson, viewCurrency, budgets, settings, month, year])  // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Yearly view: months that actually carry data, to average over real months
+  // instead of a fixed 12 (a year in progress would look artificially cheap).
+  const monthsWithData = useMemo(
+    () => month !== null ? 1 : new Set(filtered.map(e => e.date.slice(5, 7))).size,
+    [filtered, month]
+  )
 
   // Category data based on strip filter
   const catSourceData = stripFilter === 'credit' ? stripCredits : stripDebits
@@ -234,17 +252,40 @@ export default function DashboardScreen() {
             className={`text-2xl px-2 ${year >= NOW ? 'text-gray-200 dark:text-gray-600' : 'text-blue-600'}`}>›</button>
         </div>
 
-        {/* Month chips */}
-        <div className="flex gap-1.5 overflow-x-auto pb-3 no-scrollbar">
-          {[null, 1,2,3,4,5,6,7,8,9,10,11,12].map(m => (
-            <button key={m ?? 'all'} onClick={() => setMonth(m)}
-              className={`px-3 py-1 rounded-full text-[13px] font-medium whitespace-nowrap flex-shrink-0 transition-colors
-                ${month === m
-                  ? 'bg-blue-600 text-white'
-                  : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300'}`}>
-              {m === null ? 'Année' : shortMonth(m)}
-            </button>
-          ))}
+        {/* Période : mensuelle ou annuelle */}
+        <div className="flex items-center gap-2 pb-3">
+          <div className="flex rounded-xl bg-gray-100 dark:bg-gray-700 p-0.5 flex-shrink-0">
+            {([
+              { mode: 'month', label: 'Mois' },
+              { mode: 'year',  label: 'Année' },
+            ] as const).map(opt => {
+              const active = (opt.mode === 'year') === (month === null)
+              return (
+                <button key={opt.mode}
+                  onClick={() => setMonth(opt.mode === 'year' ? null : lastMonth)}
+                  className={`px-3 py-1 rounded-lg text-[13px] font-semibold transition-colors
+                    ${active
+                      ? 'bg-white dark:bg-gray-800 text-blue-600 shadow-sm'
+                      : 'text-gray-500 dark:text-gray-400'}`}>
+                  {opt.label}
+                </button>
+              )
+            })}
+          </div>
+
+          {month !== null && (
+            <div className="flex gap-1.5 overflow-x-auto no-scrollbar">
+              {[1,2,3,4,5,6,7,8,9,10,11,12].map(m => (
+                <button key={m} onClick={() => { setMonth(m); setLastMonth(m) }}
+                  className={`px-3 py-1 rounded-full text-[13px] font-medium whitespace-nowrap flex-shrink-0 transition-colors
+                    ${month === m
+                      ? 'bg-blue-600 text-white'
+                      : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300'}`}>
+                  {shortMonth(m)}
+                </button>
+              ))}
+            </div>
+          )}
         </div>
       </div>
 
@@ -374,7 +415,7 @@ export default function DashboardScreen() {
         {/* Solde card — simplified */}
         <div className="mx-4 mt-3 card p-4">
           <p className="text-sm text-gray-400 dark:text-gray-500 mb-1">
-            {month !== null ? `${longMonth(month)} ${year}` : `Solde ${year}`}
+            {month !== null ? `${longMonth(month)} ${year}` : `Année ${year}`}
             {viewCurrency !== 'all' && (
               <span className="ml-2 text-violet-500 font-medium">· {viewCurrency} seulement</span>
             )}
@@ -392,6 +433,12 @@ export default function DashboardScreen() {
               <span className="text-[12px] text-gray-500 dark:text-gray-400">{formatAmount(totalRevenus, displayCurr)} revenus</span>
             </div>
           </div>
+          {month === null && monthsWithData > 0 && (
+            <p className="text-[12px] text-gray-400 dark:text-gray-500 mt-2">
+              Soit {formatAmount(totalDepenses / monthsWithData, displayCurr)} de dépenses par mois
+              {' '}sur {monthsWithData} mois avec des données
+            </p>
+          )}
         </div>
 
         {/* Summary cards */}
@@ -552,17 +599,21 @@ export default function DashboardScreen() {
           <div className="card mx-4 mt-4 p-4">
             <div className="flex items-center justify-between mb-3">
               <p className="text-[15px] font-semibold dark:text-white">Évolution mensuelle</p>
-              <div className="flex gap-1">
-                {([6, 12, 24] as const).map(r => (
-                  <button key={r} onClick={() => setChartRange(r)}
-                    className={`px-2.5 py-1 rounded-lg text-[11px] font-semibold transition-colors
-                      ${chartRange === r
-                        ? 'bg-blue-600 text-white'
-                        : 'bg-gray-100 dark:bg-gray-800 text-gray-500 dark:text-gray-400'}`}>
-                    {r}M
-                  </button>
-                ))}
-              </div>
+              {month === null ? (
+                <span className="text-[12px] text-gray-400 dark:text-gray-500">12 mois de {year}</span>
+              ) : (
+                <div className="flex gap-1">
+                  {([6, 12, 24] as const).map(r => (
+                    <button key={r} onClick={() => setChartRange(r)}
+                      className={`px-2.5 py-1 rounded-lg text-[11px] font-semibold transition-colors
+                        ${chartRange === r
+                          ? 'bg-blue-600 text-white'
+                          : 'bg-gray-100 dark:bg-gray-800 text-gray-500 dark:text-gray-400'}`}>
+                      {r}M
+                    </button>
+                  ))}
+                </div>
+              )}
             </div>
             <ResponsiveContainer width="100%" height={170}>
               <BarChart data={monthlyData} margin={{ top: 0, right: 0, bottom: 0, left: -20 }} barSize={5} barGap={1} barCategoryGap={4}>
